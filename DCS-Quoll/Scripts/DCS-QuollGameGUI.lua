@@ -14,6 +14,10 @@ Quoll.onGameEvent = function(eventName,arg1,arg2,arg3,arg4)
     Quoll.log("on game event: "..eventName..", "..arg1..", "..arg2..", "..arg3..", "..arg4)
 end
 
+Quoll.onChatMessage = function(message, from)
+    Quoll.log("Message: "..from.." - "..message)
+end
+
 DCS.setUserCallbacks(Quoll)
 
 net.log("Loaded - DCS-Quoll GameGUI")

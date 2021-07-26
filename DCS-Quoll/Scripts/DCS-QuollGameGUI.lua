@@ -10,6 +10,11 @@ function Quoll.log(str)
     end
 end
 
+package.path  = package.path..";.\\LuaSocket\\?.lua;"
+package.cpath = package.cpath..";.\\LuaSocket\\?.dll;"
+
+local socket = require("socket")
+
 Quoll.onNetConnect = function(localPlayerID)
     local name = net.get_player_info(localPlayerID, "name" )
     Quoll.log("onNetConnect "..name)
@@ -17,19 +22,17 @@ end
 
 Quoll.onGameEvent = function(eventName,arg1,arg2,arg3,arg4,arg5,arg6,arg7)
     Quoll.log("on game event: "..eventName..", "..arg1..", "..arg2..", "..arg3..", "..arg4..", "..arg5..", "..arg6..", "..arg7)
-    
     if eventName == "kill" then
-        local killerPlayerID = arg1
-        local killerName = net.get_player_info(killerPlayerID, "name" )
-        local killerUnitType = arg2
-        local killerSide = arg3
-        local victimPlayerID = arg4
-        local victimUnitType = arg5
-        local victimSide = arg6
-        local weaponName = arg7
-        Quoll.log(killerName.."("..killerUnitType..") destroyed "..victimUnitType.." with "..weaponName)
+        Quoll.onKill(arg1, arg2, arg3, arg4, arg5, arg6, arg7)
     end
 end
+
+Quoll.onKill = function(killerPlayerID, killerUnitType, killerSide, victimPlayerID, victimUnitType, victimSide, weaponName)
+    local killerName = net.get_player_info(killerPlayerID, "name" )
+    local victimName = net.get_player_info(victimPlayerID, "name" )
+    Quoll.log(killerName.."("..killerUnitType..") destroyed "..victimName.." ("..victimUnitType..") with "..weaponName)
+end
+
 
 Quoll.onChatMessage = function(message, from)
     local name = net.get_player_info(from, "name" )

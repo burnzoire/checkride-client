@@ -25,25 +25,37 @@ Quoll.UDPSendSocket = socket.udp()
 Quoll.UDPSendSocket:settimeout(0)
 
 Quoll.sendEvent = function(message)
+    Quoll.log("send event")
     socket.try(Quoll.UDPSendSocket:sendto(Quoll.JSON:encode(message).." \n", Quoll.UPDHost, Quoll.UDPPort))
 end
 
 Quoll.onNetConnect = function(localPlayerID)
     local name = net.get_player_info(localPlayerID, "name" )
-    Quoll.log("onNetConnect "..name)
+    Quoll.log("Hello "..name)
 end
 
 Quoll.onGameEvent = function(eventName,arg1,arg2,arg3,arg4,arg5,arg6,arg7)
     local now = DCS.getRealTime()
-    Quoll.log("on game event: "..eventName..", "..arg1..", "..arg2..", "..arg3..", "..arg4..", "..arg5..", "..arg6..", "..arg7)
-    if eventName == "kill" then
-        Quoll.onKill(now, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
-    end
+    Quoll.log("onGameEvent: "..eventName..", "..arg1..", "..arg2..", "..arg3..", "..arg4..", "..arg5..", "..arg6..", "..arg7)
+    -- if eventName == "kill" then
+    --     Quoll.log("eventName is kill")
+    Quoll.onKill(now, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+    -- end
 end
 
 Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victimPlayerID, victimUnitType, victimSide, weaponName)
+    Quoll.log("on kill")
     local killerName = net.get_player_info(killerPlayerID, "name" )
+    if killerName == nil then
+        killerName = ""
+    end
+    Quoll.log("killer: "..killerName)
+    -- something is failing around here
     local victimName = net.get_player_info(victimPlayerID, "name" )
+    if victimName == nil then
+        victimName = ""
+    end
+    Quoll.log("victim: "..victimName)
     Quoll.log(killerName.."("..killerUnitType..") destroyed "..victimName.." ("..victimUnitType..") with "..weaponName)
     local event = {}
     event.time = time

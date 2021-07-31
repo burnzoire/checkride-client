@@ -13,7 +13,20 @@ end
 package.path  = package.path..";.\\LuaSocket\\?.lua;"
 package.cpath = package.cpath..";.\\LuaSocket\\?.dll;"
 
+
+local JSON = loadfile("Scripts\\JSON.lua")()
+Quoll.JSON = JSON
+
 local socket = require("socket")
+
+Quoll.UPDHost = "127.0.0.1"
+Quoll.UDPPort = 41234
+Quoll.UDPSendSocket = socket.udp()
+Quoll.UDPSendSocket:settimeout(0)
+
+Quoll.sendEvent = function(message)
+    socket.try(Quoll.UDPSendSocket:sendto(Quoll.JSON:encode(message).." \n", Quoll.UPDHost, Quoll.UDPPort))
+end
 
 Quoll.onNetConnect = function(localPlayerID)
     local name = net.get_player_info(localPlayerID, "name" )
@@ -21,16 +34,28 @@ Quoll.onNetConnect = function(localPlayerID)
 end
 
 Quoll.onGameEvent = function(eventName,arg1,arg2,arg3,arg4,arg5,arg6,arg7)
+    local now = DCS.getRealTime()
     Quoll.log("on game event: "..eventName..", "..arg1..", "..arg2..", "..arg3..", "..arg4..", "..arg5..", "..arg6..", "..arg7)
     if eventName == "kill" then
-        Quoll.onKill(arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+        Quoll.onKill(now, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
     end
 end
 
-Quoll.onKill = function(killerPlayerID, killerUnitType, killerSide, victimPlayerID, victimUnitType, victimSide, weaponName)
+Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victimPlayerID, victimUnitType, victimSide, weaponName)
     local killerName = net.get_player_info(killerPlayerID, "name" )
     local victimName = net.get_player_info(victimPlayerID, "name" )
     Quoll.log(killerName.."("..killerUnitType..") destroyed "..victimName.." ("..victimUnitType..") with "..weaponName)
+    local event = {}
+    event.time = time
+    event.type = "kill"
+    event.killerName = killerName
+    event.killerUnitType = killerUnitType
+    event.killerSide = killerSide
+    event.victimName = victimName
+    event.victimUnitType = victimUnitType
+    event.victimSide = victimSide
+    event.weaponName = weaponName
+    Quoll.sendEvent(event)
 end
 
 

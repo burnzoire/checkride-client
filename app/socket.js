@@ -59,25 +59,31 @@ server.on('error', (err) => {
 server.on('message', (msg, rinfo) => {
   console.log(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
   let event = JSON.parse(msg)
+  let payload = "{}"
+  let path = ""
   if(event.type == "kill") {
-    console.log(`killer: ${event.killerName}, killer unit: ${event.killerUnitType}, victim: ${event.victimName}, victim unit: ${event.victimUnitType}, weapon: ${event.weaponName}`)
-  }
+    console.log(`killer ucid: ${event.killerUcid} killer name: ${event.killerName}, killer unit: ${event.killerUnitType}, victim ucid: ${event.victimUcid}  victim name: ${event.victimName}, victim unit: ${event.victimUnitType}, weapon: ${event.weaponName}`)
 
-  const payload = new TextEncoder().encode(
-    JSON.stringify({
-      kill_event: {
-        killer_name: event.killerName,
-        killer_unit_name: event.killerUnitType,
-        victim_name: event.victimName,
-        victim_unit_name: event.victimUnitType,
-        weapon_name: event.weaponName
-      }
-    })
-  )
+    path = '/kill_events'
+    
+    payload = new TextEncoder().encode(
+      JSON.stringify({
+        kill_event: {
+          killer_ucid: event.killerUcid,
+          killer_name: event.killerName,
+          killer_unit_name: event.killerUnitType,
+          victim_ucid: event.victimUcid,
+          victim_name: event.victimName,
+          victim_unit_name: event.victimUnitType,
+          weapon_name: event.weaponName
+        }
+      })
+    )
+  }
 
   var options = {
     host: 'localhost',
-    path: '/kill_events',
+    path: path,
     port: '3000',
     method: 'POST',
     headers: {

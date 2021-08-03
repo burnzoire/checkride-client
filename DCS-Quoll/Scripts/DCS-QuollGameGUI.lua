@@ -44,26 +44,32 @@ Quoll.onGameEvent = function(eventName,arg1,arg2,arg3,arg4,arg5,arg6,arg7)
 end
 
 Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victimPlayerID, victimUnitType, victimSide, weaponName)
-    Quoll.log("on kill")
     local killerName = net.get_player_info(killerPlayerID, "name" )
+    local killerUcid = net.get_player_info(killerPlayerID, "ucid" )
     if killerName == nil then
         killerName = ""
     end
-    Quoll.log("killer: "..killerName)
-    -- something is failing around here
+    if killerUcid == nil then
+        Quoll.log("non-player kill discarded")
+        return
+    end
     local victimName = net.get_player_info(victimPlayerID, "name" )
+    local victimUcid = net.get_player_info(victimPlayerID, "ucid" )
+
     if victimName == nil then
         victimName = ""
     end
-    Quoll.log("victim: "..victimName)
+    
     Quoll.log(killerName.."("..killerUnitType..") destroyed "..victimName.." ("..victimUnitType..") with "..weaponName)
     local event = {}
     event.time = time
     event.type = "kill"
+    event.killerUcid = killerUcid
     event.killerName = killerName
     event.killerUnitType = killerUnitType
     event.killerSide = killerSide
     event.victimName = victimName
+    event.victimUcid = victimUcid
     event.victimUnitType = victimUnitType
     event.victimSide = victimSide
     event.weaponName = weaponName

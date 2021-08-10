@@ -23,7 +23,7 @@ app.whenReady().then(() => {
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
-  tray = new Tray('./assets/icon.png')
+  tray = new Tray(path.join(__dirname, './assets/icon.png'))
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'About Quoll',

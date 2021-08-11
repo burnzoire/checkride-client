@@ -35,9 +35,11 @@ Quoll.onPlayerConnect = function(id)
         name = net.get_player_info(id, 'name'),
         ucid = net.get_player_info(id, 'ucid'),
     }
+    Quoll.log(Quoll.clients[id].name.." connected, ucid: ".. Quoll.clients[id].ucid)
 end
 
 Quoll.onPlayerDisconnect = function(id)
+    Quoll.log(Quoll.clients[id].name.." disconnected, ucid: ".. Quoll.clients[id].ucid)
     Quoll.clients[id] = nil
 end
 

@@ -16,6 +16,29 @@ function createWindow () {
   win.loadFile('index.html')
 }
 
+function ping() {
+  var options = {
+    host: 'localhost',
+    path: '/ping',
+    port: '3000',
+    method: 'GET',
+  }
+
+  const req = https.request(options, res => {
+    console.log(`statusCode: ${res.statusCode}`)
+  
+    res.on('data', d => {
+      process.stdout.write(d)
+    })
+  })
+  
+  req.on('error', error => {
+    console.error(error)
+  })
+  
+  req.end()
+}
+
 let tray = null
 app.whenReady().then(() => {
   if (app.dock) { app.dock.hide() }
@@ -28,6 +51,10 @@ app.whenReady().then(() => {
     {
       label: 'About Quoll',
       role: 'about',
+    },
+    {
+      label: 'Ping server',
+      click() { ping() }
     },
     { type: 'separator' },
     {
@@ -42,6 +69,8 @@ app.whenReady().then(() => {
   globalShortcut.register('CommandOrControl+Q', () => {
     app.quit()
   })
+
+  ping()
 
 })
 
@@ -116,4 +145,4 @@ server.on('listening', () => {
 })
 
 server.bind(41234)
-// Prints: server listening 0.0.0.0:41234
+// Prints: server listening 0.0.0.0:  

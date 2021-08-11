@@ -24,11 +24,11 @@ function ping() {
     method: 'GET',
   }
 
-  const req = https.request(options, res => {
+  const req = http.request(options, res => {
     console.log(`statusCode: ${res.statusCode}`)
   
     res.on('data', d => {
-      process.stdout.write(d)
+      process.stdout.write(`${d}\n`)
     })
   })
   

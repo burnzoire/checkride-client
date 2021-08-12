@@ -19,6 +19,10 @@ if(!store.has("server_port")) {
 if(!store.has("use_ssl")) {
   store.set("use_ssl", false)
 }
+
+if(!store.has("discord_webhook_path")) {
+  store.set("discord_webhook_path", "")
+}
 const use_ssl = store.get("use_ssl")
 
 const http_module = use_ssl?https:http
@@ -57,6 +61,41 @@ function ping() {
     console.error(`couldn't ping the server at ${use_ssl?"https":"http"}://${options.host}${options.path} on port ${options.port}.`)
   })
   
+  req.end()
+}
+
+function sendToDiscord(message)  {
+  let payload = "{}"
+  var options = {
+    host: "discord.com",
+    path: store.get("discord_webhook_path"),
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  }
+
+  payload =  new TextEncoder().encode(
+      JSON.stringify({
+      content: message
+    })
+  )
+  
+  let req = https.request(options, (response) => {
+    let str = ''
+    response.on('data', (chunk) => {
+      str += chunk
+    })
+  
+    response.on('end', () => {
+      console.log(str)
+    })
+
+    response.on('error', error => {
+      console.error(error)
+    })
+  })
+  req.write(payload)
   req.end()
 }
 
@@ -102,7 +141,7 @@ const server = dgram.createSocket('udp4');
 server.on('error', (err) => {
   console.log(`server error:\n${err.stack}`)
   server.close()
-});
+})
 
 server.on('message', (msg, rinfo) => {
   console.log(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
@@ -127,6 +166,9 @@ server.on('message', (msg, rinfo) => {
         }
       })
     )
+
+    sendToDiscord(`${event.killerName} destroyed ${(event.victimName=="")?"AI":event.victimName} ${event.victimUnitType} with ${event.weaponName}`)
+    
   }
 
   var options = {

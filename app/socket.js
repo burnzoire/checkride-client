@@ -1,8 +1,24 @@
 import dgram from 'dgram'
 import http from 'http'
+import https from 'https'
 
 import path from 'path'
 import { app, Menu, Tray, BrowserWindow, globalShortcut } from 'electron'
+
+import Store from 'electron-store'
+const store = new Store();
+
+if(!store.has("server_host")) {
+  store.set("server_host", "localhost")
+}
+
+if(!store.has("server_port")) {
+  store.set("server_port", "80")
+}
+
+if(!store.has("use_ssl")) {
+  store.set("use_ssl", false)
+}
 
 function createWindow () {
   const win = new BrowserWindow({
@@ -18,22 +34,34 @@ function createWindow () {
 
 function ping() {
   var options = {
-    host: 'localhost',
+    host: store.get("server_host"),
     path: '/ping',
-    port: '3000',
+    port: store.get("server_port"),
     method: 'GET',
   }
-
-  const req = http.request(options, res => {
-    console.log(`statusCode: ${res.statusCode}`)
-  
-    res.on('data', d => {
-      process.stdout.write(`${d}\n`)
+  let req
+  const use_ssl = store.get("use_ssl")
+  if(use_ssl) {
+    req = https.request(options, res => {
+      console.log(`statusCode: ${res.statusCode}`)
+    
+      res.on('data', d => {
+        process.stdout.write(`${d}\n`)
+      })
     })
-  })
-  
+  }
+  else {
+    req = http.request(options, res => {
+      console.log(`statusCode: ${res.statusCode}`)
+    
+      res.on('data', d => {
+        process.stdout.write(`${d}\n`)
+      })
+    })
+  }
+
   req.on('error', error => {
-    console.error(error)
+    console.error(`couldn't ping the server at ${use_ssl?"https":"http"}://${options.host}${options.path} on port ${options.port}.`)
   })
   
   req.end()
@@ -69,8 +97,6 @@ app.whenReady().then(() => {
   globalShortcut.register('CommandOrControl+Q', () => {
     app.quit()
   })
-
-  ping()
 
 })
 
@@ -111,9 +137,9 @@ server.on('message', (msg, rinfo) => {
   }
 
   var options = {
-    host: 'localhost',
+    host: store.get("server_host"),
     path: path,
-    port: '3000',
+    port: store.get("server_port"),
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

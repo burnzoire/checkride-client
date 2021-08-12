@@ -19,6 +19,9 @@ if(!store.has("server_port")) {
 if(!store.has("use_ssl")) {
   store.set("use_ssl", false)
 }
+const use_ssl = store.get("use_ssl")
+
+const http_module = use_ssl?https:http
 
 function createWindow () {
   const win = new BrowserWindow({
@@ -40,25 +43,15 @@ function ping() {
     method: 'GET',
   }
   let req
-  const use_ssl = store.get("use_ssl")
-  if(use_ssl) {
-    req = https.request(options, res => {
-      console.log(`statusCode: ${res.statusCode}`)
-    
-      res.on('data', d => {
-        process.stdout.write(`${d}\n`)
-      })
+  
+  req = http_module.request(options, res => {
+    console.log(`statusCode: ${res.statusCode}`)
+  
+    res.on('data', d => {
+      process.stdout.write(`${d}\n`)
     })
-  }
-  else {
-    req = http.request(options, res => {
-      console.log(`statusCode: ${res.statusCode}`)
-    
-      res.on('data', d => {
-        process.stdout.write(`${d}\n`)
-      })
-    })
-  }
+  })
+
 
   req.on('error', error => {
     console.error(`couldn't ping the server at ${use_ssl?"https":"http"}://${options.host}${options.path} on port ${options.port}.`)
@@ -147,7 +140,7 @@ server.on('message', (msg, rinfo) => {
     }
   }
   
-  let req = http.request(options, (response) => {
+  let req = http_module.request(options, (response) => {
     let str = ''
     response.on('data', (chunk) => {
       str += chunk

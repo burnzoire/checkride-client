@@ -6,6 +6,9 @@ import path from 'path'
 import { app, Menu, Tray, BrowserWindow, globalShortcut } from 'electron'
 
 import Store from 'electron-store'
+
+import log from 'electron-log'
+
 const store = new Store();
 
 if(!store.has("server_host")) {
@@ -47,10 +50,10 @@ function ping() {
     method: 'GET',
   }
   let req
-  
+
   req = http_module.request(options, res => {
-    console.log(`statusCode: ${res.statusCode}`)
-  
+    log.info(`statusCode: ${res.statusCode}`)
+
     res.on('data', d => {
       process.stdout.write(`${d}\n`)
     })
@@ -58,9 +61,9 @@ function ping() {
 
 
   req.on('error', error => {
-    console.error(`couldn't ping the server at ${use_ssl?"https":"http"}://${options.host}${options.path} on port ${options.port}.`)
+    log.error(`couldn't ping the server at ${use_ssl?"https":"http"}://${options.host}${options.path} on port ${options.port}.`)
   })
-  
+
   req.end()
 }
 
@@ -80,19 +83,19 @@ function sendToDiscord(message)  {
       content: message
     })
   )
-  
+
   let req = https.request(options, (response) => {
     let str = ''
     response.on('data', (chunk) => {
       str += chunk
     })
-  
+
     response.on('end', () => {
-      console.log(str)
+      log.info(str)
     })
 
     response.on('error', error => {
-      console.error(error)
+      log.error(error)
     })
   })
   req.write(payload)
@@ -139,20 +142,20 @@ app.on('window-all-closed', function () {
 const server = dgram.createSocket('udp4');
 
 server.on('error', (err) => {
-  console.log(`server error:\n${err.stack}`)
+  log.info(`server error:\n${err.stack}`)
   server.close()
 })
 
 server.on('message', (msg, rinfo) => {
-  console.log(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
+  log.info(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
   let event = JSON.parse(msg)
   let payload = "{}"
   let path = ""
   if(event.type == "kill") {
-    console.log(`killer ucid: ${event.killerUcid} killer name: ${event.killerName}, killer unit: ${event.killerUnitType}, victim ucid: ${event.victimUcid}  victim name: ${event.victimName}, victim unit: ${event.victimUnitType}, weapon: ${event.weaponName}`)
+    log.info(`killer ucid: ${event.killerUcid} killer name: ${event.killerName}, killer unit: ${event.killerUnitType}, victim ucid: ${event.victimUcid}  victim name: ${event.victimName}, victim unit: ${event.victimUnitType}, weapon: ${event.weaponName}`)
 
     path = '/kill_events'
-    
+
     payload = new TextEncoder().encode(
       JSON.stringify({
         kill_event: {
@@ -168,7 +171,7 @@ server.on('message', (msg, rinfo) => {
     )
 
     sendToDiscord(`${event.killerName} destroyed ${(event.victimName=="")?"AI":event.victimName} ${event.victimUnitType} with ${event.weaponName}`)
-    
+
   }
 
   var options = {
@@ -181,19 +184,19 @@ server.on('message', (msg, rinfo) => {
       'Content-Length': payload.length
     }
   }
-  
+
   let req = http_module.request(options, (response) => {
     let str = ''
     response.on('data', (chunk) => {
       str += chunk
     })
-  
+
     response.on('end', () => {
-      console.log(str)
+      log.info(str)
     })
 
     response.on('error', error => {
-      console.error(error)
+      log.error(error)
     })
   })
   req.write(payload)
@@ -202,8 +205,8 @@ server.on('message', (msg, rinfo) => {
 
 server.on('listening', () => {
   const address = server.address()
-  console.log(`server listening ${address.address}:${address.port}`)
+  log.info(`server listening ${address.address}:${address.port}`)
 })
 
 server.bind(41234)
-// Prints: server listening 0.0.0.0:  
+// Prints: server listening 0.0.0.0:

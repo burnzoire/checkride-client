@@ -170,12 +170,12 @@ server.on('message', (msg, rinfo) => {
       })
     )
 
-    sendEvent(payload)
+    sendEvent(payload, path)
     sendToDiscord(`${event.killerName} destroyed ${(event.victimName=="")?"AI":event.victimName} ${event.victimUnitType} with ${event.weaponName}`)
   }
 })
 
-function sendEvent(payload) {
+function sendEvent(payload, path) {
   var options = {
     host: store.get("server_host"),
     path: path,

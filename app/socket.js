@@ -89,7 +89,7 @@ function sendToDiscord(message)  {
     }
     if(options.path === "") { return }
     payload =  new TextEncoder().encode(
-        JSON.stringify({
+      JSON.stringify({
         content: message
       })
     )
@@ -101,13 +101,8 @@ function sendToDiscord(message)  {
       })
 
       response.on('end', () => {
-        try {
-          body = JSON.parse(Buffer.concat(body).toString());
-        } catch(e) {
-            reject(e);
-        }
-        log.info(body.message)
-        resolve(body);
+        // webhook response empty
+        resolve();
       })
 
       response.on('error', error => {
@@ -207,26 +202,27 @@ server.on('message', (msg, rinfo) => {
       .then((body) => {
         log.debug(body)
         let killMessage = `${body.killer} (${body.killer_unit}) destroyed ${(body.victim=="")?"AI":body.victim} (${body.victim_unit}) with ${body.weapon}`
+        let awards = body.awards
         log.debug("kill event saved:", killMessage)
         sendToDiscord(killMessage)
-          .then((body) => {
-            log.info("sent kill event to discord successful: "+body.message)
+          .then(() => {
+            log.info("sent kill event to discord successful")
+            awards.forEach((award) => {
+              let awardMessage = `${award.pilot} has been awarded the "${award.badge.title}" badge!`
+              log.info(awardMessage)
+              sendToDiscord(awardMessage)
+                .then(() => {
+                  log.info("sent award to discord successful")
+                })
+                .catch((err) => {
+                  log.error("Couldn't send award to discord: "+err)
+                })
+            })
           })
           .catch((err) => {
             log.error("Couldn't send to discord: "+err)
           })
-        let awards = body.awards
-        awards.forEach((award) => {
-          let awardMessage = `${award.pilot} has been awarded the "${award.badge.title}" badge!`
-          log.info(awardMessage)
-          sendToDiscord(awardMessage)
-            .then((body) => {
-              log.info("sent award to discord successful: "+body.message)
-            })
-            .catch((err) => {
-              log.error("Couldn't send award to discord: "+err)
-            })
-        })
+          
       })
       .catch((err) => {
         log.error("Failed to save event: " + err)

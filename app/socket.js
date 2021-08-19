@@ -1,4 +1,4 @@
-import dgram from 'dgram'
+import dgram, { Socket } from 'dgram'
 import http from 'http'
 import https from 'https'
 
@@ -7,7 +7,7 @@ import { app, Menu, Tray, BrowserWindow, globalShortcut } from 'electron'
 
 import Store from 'electron-store'
 
-import log from 'electron-log'
+import log, { info } from 'electron-log'
 
 const store = new Store();
 
@@ -43,63 +43,75 @@ function createWindow () {
 }
 
 function ping() {
-  var options = {
-    host: store.get("server_host"),
-    path: '/ping',
-    port: store.get("server_port"),
-    method: 'GET',
-  }
-  let req
+  return new Promise(function(resolve, reject) {
+    var options = {
+      host: store.get("server_host"),
+      path: '/ping',
+      port: store.get("server_port"),
+      method: 'GET',
+    }
+    log.info(`pinging ${use_ssl?"https":"http"}://${options.host} on port ${options.port}`)
+    let req = http_module.request(options, (response) => {
+      let body = [];
+      response.on('data', (chunk) => {
+        body.push(chunk)
+      })
 
-  req = http_module.request(options, res => {
-    log.info(`statusCode: ${res.statusCode}`)
+      response.on('end', () => {
+        try {
+          body = JSON.parse(Buffer.concat(body).toString());
+        } catch(e) {
+            reject(e);
+        }
+        log.info(body.message)
+        resolve(body);
+      })
 
-    res.on('data', d => {
-      process.stdout.write(`${d}\n`)
+      response.on('error', error => {
+        log.error(`couldn't ping the server at ${use_ssl?"https":"http"}://${options.host}${options.path} on port ${options.port}.`)
+        reject(err);
+      })
     })
+    req.end()
   })
-
-
-  req.on('error', error => {
-    log.error(`couldn't ping the server at ${use_ssl?"https":"http"}://${options.host}${options.path} on port ${options.port}.`)
-  })
-
-  req.end()
 }
 
 function sendToDiscord(message)  {
-  let payload = "{}"
-  var options = {
-    host: "discord.com",
-    path: store.get("discord_webhook_path"),
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
+  return new Promise(function(resolve, reject) {
+    let payload = "{}"
+    var options = {
+      host: "discord.com",
+      path: store.get("discord_webhook_path"),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     }
-  }
-
-  payload =  new TextEncoder().encode(
+    if(options.path === "") { return }
+    payload =  new TextEncoder().encode(
       JSON.stringify({
-      content: message
-    })
-  )
+        content: message
+      })
+    )
 
-  let req = https.request(options, (response) => {
-    let str = ''
-    response.on('data', (chunk) => {
-      str += chunk
-    })
+    let req = https.request(options, (response) => {
+      let body = [];
+      response.on('data', (chunk) => {
+        body.push(chunk)
+      })
 
-    response.on('end', () => {
-      log.info(str)
-    })
+      response.on('end', () => {
+        // webhook response empty
+        resolve();
+      })
 
-    response.on('error', error => {
-      log.error(error)
+      response.on('error', error => {
+        reject(err);
+      })
     })
+    req.write(payload)
+    req.end()
   })
-  req.write(payload)
-  req.end()
 }
 
 let tray = null
@@ -118,6 +130,22 @@ app.whenReady().then(() => {
     {
       label: 'Ping server',
       click() { ping() }
+    },
+    {
+      label: 'Send test kill event',
+      click() {
+        let address = server.address()
+        server.send(JSON.stringify({
+          type: "kill",
+          killerUcid: "test1",
+          killerName: "Test Pilot",
+          killerUnitType: "F-14A",
+          victimUcid: "test2",
+          victimName: "Test Pilot 2",
+          victimUnitType: "Test Unit",
+          weaponName: "AIM-9L"
+        }), address.port, address.address)
+      }
     },
     { type: 'separator' },
     {
@@ -147,62 +175,98 @@ server.on('error', (err) => {
 })
 
 server.on('message', (msg, rinfo) => {
-  log.info(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
+  log.debug(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
   let event = JSON.parse(msg)
   let payload = "{}"
   let path = ""
   if(event.type == "kill") {
-    log.info(`killer ucid: ${event.killerUcid} killer name: ${event.killerName}, killer unit: ${event.killerUnitType}, victim ucid: ${event.victimUcid}  victim name: ${event.victimName}, victim unit: ${event.victimUnitType}, weapon: ${event.weaponName}`)
+    log.debug(`killer ucid: ${event.killerUcid} killer name: ${event.killerName}, killer unit: ${event.killerUnitType}, victim ucid: ${event.victimUcid}  victim name: ${event.victimName}, victim unit: ${event.victimUnitType}, weapon: ${event.weaponName}`)
 
     path = '/kill_events'
-
+    let kill_event = {
+      kill_event: {
+        killer_ucid: event.killerUcid,
+        killer_name: event.killerName,
+        killer_unit_name: event.killerUnitType,
+        victim_ucid: event.victimUcid,
+        victim_name: event.victimName,
+        victim_unit_name: event.victimUnitType,
+        weapon_name: event.weaponName
+      }
+    }
+    log.debug("Sending kill event to server: ", kill_event)
     payload = new TextEncoder().encode(
-      JSON.stringify({
-        kill_event: {
-          killer_ucid: event.killerUcid,
-          killer_name: event.killerName,
-          killer_unit_name: event.killerUnitType,
-          victim_ucid: event.victimUcid,
-          victim_name: event.victimName,
-          victim_unit_name: event.victimUnitType,
-          weapon_name: event.weaponName
-        }
-      })
+      JSON.stringify(kill_event)
     )
-
-    sendEvent(payload, path)
-    sendToDiscord(`${event.killerName} destroyed ${(event.victimName=="")?"AI":event.victimName} ${event.victimUnitType} with ${event.weaponName}`)
+    sendEventToServer(payload, path)
+      .then((body) => {
+        log.debug(body)
+        let killMessage = `${body.killer} (${body.killer_unit}) destroyed ${(body.victim=="")?"AI":body.victim} (${body.victim_unit}) with ${body.weapon}`
+        let awards = body.awards
+        log.debug("kill event saved:", killMessage)
+        sendToDiscord(killMessage)
+          .then(() => {
+            log.info("sent kill event to discord successful")
+            awards.forEach((award) => {
+              let awardMessage = `${award.pilot} has been awarded the "${award.badge.title}" badge!`
+              log.info(awardMessage)
+              sendToDiscord(awardMessage)
+                .then(() => {
+                  log.info("sent award to discord successful")
+                })
+                .catch((err) => {
+                  log.error("Couldn't send award to discord: "+err)
+                })
+            })
+          })
+          .catch((err) => {
+            log.error("Couldn't send to discord: "+err)
+          })
+          
+      })
+      .catch((err) => {
+        log.error("Failed to save event: " + err)
+      })
   }
 })
 
-function sendEvent(payload, path) {
-  var options = {
-    host: store.get("server_host"),
-    path: path,
-    port: store.get("server_port"),
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': payload.length
+function sendEventToServer(payload, path) {
+  return new Promise(function(resolve, reject) {
+    var options = {
+      host: store.get("server_host"),
+      path: path,
+      port: store.get("server_port"),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': payload.length
+      }
     }
-  }
 
-  let req = http_module.request(options, (response) => {
-    let str = ''
-    response.on('data', (chunk) => {
-      str += chunk
-    })
+    let req = http_module.request(options, (response) => {
+      let body = [];
+      response.on('data', (chunk) => {
+        body.push(chunk)
+      })
 
-    response.on('end', () => {
-      log.info(str)
-    })
+      response.on('end', () => {
+        try {
+          body = JSON.parse(Buffer.concat(body).toString());
+        } catch(e) {
+            reject(e);
+        }
+        resolve(body);
+      })
 
-    response.on('error', error => {
-      log.error(error)
+      response.on('error', error => {
+        reject(err);
+      })
     })
+    if(payload){
+      req.write(payload)
+    }
+    req.end()
   })
-  req.write(payload)
-  req.end()
 }
 
 server.on('listening', () => {

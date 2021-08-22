@@ -87,7 +87,7 @@ function sendToDiscord(message)  {
         'Content-Type': 'application/json'
       }
     }
-    if(options.path === "") { return }
+    if(options.path === "") { resolve() }
     payload =  new TextEncoder().encode(
       JSON.stringify({
         content: message
@@ -142,7 +142,7 @@ app.whenReady().then(() => {
           killerUnitType: "F-14A",
           victimUcid: "test2",
           victimName: "Test Pilot 2",
-          victimUnitType: "Test Unit",
+          victimUnitType: "JF-17",
           weaponName: "AIM-9L"
         }), address.port, address.address)
       }
@@ -208,7 +208,7 @@ server.on('message', (msg, rinfo) => {
           .then(() => {
             log.info("sent kill event to discord successful")
             awards.forEach((award) => {
-              let awardMessage = `${award.pilot} has been awarded the "${award.badge.title}" badge!`
+              let awardMessage = `${award.pilot} has been awarded the "${award.badge}" badge!`
               log.info(awardMessage)
               sendToDiscord(awardMessage)
                 .then(() => {
@@ -222,7 +222,6 @@ server.on('message', (msg, rinfo) => {
           .catch((err) => {
             log.error("Couldn't send to discord: "+err)
           })
-          
       })
       .catch((err) => {
         log.error("Failed to save event: " + err)

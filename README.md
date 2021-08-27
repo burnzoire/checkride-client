@@ -1,6 +1,6 @@
 # quoll-client
 
-DCS Qualifications Tracker
+DCS Qualification Tracker
 
 ## Installation
 

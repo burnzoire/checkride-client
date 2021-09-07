@@ -208,7 +208,7 @@ server.on('message', (msg, rinfo) => {
           .then(() => {
             log.info("sent kill event to discord successful")
             awards.forEach((award) => {
-              let awardMessage = `${award.pilot} has been awarded the "${award.badge}" badge!`
+              let awardMessage = `${award.pilot} has been awarded the "${award.badge.title}" badge!`
               log.info(awardMessage)
               sendToDiscord(awardMessage)
                 .then(() => {

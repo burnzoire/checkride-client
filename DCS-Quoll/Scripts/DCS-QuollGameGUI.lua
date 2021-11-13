@@ -65,7 +65,7 @@ Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victim
         return
     end
 
-    if victimUnitType == nil then
+    if victimUnitType == nil or victimUnitType == "" then
         Quoll.log("kill without victim unit discarded")
         return
     end

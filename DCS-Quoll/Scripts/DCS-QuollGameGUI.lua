@@ -1,6 +1,8 @@
-net.log("Loading - DCS-Quoll GameGUI")
 
 Quoll = {}
+Quoll.version = "2.0.1"
+net.log("Loading - DCS-Quoll v"..Quoll.version)
+
 Quoll.dbg = {}
 Quoll.logFile = io.open(lfs.writedir()..[[Logs\DCS-Quoll-GameGUI.log]], "w")
 function Quoll.log(str)
@@ -45,12 +47,13 @@ end
 
 Quoll.onNetConnect = function(localPlayerID)
     local name = net.get_player_info(localPlayerID, "name" )
-    Quoll.log("Hello "..name)
+    Quoll.log("Welcome "..name)
 end
 
 Quoll.onGameEvent = function(eventName,arg1,arg2,arg3,arg4,arg5,arg6,arg7)
     local now = DCS.getRealTime()
-    Quoll.log("onGameEvent: "..eventName..", "..arg1..", "..arg2..", "..arg3..", "..arg4..", "..arg5..", "..arg6..", "..arg7)
+    Quoll.log("onGameEvent "..eventName)
+    -- Quoll.log("onGameEvent: "..eventName..", "..arg1..", "..arg2..", "..arg3..", "..arg4..", "..arg5..", "..arg6..", "..arg7)
     if eventName == "kill" then
         Quoll.onKill(now, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
     elseif eventName == "takeoff" then
@@ -157,7 +160,7 @@ Quoll.onCrash = function(time, playerID, unit_missionID)
     local event = {}
 
     if player == nil then
-        Quoll.log("non-player landing discarded")
+        Quoll.log("non-player crash discarded")
         return
     end
     if unitType ~= nil then
@@ -165,7 +168,7 @@ Quoll.onCrash = function(time, playerID, unit_missionID)
     end
 
     event.time = time
-    event.type = "landing"
+    event.type = "crash"
     event.playerUcid = player.ucid
     event.playerName = player.name
     Quoll.sendEvent(event)
@@ -263,5 +266,5 @@ end
 DCS.setUserCallbacks(Quoll)
 
 net.log("Loaded - DCS-Quoll GameGUI")
-Quoll.log("Quoll loaded")
+Quoll.log("Quoll loaded v"..Quoll.version)
 

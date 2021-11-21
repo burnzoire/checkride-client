@@ -63,6 +63,10 @@ Quoll.onGameEvent = function(eventName,arg1,arg2,arg3,arg4,arg5,arg6,arg7)
         Quoll.onEject(now, arg1, arg2, arg3)
     elseif eventName == "pilot_death" then
         Quoll.onPilotDeath(now, arg1, arg2, arg3)
+    elseif eventName == "self_kill" then
+        Quoll.onSelfKill(now, arg1)
+    elseif eventName == "friendly_fire" then
+        Quoll.onFriendlyFire(now, arg1, arg2, arg3)
     else
         Quoll.log("unknown event type: "..eventName)
     end
@@ -147,8 +151,8 @@ Quoll.onLanding = function(time, playerID, unit_missionID, airdromeName)
     Quoll.sendEvent(event)
 end
 
-Quoll.onCrash(time, playerId, unit_missionID)
-local player = Quoll.clients[playerID]
+Quoll.onCrash = function(time, playerID, unit_missionID)
+    local player = Quoll.clients[playerID]
     local unitType = DCS.getUnitType(unit_missionID)
     local event = {}
 
@@ -167,7 +171,7 @@ local player = Quoll.clients[playerID]
     Quoll.sendEvent(event)
 end
 
-Quoll.onEject(time, playerId, unit_missionID)
+Quoll.onEject = function(time, playerID, unit_missionID)
     local player = Quoll.clients[playerID]
     local unitType = DCS.getUnitType(unit_missionID)
     local event = {}
@@ -187,7 +191,7 @@ Quoll.onEject(time, playerId, unit_missionID)
     Quoll.sendEvent(event)
 end
 
-Quoll.onPilotDeath(time, playerId, unit_missionID)
+Quoll.onPilotDeath = function(time, playerID, unit_missionID)
     local player = Quoll.clients[playerID]
     local unitType = DCS.getUnitType(unit_missionID)
     local event = {}
@@ -207,8 +211,8 @@ Quoll.onPilotDeath(time, playerId, unit_missionID)
     Quoll.sendEvent(event)
 end
 
-Quoll.onSelfKill(time, playerId)
-local player = Quoll.clients[playerID]
+Quoll.onSelfKill = function(time, playerID)
+    local player = Quoll.clients[playerID]
     local event = {}
 
     if player == nil then
@@ -220,6 +224,34 @@ local player = Quoll.clients[playerID]
     event.type = "self_kill"
     event.playerUcid = player.ucid
     event.playerName = player.name
+    Quoll.sendEvent(event)
+end
+
+Quoll.onFriendlyFire = function(time, playerID, weaponName, victimPlayerID)
+    local player = Quoll.clients[playerID]
+
+    if player == nil then
+        Quoll.log("non-player friendly-fire discarded")
+        return
+    end
+
+    local victim = Quoll.clients[victimPlayerID]
+
+    if victim == nil then
+        victim = {}
+        victim.name = "AI"
+        victim.ucid = ""
+    end
+
+    Quoll.log("Friendly fire! "..player.name.." destroyed "..victim.name.." with "..weaponName)
+    local event = {}
+    event.time = time
+    event.type = "friendly_fire"
+    event.playerUcid = player.ucid
+    event.playerName = player.name
+    event.victimName = victim.name
+    event.victimUcid = victim.ucid
+    event.weaponName = weaponName
     Quoll.sendEvent(event)
 end
 

@@ -154,6 +154,7 @@ app.whenReady().then(() => {
         server.send(JSON.stringify({
           type: "landing",
           playerUcid: "test1",
+          playerName: "Test Pilot",
           unitType: "F-14A",
           airdromeName: "Sochi"
         }), address.port, address.address)
@@ -216,6 +217,7 @@ server.on('message', (msg, rinfo) => {
         event_type: event.type,
         event: {
           player_ucid: event.playerUcid,
+          player_name: event.playerName,
           unit_type: event.unitType,
           airdrome_name: event.airdromeName
         }
@@ -229,6 +231,7 @@ server.on('message', (msg, rinfo) => {
         event_type: event.type,
         event: {
           player_ucid: event.playerUcid,
+          player_name: event.playerName,
           unit_type: event.unitType,
         }
       }
@@ -239,6 +242,7 @@ server.on('message', (msg, rinfo) => {
         event_type: event.type,
         event: {
           player_ucid: event.playerUcid,
+          player_name: event.playerName
         }
       }
       break;

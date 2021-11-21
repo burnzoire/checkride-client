@@ -147,19 +147,6 @@ app.whenReady().then(() => {
         }), address.port, address.address)
       }
     },
-    {
-      label: 'Send test landing event',
-      click() {
-        let address = server.address()
-        server.send(JSON.stringify({
-          type: "landing",
-          playerUcid: "test1",
-          playerName: "Test Pilot",
-          unitType: "F-14A",
-          airdromeName: "Sochi"
-        }), address.port, address.address)
-      }
-    },
     { type: 'separator' },
     {
       label: 'Quit Quoll',

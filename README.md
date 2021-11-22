@@ -36,4 +36,4 @@ npm start
 
 Install the electron packager with `npm install electron-packager -g`
 
-Package for windows (as it must run alongside DCS) with `electron-packager app --platform=win32 --asar`. The `--asar` switch is to protect the source code in the package.
+Package for windows (as it must run alongside DCS) with `electron-packager app --platform=win32 --asar --overwrite`. The `--asar` switch is to protect the source code in the package.

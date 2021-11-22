@@ -178,55 +178,94 @@ server.on('message', (msg, rinfo) => {
   log.debug(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
   let event = JSON.parse(msg)
   let payload = "{}"
-  let path = ""
-  if(event.type == "kill") {
-    log.debug(`killer ucid: ${event.killerUcid} killer name: ${event.killerName}, killer unit: ${event.killerUnitType}, victim ucid: ${event.victimUcid}  victim name: ${event.victimName}, victim unit: ${event.victimUnitType}, weapon: ${event.weaponName}`)
-
-    path = '/kill_events'
-    let kill_event = {
-      kill_event: {
-        killer_ucid: event.killerUcid,
-        killer_name: event.killerName,
-        killer_unit_name: event.killerUnitType,
-        victim_ucid: event.victimUcid,
-        victim_name: event.victimName,
-        victim_unit_name: event.victimUnitType,
-        weapon_name: event.weaponName
+  let gameEvent = {}
+  const path = "/events"
+  log.debug("Event type: " + event.type)
+  switch(event.type) {
+    case "kill":
+      log.debug(`killer ucid: ${event.killerUcid} killer name: ${event.killerName}, killer unit: ${event.killerUnitType}, victim ucid: ${event.victimUcid}  victim name: ${event.victimName}, victim unit: ${event.victimUnitType}, weapon: ${event.weaponName}`)
+      gameEvent = {
+        event_type: event.type,
+        event: {
+          killer_ucid: event.killerUcid,
+          killer_name: event.killerName,
+          killer_unit_name: event.killerUnitType,
+          victim_ucid: event.victimUcid,
+          victim_name: event.victimName,
+          victim_unit_name: event.victimUnitType,
+          weapon_name: event.weaponName
+        }
       }
-    }
-    log.debug("Sending kill event to server: ", kill_event)
-    payload = new TextEncoder().encode(
-      JSON.stringify(kill_event)
-    )
-    sendEventToServer(payload, path)
-      .then((body) => {
-        log.debug(body)
-        let killMessage = `${body.killer} (${body.killer_unit}) destroyed ${(body.victim=="")?"AI":body.victim} (${body.victim_unit}) with ${body.weapon}`
-        let awards = body.awards
-        log.debug("kill event saved:", killMessage)
-        sendToDiscord(killMessage)
-          .then(() => {
-            log.info("sent kill event to discord successful")
-            awards.forEach((award) => {
-              let awardMessage = `:military_medal: ${award.pilot} has been awarded the "${award.badge.title}" badge!`
-              log.info(awardMessage)
-              sendToDiscord(awardMessage)
-                .then(() => {
-                  log.info("sent award to discord successful")
-                })
-                .catch((err) => {
-                  log.error("Couldn't send award to discord: "+err)
-                })
-            })
-          })
-          .catch((err) => {
-            log.error("Couldn't send to discord: "+err)
-          })
-      })
-      .catch((err) => {
-        log.error("Failed to save event: " + err)
-      })
+      break;
+    case "takeoff":
+    case "landing":
+      log.debug(`${event.type}: player ucid: ${event.playerUcid} unitType: ${event.unitType} airdromeName: ${event.airdromeName}`)
+      gameEvent = {
+        event_type: event.type,
+        event: {
+          player_ucid: event.playerUcid,
+          player_name: event.playerName,
+          unit_type: event.unitType,
+          airdrome_name: event.airdromeName
+        }
+      }
+      break;
+    case "crash":
+    case "eject":
+    case "pilot_death":
+      log.debug(`${event.type}: player ucid: ${event.playerUcid} unitType: ${event.unitType}`)
+      gameEvent = {
+        event_type: event.type,
+        event: {
+          player_ucid: event.playerUcid,
+          player_name: event.playerName,
+          unit_type: event.unitType,
+        }
+      }
+      break;
+    case "self_kill":
+      log.debug(`${event.type}: player ucid: ${event.playerUcid}`)
+      gameEvent = {
+        event_type: event.type,
+        event: {
+          player_ucid: event.playerUcid,
+          player_name: event.playerName
+        }
+      }
+      break;
   }
+  log.debug("Sending game event to server: ", gameEvent)
+  payload = new TextEncoder().encode(
+    JSON.stringify(gameEvent)
+  )
+  sendEventToServer(payload, path)
+    .then((body) => {
+      log.debug(body)
+      let eventSummary = body.summary
+      let awards = body.awards
+      log.debug("Event saved:", eventSummary)
+      sendToDiscord(eventSummary)
+        .then(() => {
+          log.info("sent event to discord successful")
+          awards.forEach((award) => {
+            let awardMessage = `:military_medal: ${award.pilot} has been awarded the "${award.badge.title}" badge!`
+            log.info(awardMessage)
+            sendToDiscord(awardMessage)
+              .then(() => {
+                log.info("sent award to discord successful")
+              })
+              .catch((err) => {
+                log.error("Couldn't send award to discord: "+err)
+              })
+          })
+        })
+        .catch((err) => {
+          log.error("Couldn't send to discord: "+err)
+        })
+    })
+    .catch((err) => {
+      log.error("Failed to save event: " + err)
+    })
 })
 
 function sendEventToServer(payload, path) {

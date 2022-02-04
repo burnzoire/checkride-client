@@ -79,7 +79,7 @@ Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victim
     local killer = Quoll.clients[killerPlayerID]
     local victim = Quoll.clients[victimPlayerID]
 
-    if killer == nil && victim == nil then
+    if killer == nil and victim == nil then
         Quoll.log("non-player kill discarded")
         return
     end

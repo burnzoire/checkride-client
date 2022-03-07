@@ -233,6 +233,40 @@ server.on('message', (msg, rinfo) => {
         }
       }
       break;
+    case "connect":
+      log.debug(`${event.type}: ${event.playerName} connected`)
+      gameEvent = {
+        event_type: event.type,
+        event: {
+          player_ucid: event.playerUcid,
+          player_name: event.playerName
+        }
+      }
+      break;
+    case "disconnect":
+        log.debug(`${event.type}: ${event.playerName} disconnected`)
+        gameEvent = {
+          event_type: event.type,
+          event: {
+            player_ucid: event.playerUcid,
+            player_name: event.playerName
+          }
+        }
+        break;
+    case "change_slot":
+      log.debug(`${event.type}: ${event.playerName} selected slot ${event.slotId}`)
+      gameEvent = {
+        event_type: event.type,
+        event: {
+          player_ucid: event.playerUcid,
+          player_name: event.playerName,
+          slot_id: event.slotId,
+          prev_side: event.prevSide
+        }
+      }
+      break;
+
+
   }
   log.debug("Sending game event to server: ", gameEvent)
   payload = new TextEncoder().encode(

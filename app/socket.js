@@ -244,15 +244,17 @@ server.on('message', (msg, rinfo) => {
       }
       break;
     case "disconnect":
-        log.debug(`${event.type}: ${event.playerName} disconnected`)
-        gameEvent = {
-          event_type: event.type,
-          event: {
-            player_ucid: event.playerUcid,
-            player_name: event.playerName
-          }
+      log.debug(`${event.type}: ${event.playerName} disconnected`)
+      gameEvent = {
+        event_type: event.type,
+        event: {
+          player_ucid: event.playerUcid,
+          player_name: event.playerName,
+          side: event.side,
+          reason_code: event.reasonCode
         }
-        break;
+      }
+      break;
     case "change_slot":
       log.debug(`${event.type}: ${event.playerName} selected slot ${event.slotId}`)
       gameEvent = {

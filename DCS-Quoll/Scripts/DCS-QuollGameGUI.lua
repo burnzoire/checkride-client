@@ -32,11 +32,11 @@ Quoll.sendEvent = function(message)
     socket.try(Quoll.UDPSendSocket:sendto(Quoll.JSON:encode(message).." \n", Quoll.UPDHost, Quoll.UDPPort))
 end
 
-Quoll.removePlayer(id)
+Quoll.removePlayer = function(id)
     Quoll.clients[id] = nil
 end
 
-Quoll.findOrCreatePlayer(id)
+Quoll.findOrCreatePlayer = function(id)
     local player = {
         id=id,
         name="",
@@ -44,7 +44,7 @@ Quoll.findOrCreatePlayer(id)
         slot="",
         side=""
     }
-    if(Quoll.clients[id] is nil) then
+    if(Quoll.clients[id] == nil) then
         Quoll.clients[id] = player
     else
         player = Quoll.clients[id]
@@ -94,7 +94,7 @@ Quoll.onGameEvent = function(eventName,arg1,arg2,arg3,arg4,arg5,arg6,arg7)
     elseif eventName == "connect" then
         Quoll.onConnect(now, arg1, arg2)
     elseif eventName == "disconnect" then
-        Quoll.onDisconnect(now, arg1, arg2)
+        Quoll.onDisconnect(now, arg1, arg2, arg3, arg4)
     elseif eventName == "change_slot" then
         Quoll.onChangeSlot(now, arg1, arg2, arg3)
     else
@@ -106,7 +106,7 @@ Quoll.onConnect = function(time, playerID, name)
     Quoll.log("onConnect "..playerID.." - "..name)
     local player = Quoll.findOrCreatePlayer(playerID)
     player.name = name
-    player.ucid = net.get_player_info(playerId, 'ucid')
+    player.ucid = net.get_player_info(playerID, 'ucid')
     local event = {}
     event.time = time
     event.type = "connect"
@@ -115,15 +115,18 @@ Quoll.onConnect = function(time, playerID, name)
     Quoll.sendEvent(event)
 end
 
-Quoll.onDisconnect = function(time, playerID, name)
-    Quoll.log("onDisconnect "..playerID.." - "..name)
+Quoll.onDisconnect = function(time, playerID, name, playerSide, reason_code)
+    Quoll.log("onDisconnect "..playerID.." - "..name.." - "..playerSide.." - "..reason_code)
     local player = Quoll.findOrCreatePlayer(playerID)
     player.name = name
+    player.side = playerSide
     local event = {}
     event.time = time
     event.type = "disconnect"
     event.playerUcid = player.ucid
     event.playerName = player.name
+    event.side = playerSide
+    event.reasonCode = reason_code
     Quoll.sendEvent(event)
 end
 
@@ -137,7 +140,7 @@ Quoll.onChangeSlot = function(time, playerID, slotID, prevSide)
     event.type = "change_slot"
     event.playerUcid = player.ucid
     event.playerName = player.name
-    event.slotId = slotId
+    event.slotId = slotID
     event.prevSide = prevSide
     Quoll.sendEvent(event)
 end

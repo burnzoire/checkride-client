@@ -32,17 +32,39 @@ Quoll.sendEvent = function(message)
     socket.try(Quoll.UDPSendSocket:sendto(Quoll.JSON:encode(message).." \n", Quoll.UPDHost, Quoll.UDPPort))
 end
 
-Quoll.onPlayerConnect = function(id)
-    Quoll.clients[id] = {
-        name = net.get_player_info(id, 'name'),
-        ucid = net.get_player_info(id, 'ucid'),
+Quoll.removePlayer = function(id)
+    Quoll.clients[id] = nil
+end
+
+Quoll.findOrCreatePlayer = function(id)
+    local player = {
+        id=id,
+        name="",
+        ucid="",
+        slot="",
+        side=""
     }
-    Quoll.log(Quoll.clients[id].name.." connected, ucid: ".. Quoll.clients[id].ucid)
+    if(Quoll.clients[id] == nil) then
+        Quoll.clients[id] = player
+    else
+        player = Quoll.clients[id]
+    end
+    return player
+end
+
+Quoll.onPlayerConnect = function(id)
+    local name = net.get_player_info(id, 'name')
+    local ucid = net.get_player_info(id, 'ucid')
+    local player = Quoll.findOrCreatePlayer(id)
+    player.name = name
+    player.ucid = ucid
+
+    Quoll.log(name.." connected, ucid: ".. ucid)
 end
 
 Quoll.onPlayerDisconnect = function(id)
-    Quoll.log(Quoll.clients[id].name.." disconnected, ucid: ".. Quoll.clients[id].ucid)
-    Quoll.clients[id] = nil
+    local player = Quoll.findOrCreatePlayer(id)
+    Quoll.log(player.name.." disconnected, ucid: ".. player.ucid)
 end
 
 Quoll.onNetConnect = function(localPlayerID)
@@ -53,7 +75,6 @@ end
 Quoll.onGameEvent = function(eventName,arg1,arg2,arg3,arg4,arg5,arg6,arg7)
     local now = DCS.getRealTime()
     Quoll.log("onGameEvent "..eventName)
-    -- Quoll.log("onGameEvent: "..eventName..", "..arg1..", "..arg2..", "..arg3..", "..arg4..", "..arg5..", "..arg6..", "..arg7)
     if eventName == "kill" then
         Quoll.onKill(now, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
     elseif eventName == "takeoff" then
@@ -70,9 +91,58 @@ Quoll.onGameEvent = function(eventName,arg1,arg2,arg3,arg4,arg5,arg6,arg7)
         Quoll.onSelfKill(now, arg1)
     elseif eventName == "friendly_fire" then
         Quoll.onFriendlyFire(now, arg1, arg2, arg3)
+    elseif eventName == "connect" then
+        Quoll.onConnect(now, arg1, arg2)
+    elseif eventName == "disconnect" then
+        Quoll.onDisconnect(now, arg1, arg2, arg3, arg4)
+    elseif eventName == "change_slot" then
+        Quoll.onChangeSlot(now, arg1, arg2, arg3)
     else
         Quoll.log("unknown event type: "..eventName)
     end
+end
+
+Quoll.onConnect = function(time, playerID, name)
+    Quoll.log("onConnect "..playerID.." - "..name)
+    local player = Quoll.findOrCreatePlayer(playerID)
+    player.name = name
+    player.ucid = net.get_player_info(playerID, 'ucid')
+    local event = {}
+    event.time = time
+    event.type = "connect"
+    event.playerUcid = player.ucid
+    event.playerName = player.name
+    Quoll.sendEvent(event)
+end
+
+Quoll.onDisconnect = function(time, playerID, name, playerSide, reason_code)
+    Quoll.log("onDisconnect "..playerID.." - "..name.." - "..playerSide.." - "..reason_code)
+    local player = Quoll.findOrCreatePlayer(playerID)
+    player.name = name
+    player.side = playerSide
+    local event = {}
+    event.time = time
+    event.type = "disconnect"
+    event.playerUcid = player.ucid
+    event.playerName = player.name
+    event.side = playerSide
+    event.reasonCode = reason_code
+    Quoll.sendEvent(event)
+end
+
+Quoll.onChangeSlot = function(time, playerID, slotID, prevSide)
+    Quoll.log("onChangeSlot "..playerID.." - "..slotID.." - "..prevSide)
+    local player = Quoll.findOrCreatePlayer(playerID)
+    Quoll.log(player.name.." to slot "..slotID)
+    player.slot = slotID
+    local event = {}
+    event.time = time
+    event.type = "change_slot"
+    event.playerUcid = player.ucid
+    event.playerName = player.name
+    event.slotId = slotID
+    event.prevSide = prevSide
+    Quoll.sendEvent(event)
 end
 
 Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victimPlayerID, victimUnitType, victimSide, weaponName)

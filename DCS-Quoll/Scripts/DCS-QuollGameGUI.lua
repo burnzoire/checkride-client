@@ -125,7 +125,7 @@ Quoll.onDisconnect = function(time, playerID, name, playerSide, reason_code)
     event.type = "disconnect"
     event.playerUcid = player.ucid
     event.playerName = player.name
-    event.side = playerSide
+    event.playerSide = playerSide
     event.reasonCode = reason_code
     Quoll.sendEvent(event)
 end

@@ -147,6 +147,95 @@ app.whenReady().then(() => {
         }), address.port, address.address)
       }
     },
+    {
+      label: 'Send test takeoff event (F-14A)',
+      click() {
+        let address = server.address()
+        server.send(JSON.stringify({
+          type: "takeoff",
+          playerUcid: "test1",
+          playerName: "Test Pilot",
+          unitType: "F-14A",
+          airdromeName: "Test Field"
+        }), address.port, address.address)
+      }
+    },
+    {
+      label: 'Send test takeoff event (F-14B)',
+      click() {
+        let address = server.address()
+        server.send(JSON.stringify({
+          type: "takeoff",
+          playerUcid: "test1",
+          playerName: "Test Pilot",
+          unitType: "F-14B",
+          airdromeName: "Test Field"
+        }), address.port, address.address)
+      }
+    },
+    {
+      label: 'Send test landing event (F-14A)',
+      click() {
+        let address = server.address()
+        server.send(JSON.stringify({
+          type: "landing",
+          playerUcid: "test1",
+          playerName: "Test Pilot",
+          unitType: "F-14A",
+          airdromeName: "Test Field"
+        }), address.port, address.address)
+      }
+    },
+    {
+      label: 'Send test landing event (F-14B)',
+      click() {
+        let address = server.address()
+        server.send(JSON.stringify({
+          type: "landing",
+          playerUcid: "test1",
+          playerName: "Test Pilot",
+          unitType: "F-14B",
+          airdromeName: "Test Field"
+        }), address.port, address.address)
+      }
+    },
+    {
+      label: 'Send test change slot event',
+      click() {
+        let address = server.address()
+        server.send(JSON.stringify({
+          type: "change_slot",
+          playerUcid: "test1",
+          playerName: "Test Pilot",
+          slotId: "1",
+          prevSide: "1"
+        }), address.port, address.address)
+      }
+    },
+    {
+      label: 'Send test disconnect event',
+      click() {
+        let address = server.address()
+        server.send(JSON.stringify({
+          type: "disconnect",
+          playerUcid: "test1",
+          playerName: "Test Pilot",
+          playerSide: "1",
+          reasonCode: "1"
+        }), address.port, address.address)
+      }
+    },
+    {
+      label: 'Send test connect event',
+      click() {
+        let address = server.address()
+        server.send(JSON.stringify({
+          type: "connect",
+          playerUcid: "test1",
+          playerName: "Test Pilot"
+        }), address.port, address.address)
+      }
+    },
     { type: 'separator' },
     {
       label: 'Quit Quoll',
@@ -250,7 +339,7 @@ server.on('message', (msg, rinfo) => {
         event: {
           player_ucid: event.playerUcid,
           player_name: event.playerName,
-          side: event.side,
+          player_side: event.playerSide,
           reason_code: event.reasonCode
         }
       }

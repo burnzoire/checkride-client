@@ -76,12 +76,22 @@ function ping() {
   })
 }
 
-function sendToDiscord(message)  {
+function sendToDiscord(message, publish)  {
+  let discordWebhookPath = store.get("discord_webhook_path")
+  if(publish === false) {
+    console.log("skipping discord publish: event not publishable")
+    return Promise.resolve()
+  }
+  console.log("discord webhook path = "+discordWebhookPath)
+  if(discordWebhookPath === "") {
+    console.log("skipping discord publish: no webhook path found")
+    return Promise.resolve()
+  }
   return new Promise(function(resolve, reject) {
     let payload = "{}"
     var options = {
       host: "discord.com",
-      path: store.get("discord_webhook_path"),
+      path: discordWebhookPath,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -102,6 +112,7 @@ function sendToDiscord(message)  {
 
       response.on('end', () => {
         // webhook response empty
+        log.info("sent event to discord successful")
         resolve();
       })
 
@@ -356,8 +367,6 @@ server.on('message', (msg, rinfo) => {
         }
       }
       break;
-
-
   }
   log.debug("Sending game event to server: ", gameEvent)
   payload = new TextEncoder().encode(
@@ -368,24 +377,21 @@ server.on('message', (msg, rinfo) => {
       log.debug(body)
       let eventSummary = body.summary
       let awards = body.awards
+      let publish = body.publish
       log.debug("Event saved:", eventSummary)
-      sendToDiscord(eventSummary)
-        .then(() => {
-          log.info("sent event to discord successful")
+      sendToDiscord(eventSummary, publish)
+        .catch((err) => {
+          log.error("Couldn't send to discord: "+err)
+        })
+        .finally(() => {
           awards.forEach((award) => {
             let awardMessage = `:military_medal: ${award.pilot} has been awarded the "${award.badge.title}" badge!`
             log.info(awardMessage)
             sendToDiscord(awardMessage)
-              .then(() => {
-                log.info("sent award to discord successful")
-              })
               .catch((err) => {
                 log.error("Couldn't send award to discord: "+err)
               })
           })
-        })
-        .catch((err) => {
-          log.error("Couldn't send to discord: "+err)
         })
     })
     .catch((err) => {

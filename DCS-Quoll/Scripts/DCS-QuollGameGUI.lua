@@ -146,18 +146,19 @@ Quoll.onChangeSlot = function(time, playerID, slotID, prevSide)
 end
 
 Quoll.getUnitTypeCategory = function(unitType)
-    local attributeName_cat = "category"
-    local category = DCS.getUnitTypeAttribute(victimUnitType, attributeName_cat)
-    if victim_category == nil then
-        local killed_target_cat_check_ship = DCS.getUnitTypeAttribute(victimUnitType, "DeckLevel")
-        local _killed_target_cat_check_plane = DCS.getUnitTypeAttribute(victimUnitType, "WingSpan")
-        if killed_target_cat_check_ship ~= nil and killed_target_cat_check_plane == nil then
-        elseif killed_target_cat_check_ship == nil and killed_target_cat_check_plane ~= nil then
-            victim_category = "Planes"
+    local category = DCS.getUnitTypeAttribute(victimUnitType, "category")
+    if category == nil then
+        local deckLevel = DCS.getUnitTypeAttribute(victimUnitType, "DeckLevel")
+        local wingSpan = DCS.getUnitTypeAttribute(victimUnitType, "WingSpan")
+        if deckLevel ~= nil and wingSpan == nil then
+            category = "Ships"
+        elseif deckLevel == nil and wingSpan ~= nil then
+            category = "Fixed-wing"
         else
-            victim_category = "Helicopters"
+            category = "Rotary"
         end
     end
+    return category
 end
 
 Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victimPlayerID, victimUnitType, victimSide, weaponName)

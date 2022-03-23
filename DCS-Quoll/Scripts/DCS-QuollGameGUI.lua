@@ -145,6 +145,21 @@ Quoll.onChangeSlot = function(time, playerID, slotID, prevSide)
     Quoll.sendEvent(event)
 end
 
+Quoll.getUnitTypeCategory = function(unitType)
+    local attributeName_cat = "category"
+    local category = DCS.getUnitTypeAttribute(victimUnitType, attributeName_cat)
+    if victim_category == nil then
+        local killed_target_cat_check_ship = DCS.getUnitTypeAttribute(victimUnitType, "DeckLevel")
+        local _killed_target_cat_check_plane = DCS.getUnitTypeAttribute(victimUnitType, "WingSpan")
+        if killed_target_cat_check_ship ~= nil and killed_target_cat_check_plane == nil then
+        elseif killed_target_cat_check_ship == nil and killed_target_cat_check_plane ~= nil then
+            victim_category = "Planes"
+        else
+            victim_category = "Helicopters"
+        end
+    end
+end
+
 Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victimPlayerID, victimUnitType, victimSide, weaponName)
     local killer = Quoll.clients[killerPlayerID]
     local victim = Quoll.clients[victimPlayerID]
@@ -170,38 +185,14 @@ Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victim
         victim.name = "AI"
         victim.ucid = ""
     end
-    local _ground = true
-    local _attributeName_cat = "category"
-    local _victim_category = DCS.getUnitTypeAttribute(victimUnitType, _attributeName_cat)
-    if _victim_category == nil then
-        local _killed_target_cat_check_ship = DCS.getUnitTypeAttribute(victimUnitType, "DeckLevel")
-        local _killed_target_cat_check_plane = DCS.getUnitTypeAttribute(victimUnitType, "WingSpan")
-        if _killed_target_cat_check_ship ~= nil and _killed_target_cat_check_plane == nil then
-        elseif _killed_target_cat_check_ship == nil and _killed_target_cat_check_plane ~= nil then
-            _victim_category = "Planes"
-            _ground = false
-        else
-            _victim_category = "Helicopters"
-            _ground = false
-        end
-    end
-    local _killer_category = DCS.getUnitTypeAttribute(killerUnitType, _attributeName_cat)
-    if _killer_category == nil then
-        local _killer_cat_check_ship = DCS.getUnitTypeAttribute(killerUnitType, "DeckLevel")
-        local _killer_cat_check_plane = DCS.getUnitTypeAttribute(killerUnitType, "WingSpan")
-        if _killer_cat_check_ship ~= nil and _killer_cat_check_plane == nil then
-            _killer_category = "Ships"
-        elseif _killer_cat_check_ship == nil and _killer_cat_check_plane ~= nil then
-            _killer_category = "Planes"
-        else
-            _killer_category = "Helicopters"
-        end
-    end
-    Quoll.log(killer.name.."("..killerUnitType..") destroyed "..victim.name.." ("..victimUnitType..") with "..weaponName)
 
-    Quoll.log("Killer Unit Category = ".._killer_category)
-    Quoll.log("Victim Unit Category = ".._victim_category)
-    Quoll.log("Ground = "..tostring(_ground))
+    local killerCategory = Quoll.getUnitTypeCategory(killerUnitType)
+    local victimCategory = Quoll.getUnitTypeCategory(victimUnitType)
+
+    Quoll.log("Killer Unit Category = "..killerCategory)
+    Quoll.log("Victim Unit Category = "..victimCategory)
+
+    Quoll.log(killer.name.."("..killerUnitType..") destroyed "..victim.name.." ("..victimUnitType..") with "..weaponName)
 
     local event = {}
     event.time = time
@@ -209,10 +200,12 @@ Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victim
     event.killerUcid = killer.ucid
     event.killerName = killer.name
     event.killerUnitType = killerUnitType
+    event.killerCategory = killerCategory
     event.killerSide = killerSide
     event.victimName = victim.name
     event.victimUcid = victim.ucid
     event.victimUnitType = victimUnitType
+    event.victimCategory = victimCategory
     event.victimSide = victimSide
     event.weaponName = weaponName
     Quoll.sendEvent(event)
@@ -229,6 +222,7 @@ Quoll.onTakeoff = function(time, playerID, unit_missionID, airdromeName)
     end
     if unitType ~= nil then
         event.unitType = unitType
+        event.unitCategory = Quoll.getUnitTypeCategory(unitType)
     end
 
     event.time = time
@@ -250,6 +244,7 @@ Quoll.onLanding = function(time, playerID, unit_missionID, airdromeName)
     end
     if unitType ~= nil then
         event.unitType = unitType
+        event.unitCategory = Quoll.getUnitTypeCategory(unitType)
     end
 
     event.time = time
@@ -271,6 +266,7 @@ Quoll.onCrash = function(time, playerID, unit_missionID)
     end
     if unitType ~= nil then
         event.unitType = unitType
+        event.unitCategory = Quoll.getUnitTypeCategory(unitType)
     end
 
     event.time = time
@@ -291,6 +287,7 @@ Quoll.onEject = function(time, playerID, unit_missionID)
     end
     if unitType ~= nil then
         event.unitType = unitType
+        event.unitCategory = Quoll.getUnitTypeCategory(unitType)
     end
 
     event.time = time

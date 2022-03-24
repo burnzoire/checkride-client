@@ -290,9 +290,11 @@ server.on('message', (msg, rinfo) => {
           killer_ucid: event.killerUcid,
           killer_name: event.killerName,
           killer_unit_name: event.killerUnitType,
+          killer_unit_category: event.killerUnitCategory,
           victim_ucid: event.victimUcid,
           victim_name: event.victimName,
           victim_unit_name: event.victimUnitType,
+          victim_unit_category: event.victimUnitCategory,
           weapon_name: event.weaponName
         }
       }
@@ -306,6 +308,7 @@ server.on('message', (msg, rinfo) => {
           player_ucid: event.playerUcid,
           player_name: event.playerName,
           unit_type: event.unitType,
+          unit_category: event.unitCategory,
           airdrome_name: event.airdromeName
         }
       }
@@ -320,6 +323,7 @@ server.on('message', (msg, rinfo) => {
           player_ucid: event.playerUcid,
           player_name: event.playerName,
           unit_type: event.unitType,
+          unit_category: event.unitCategory
         }
       }
       break;

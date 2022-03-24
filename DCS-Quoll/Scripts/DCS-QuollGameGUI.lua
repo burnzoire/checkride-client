@@ -146,10 +146,10 @@ Quoll.onChangeSlot = function(time, playerID, slotID, prevSide)
 end
 
 Quoll.getUnitTypeCategory = function(unitType)
-    local category = DCS.getUnitTypeAttribute(victimUnitType, "category")
+    local category = DCS.getUnitTypeAttribute(unitType, "category")
     if category == nil then
-        local deckLevel = DCS.getUnitTypeAttribute(victimUnitType, "DeckLevel")
-        local wingSpan = DCS.getUnitTypeAttribute(victimUnitType, "WingSpan")
+        local deckLevel = DCS.getUnitTypeAttribute(unitType, "DeckLevel")
+        local wingSpan = DCS.getUnitTypeAttribute(unitType, "WingSpan")
         if deckLevel ~= nil and wingSpan == nil then
             category = "Ships"
         elseif deckLevel == nil and wingSpan ~= nil then
@@ -187,11 +187,11 @@ Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victim
         victim.ucid = ""
     end
 
-    local killerCategory = Quoll.getUnitTypeCategory(killerUnitType)
-    local victimCategory = Quoll.getUnitTypeCategory(victimUnitType)
+    local killerUnitCategory = Quoll.getUnitTypeCategory(killerUnitType)
+    local victimUnitCategory = Quoll.getUnitTypeCategory(victimUnitType)
 
-    Quoll.log("Killer Unit Category = "..killerCategory)
-    Quoll.log("Victim Unit Category = "..victimCategory)
+    Quoll.log("Killer Unit Category = "..killerUnitCategory)
+    Quoll.log("Victim Unit Category = "..victimUnitCategory)
 
     Quoll.log(killer.name.."("..killerUnitType..") destroyed "..victim.name.." ("..victimUnitType..") with "..weaponName)
 
@@ -201,12 +201,12 @@ Quoll.onKill = function(time, killerPlayerID, killerUnitType, killerSide, victim
     event.killerUcid = killer.ucid
     event.killerName = killer.name
     event.killerUnitType = killerUnitType
-    event.killerCategory = killerCategory
+    event.killerUnitCategory = killerUnitCategory
     event.killerSide = killerSide
     event.victimName = victim.name
     event.victimUcid = victim.ucid
     event.victimUnitType = victimUnitType
-    event.victimCategory = victimCategory
+    event.victimUnitCategory = victimUnitCategory
     event.victimSide = victimSide
     event.weaponName = weaponName
     Quoll.sendEvent(event)

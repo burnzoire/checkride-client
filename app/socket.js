@@ -151,9 +151,11 @@ app.whenReady().then(() => {
           killerUcid: "test1",
           killerName: "Test Pilot",
           killerUnitType: "F-14A",
+          killerUnitCategory: "Fixed-wing",
           victimUcid: "test2",
           victimName: "Test Pilot 2",
           victimUnitType: "JF-17",
+          victimUnitCategory: "Fixed-wing",
           weaponName: "AIM-9L"
         }), address.port, address.address)
       }
@@ -167,6 +169,7 @@ app.whenReady().then(() => {
           playerUcid: "test1",
           playerName: "Test Pilot",
           unitType: "F-14A",
+          unitCategory: "Fixed-wing",
           airdromeName: "Test Field"
         }), address.port, address.address)
       }
@@ -180,6 +183,7 @@ app.whenReady().then(() => {
           playerUcid: "test1",
           playerName: "Test Pilot",
           unitType: "F-14B",
+          unitCategory: "Fixed-wing",
           airdromeName: "Test Field"
         }), address.port, address.address)
       }
@@ -193,6 +197,7 @@ app.whenReady().then(() => {
           playerUcid: "test1",
           playerName: "Test Pilot",
           unitType: "F-14A",
+          unitCategory: "Fixed-wing",
           airdromeName: "Test Field"
         }), address.port, address.address)
       }
@@ -206,6 +211,7 @@ app.whenReady().then(() => {
           playerUcid: "test1",
           playerName: "Test Pilot",
           unitType: "F-14B",
+          unitCategory: "Fixed-wing",
           airdromeName: "Test Field"
         }), address.port, address.address)
       }

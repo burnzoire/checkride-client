@@ -11,7 +11,7 @@ DCS Qualification Tracker
 
 ### Quoll App
 
-In lieu of an installer, the windows build folder `quoll-client-win32-x64` can be copied to a location of choice before running the quoll-client.exe contained within. As of writing, this app will launch in the system tray and no other UI exists. It's simply run as a daemon that forwards UDP datagrams on port `41234` to the webserver located at `http:localhost:3000`. Be sure to open both of these ports (UDP for the former, obvs, and TCP for the latter)
+Once packaged (see below), the app can be distributed by copying `quoll-client-win32-x64` to a location of choice before running the `quoll-client.exe` contained within. As of writing, this app will launch in the system tray and no other UI exists. It's simply run as a daemon that forwards UDP datagrams on port `41234` to the webserver located at `http:localhost:3000`. Be sure to open both of these ports (UDP for the former, obvs, and TCP for the latter)
 
 ### Config
 
@@ -25,7 +25,7 @@ It's recommended to create a symbolic link from `DCS-Quoll` to ``Saved Games\DCS
 
 ### Quoll App
 
-To launch the quoll app in dev mode, simply run:
+To launch the quoll app in dev nnvmmode, simply run:
 
 ```
 npm install

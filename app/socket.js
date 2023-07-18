@@ -1,4 +1,4 @@
-import dgram, { Socket } from 'dgram'
+import dgram from 'dgram'
 import http from 'http'
 import https from 'https'
 
@@ -7,7 +7,7 @@ import { app, Menu, Tray, BrowserWindow, globalShortcut } from 'electron'
 
 import Store from 'electron-store'
 
-import log, { info } from 'electron-log'
+import log from 'electron-log'
 
 const store = new Store();
 
@@ -26,9 +26,9 @@ if(!store.has("use_ssl")) {
 if(!store.has("discord_webhook_path")) {
   store.set("discord_webhook_path", "")
 }
-const use_ssl = store.get("use_ssl")
+const useSsl = store.get("use_ssl")
 
-const http_module = use_ssl?https:http
+const httpModule = useSsl ? https : http
 
 function createWindow () {
   const win = new BrowserWindow({
@@ -50,8 +50,8 @@ function ping() {
       port: store.get("server_port"),
       method: 'GET',
     }
-    log.info(`pinging ${use_ssl?"https":"http"}://${options.host} on port ${options.port}`)
-    let req = http_module.request(options, (response) => {
+    log.info(`pinging ${useSsl?"https":"http"}://${options.host} on port ${options.port}`)
+    const req = httpModule.request(options, (response) => {
       let body = [];
       response.on('data', (chunk) => {
         body.push(chunk)
@@ -68,7 +68,7 @@ function ping() {
       })
 
       response.on('error', error => {
-        log.error(`couldn't ping the server at ${use_ssl?"https":"http"}://${options.host}${options.path} on port ${options.port}.`)
+        log.error(`couldn't ping the server at ${useSsl?"https":"http"}://${options.host}${options.path} on port ${options.port}.`)
         reject(err);
       })
     })
@@ -76,61 +76,48 @@ function ping() {
   })
 }
 
-function sendToDiscord(message, publish)  {
-  let discordWebhookPath = store.get("discord_webhook_path")
-  if(publish === false) {
-    console.log("skipping discord publish: event not publishable")
-    return Promise.resolve()
+const fetch = require('node-fetch');
+
+async function sendToDiscord(message, publish) {
+  const discordWebhookPath = getDiscordWebhookPath();
+
+  if (publish === false || !discordWebhookPath) {
+    console.log(`Skipping discord publish: ${publish === false ? 'Event not publishable' : 'No webhook path found'}`);
+    return;
   }
-  console.log("discord webhook path = "+discordWebhookPath)
-  if(discordWebhookPath === "") {
-    console.log("skipping discord publish: no webhook path found")
-    return Promise.resolve()
+
+  console.log(`Discord webhook path = ${discordWebhookPath}`);
+
+  const payload = JSON.stringify({ content: message });
+  const response = await fetch(`https://discord.com${discordWebhookPath}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: payload
+  });
+
+  if (!response.ok) {
+    throw new Error(`Discord webhook responded with status: ${response.status}`);
   }
-  return new Promise(function(resolve, reject) {
-    let payload = "{}"
-    var options = {
-      host: "discord.com",
-      path: discordWebhookPath,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }
-    if(options.path === "") { resolve() }
-    payload =  new TextEncoder().encode(
-      JSON.stringify({
-        content: message
-      })
-    )
 
-    let req = https.request(options, (response) => {
-      let body = [];
-      response.on('data', (chunk) => {
-        body.push(chunk)
-      })
+  console.log("Sent event to discord successfully");
+}
 
-      response.on('end', () => {
-        // webhook response empty
-        log.info("sent event to discord successful")
-        resolve();
-      })
-
-      response.on('error', error => {
-        reject(err);
-      })
-    })
-    req.write(payload)
-    req.end()
-  })
+function getDiscordWebhookPath() {
+  return store.get("discord_webhook_path") || "";
 }
 
 let tray = null
 app.whenReady().then(() => {
-  if (app.dock) { app.dock.hide() }
-  // createWindow()
+  if (app.dock) {
+    app.dock.hide()
+  }
+
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
   })
   tray = new Tray(path.join(__dirname, './assets/icon.png'))
   const contextMenu = Menu.buildFromTemplate([
@@ -145,7 +132,7 @@ app.whenReady().then(() => {
     {
       label: 'Send test kill event',
       click() {
-        let address = server.address()
+        const address = server.address()
         server.send(JSON.stringify({
           type: "kill",
           killerUcid: "test1",
@@ -163,7 +150,7 @@ app.whenReady().then(() => {
     {
       label: 'Send test takeoff event (F-14A)',
       click() {
-        let address = server.address()
+        const address = server.address()
         server.send(JSON.stringify({
           type: "takeoff",
           playerUcid: "test1",
@@ -177,7 +164,7 @@ app.whenReady().then(() => {
     {
       label: 'Send test takeoff event (F-14B)',
       click() {
-        let address = server.address()
+        const address = server.address()
         server.send(JSON.stringify({
           type: "takeoff",
           playerUcid: "test1",
@@ -191,7 +178,7 @@ app.whenReady().then(() => {
     {
       label: 'Send test landing event (F-14A)',
       click() {
-        let address = server.address()
+        const address = server.address()
         server.send(JSON.stringify({
           type: "landing",
           playerUcid: "test1",
@@ -205,7 +192,7 @@ app.whenReady().then(() => {
     {
       label: 'Send test landing event (F-14B)',
       click() {
-        let address = server.address()
+        const address = server.address()
         server.send(JSON.stringify({
           type: "landing",
           playerUcid: "test1",
@@ -219,7 +206,7 @@ app.whenReady().then(() => {
     {
       label: 'Send test change slot event',
       click() {
-        let address = server.address()
+        const address = server.address()
         server.send(JSON.stringify({
           type: "change_slot",
           playerUcid: "test1",
@@ -232,7 +219,7 @@ app.whenReady().then(() => {
     {
       label: 'Send test disconnect event',
       click() {
-        let address = server.address()
+        const address = server.address()
         server.send(JSON.stringify({
           type: "disconnect",
           playerUcid: "test1",
@@ -245,7 +232,7 @@ app.whenReady().then(() => {
     {
       label: 'Send test connect event',
       click() {
-        let address = server.address()
+        const address = server.address()
         server.send(JSON.stringify({
           type: "connect",
           playerUcid: "test1",
@@ -270,7 +257,9 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
 })
 
 const server = dgram.createSocket('udp4');
@@ -282,14 +271,19 @@ server.on('error', (err) => {
 
 server.on('message', (msg, rinfo) => {
   log.debug(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
-  let event = JSON.parse(msg)
+  const event = JSON.parse(msg)
   let payload = "{}"
   let gameEvent = {}
-  const path = "/events"
   log.debug("Event type: " + event.type)
   switch(event.type) {
     case "kill":
-      log.debug(`killer ucid: ${event.killerUcid} killer name: ${event.killerName}, killer unit: ${event.killerUnitType}, victim ucid: ${event.victimUcid}  victim name: ${event.victimName}, victim unit: ${event.victimUnitType}, weapon: ${event.weaponName}`)
+      log.debug(`killer ucid: ${event.killerUcid} \
+        killer name: ${event.killerName}, \ 
+        killer unit: ${event.killerUnitType}, \
+        victim ucid: ${event.victimUcid}  \
+        victim name: ${event.victimName}, \
+        victim unit: ${event.victimUnitType}, \
+        weapon: ${event.weaponName}`)
       gameEvent = {
         event_type: event.type,
         event: {
@@ -382,20 +376,19 @@ server.on('message', (msg, rinfo) => {
   payload = new TextEncoder().encode(
     JSON.stringify(gameEvent)
   )
-  sendEventToServer(payload, path)
+
+  sendEventToServer(payload, "/events")
     .then((body) => {
       log.debug(body)
-      let eventSummary = body.summary
-      let awards = body.awards
-      let publish = body.publish
+      const eventSummary = body.summary
+      const awards = body.awards
+      const publish = body.publish
       log.debug("Event saved:", eventSummary)
       sendToDiscord(eventSummary, publish)
-        .catch((err) => {
-          log.error("Couldn't send to discord: "+err)
-        })
+        .catch(err => log.error("Couldn't send to discord: "+err))
         .finally(() => {
           awards.forEach((award) => {
-            let awardMessage = `:military_medal: ${award.pilot} has been awarded the "${award.badge.title}" badge!`
+            const awardMessage = `:military_medal: ${award.pilot} has been awarded the "${award.badge.title}" badge!`
             log.info(awardMessage)
             sendToDiscord(awardMessage)
               .catch((err) => {
@@ -404,16 +397,14 @@ server.on('message', (msg, rinfo) => {
           })
         })
     })
-    .catch((err) => {
-      log.error("Failed to save event: " + err)
-    })
+    .catch(err => log.error("Failed to save event: " + err))
 })
 
-function sendEventToServer(payload, path) {
+function sendEventToServer(payload, eventsPath) {
   return new Promise(function(resolve, reject) {
     var options = {
       host: store.get("server_host"),
-      path: path,
+      path: eventsPath,
       port: store.get("server_port"),
       method: 'POST',
       headers: {
@@ -422,7 +413,7 @@ function sendEventToServer(payload, path) {
       }
     }
 
-    let req = http_module.request(options, (response) => {
+    const req = httpModule.request(options, (response) => {
       let body = [];
       response.on('data', (chunk) => {
         body.push(chunk)

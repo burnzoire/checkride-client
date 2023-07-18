@@ -78,7 +78,7 @@ function ping() {
 
 const fetch = require('node-fetch');
 
-async function sendToDiscord(message, publish) {
+async function sendToDiscord(message, publish, retries = 3, backoff = 500) {
   const discordWebhookPath = getDiscordWebhookPath();
 
   if (publish === false || !discordWebhookPath) {
@@ -89,19 +89,33 @@ async function sendToDiscord(message, publish) {
   console.log(`Discord webhook path = ${discordWebhookPath}`);
 
   const payload = JSON.stringify({ content: message });
-  const response = await fetch(`https://discord.com${discordWebhookPath}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: payload
-  });
 
-  if (!response.ok) {
-    throw new Error(`Discord webhook responded with status: ${response.status}`);
+  try {
+    const response = await fetch(`https://discord.com${discordWebhookPath}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: payload
+    });
+
+    if (!response.ok) {
+      throw new Error(`Discord webhook responded with status: ${response.status}`);
+    }
+
+    console.log("Sent event to discord successfully");
+    
+  } catch (error) {
+    console.error(`Failed to send message to discord: ${error.message}`);
+
+    if (retries > 0) {
+      console.log(`Retrying in ${backoff}ms... (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      await sendToDiscord(message, publish, retries - 1, backoff * 2);
+    } else {
+      console.error('No retries left. Giving up.');
+    }
   }
-
-  console.log("Sent event to discord successfully");
 }
 
 function getDiscordWebhookPath() {

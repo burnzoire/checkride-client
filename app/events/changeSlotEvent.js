@@ -1,0 +1,23 @@
+import GameEvent from './gameEvent';
+
+export default class ChangeSlotEvent extends GameEvent {
+  constructor(rawEvent) {
+    super(rawEvent);
+    this.playerUcid = rawEvent.playerUcid;
+    this.playerName = rawEvent.playerName;
+    this.slotId = rawEvent.slotId;
+    this.prevSide = rawEvent.prevSide;
+  }
+
+  prepare() {
+    return {
+      event_type: this.eventType,
+      event: {
+        player_ucid: this.playerUcid,
+        player_name: this.playerName,
+        slot_id: this.slotId,
+        prev_side: this.prevSide
+      }
+    };
+  }
+}

@@ -31,6 +31,9 @@ class APIClient {
         })
 
         response.on('end', () => {
+          if(response.statusCode != 201) {
+            reject(response.body)
+          }
           try {
             body = JSON.parse(Buffer.concat(body).toString())
           } catch (e) {

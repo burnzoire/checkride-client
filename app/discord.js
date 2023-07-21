@@ -2,50 +2,57 @@ import https from 'https'
 import log from 'electron-log'
 import store from './config'
 
-export default function sendToDiscord(message, publish) {
-  let discordWebhookPath = store.get("discord_webhook_path")
-  if(publish === false) {
-    log.debug("skipping discord publish: event not publishable")
-    return Promise.resolve()
+class DiscordClient {
+  constructor() {
+    this.host = "discord.com";
+    this.path = store.get("discord_webhook_path");
   }
-  if(discordWebhookPath === "") {
-    log.debug("skipping discord publish: no webhook path found")
-    return Promise.resolve()
-  }
-  return new Promise(function(resolve, reject) {
-    let payload = "{}"
-    var options = {
-      host: "discord.com",
-      path: discordWebhookPath,
+
+  async send(message, publish) {
+    if (publish === false) {
+      log.debug("skipping discord publish: event not publishable");
+      return;
+    }
+    if (this.path === "") {
+      log.debug("skipping discord publish: no webhook path found");
+      return;
+    }
+
+    const options = {
+      host: this.host,
+      path: this.path,
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
-      }
-    }
-    if(options.path === "") { resolve() }
-    payload =  new TextEncoder().encode(
-      JSON.stringify({
-        content: message
-      })
-    )
+        'Content-Type': 'application/json',
+      },
+    };
 
-    let req = https.request(options, (response) => {
-      let body = [];
-      response.on('data', (chunk) => {
-        body.push(chunk)
-      })
+    const payload = new TextEncoder().encode(JSON.stringify({ content: message }));
 
-      response.on('end', () => {
-        // webhook response empty
-        log.info("sent event to discord successful")
-        resolve();
-      })
+    return new Promise((resolve, reject) => {
+      const req = https.request(options, (response) => {
+        response.on('end', () => {
+          // webhook response empty
+          log.info("sent event to discord successful");
+          resolve();
+        });
 
-      response.on('error', error => {
-        reject(err);
-      })
-    })
-    req.write(payload)
-    req.end()
-  })
+        response.on('error', error => {
+          log.error("error while sending event to discord", error);
+          reject(error);
+        });
+      });
+
+      req.on('error', error => {
+        log.error("error while establishing connection to discord", error);
+        reject(error);
+      });
+
+      req.write(payload);
+      req.end();
+    });
+  }
 }
+
+const discord = new DiscordClient();
+export default discord;

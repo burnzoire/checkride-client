@@ -1,6 +1,6 @@
 import dgram from 'dgram'
 import log from 'electron-log'
-import handleEvent from './event'
+import handleEvent from './eventHandler'
 import store from './config'
 
 export default class UDPServer {

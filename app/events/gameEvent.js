@@ -1,4 +1,4 @@
-export default class GameEvent {
+class GameEvent {
   constructor(rawEvent) {
     this.eventType = rawEvent.type;
   }
@@ -7,3 +7,4 @@ export default class GameEvent {
     throw new Error('You have to implement the method toGameEvent!');
   }
 }
+export default GameEvent;

@@ -1,6 +1,6 @@
 import GameEvent from './gameEvent'
 
-export default class PilotEvent extends GameEvent {
+class PilotEvent extends GameEvent {
   prepare() {
     return {
       event_type: this.eventType,
@@ -13,3 +13,5 @@ export default class PilotEvent extends GameEvent {
     }
   }
 }
+
+export default PilotEvent

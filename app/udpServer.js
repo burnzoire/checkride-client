@@ -1,11 +1,13 @@
 import dgram from 'dgram'
 import log from 'electron-log'
-import handleEvent from './eventHandler'
 import store from './config'
+import EventFactory from './eventFactory';
 
-export default class UDPServer {
-  constructor() {
+class UDPServer {
+  constructor(apiClient, discord) {
     this.server = dgram.createSocket('udp4');
+    this.apiClient = apiClient;
+    this.discord = discord;
     this.start();
   }
 
@@ -17,8 +19,13 @@ export default class UDPServer {
 
     this.server.on('message', (msg, rinfo) => {
       log.info(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`);
-      handleEvent(msg);
-    });
+      const eventData = JSON.parse(msg.toString());
+    
+      EventFactory.create(eventData)
+        .then(gameEvent => this.apiClient.saveEvent(gameEvent))
+        .then(response => this.discord.send(response.summary, response.publish))
+        .catch(err => log.error(err));
+    });      
 
     this.server.on('listening', () => {
       const address = this.server.address();
@@ -33,8 +40,18 @@ export default class UDPServer {
     this.server.close();
   }
 
-  send(msg) {
-    const address = this.server.address()
-    this.server.send(msg, address.port, address.address)
+  send(data) {
+    if (!this.server) {
+      log.error('Cannot send message: server is not started.');
+      return;
+    }
+
+    const address = this.server.address();
+    const msg = JSON.stringify(data);
+    this.server.send(msg, address.port, address.address);
   }
+  
+  
 }
+
+export default UDPServer

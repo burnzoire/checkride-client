@@ -1,4 +1,4 @@
-import GameEvent from './gameEvent';
+import GameEvent from './gameEvent.js';
 
 export default class AirfieldEvent extends GameEvent {
   constructor(rawEvent) {

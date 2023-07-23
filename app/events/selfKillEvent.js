@@ -1,6 +1,6 @@
 import GameEvent from './gameEvent';
 
-export default class SelfKillEvent extends GameEvent {
+class SelfKillEvent extends GameEvent {
   constructor(rawEvent) {
     super(rawEvent);
     this.playerUcid = rawEvent.playerUcid;
@@ -17,3 +17,5 @@ export default class SelfKillEvent extends GameEvent {
     };
   }
 }
+
+export default SelfKillEvent

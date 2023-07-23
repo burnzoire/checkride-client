@@ -1,6 +1,6 @@
 import GameEvent from './gameEvent';
 
-export default class ChangeSlotEvent extends GameEvent {
+class ChangeSlotEvent extends GameEvent {
   constructor(rawEvent) {
     super(rawEvent);
     this.playerUcid = rawEvent.playerUcid;
@@ -21,3 +21,5 @@ export default class ChangeSlotEvent extends GameEvent {
     };
   }
 }
+
+export default ChangeSlotEvent

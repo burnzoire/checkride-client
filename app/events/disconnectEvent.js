@@ -1,6 +1,6 @@
 import GameEvent from './gameEvent';
 
-export default class DisconnectEvent extends GameEvent {
+class DisconnectEvent extends GameEvent {
   constructor(rawEvent) {
     super(rawEvent);
     this.playerUcid = rawEvent.playerUcid;
@@ -21,3 +21,5 @@ export default class DisconnectEvent extends GameEvent {
     };
   }
 }
+
+export default DisconnectEvent

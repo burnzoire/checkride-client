@@ -2,6 +2,26 @@ import https from 'https'
 import log from 'electron-log'
 import store from './config'
 
+export class DiscordClientError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'DiscordClientError';
+  }
+}
+
+export class DiscordPublishError extends DiscordClientError {
+  constructor(message) {
+    super(message);
+    this.name = 'DiscordPublishError';
+  }
+}
+
+export class DiscordConnectionError extends DiscordClientError {
+  constructor(message) {
+    super(message);
+    this.name = 'DiscordConnectionError';
+  }
+}
 class DiscordClient {
   constructor() {
     this.host = "discord.com";
@@ -10,12 +30,10 @@ class DiscordClient {
 
   async send(message, publish) {
     if (publish === false) {
-      log.debug("skipping discord publish: event not publishable");
-      return;
+      throw new DiscordPublishError("Event not publishable")
     }
     if (this.path === "") {
-      log.debug("skipping discord publish: no webhook path found");
-      return;
+      throw new DiscordPublishError("No webhook path found")
     }
 
     const options = {
@@ -38,14 +56,12 @@ class DiscordClient {
         });
 
         response.on('error', error => {
-          log.error("error while sending event to discord", error);
-          reject(error);
+          reject(new DiscordPublishError(`Error while sending event to discord: ${error}`));
         });
       });
 
       req.on('error', error => {
-        log.error("error while establishing connection to discord", error);
-        reject(error);
+        reject(new DiscordConnectionError(`Error while establishing connection to discord: ${error}`));
       });
 
       req.write(payload);

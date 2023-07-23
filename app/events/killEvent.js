@@ -1,6 +1,6 @@
 import GameEvent from './gameEvent';
 
-export default class KillEvent extends GameEvent {
+class KillEvent extends GameEvent {
   constructor(rawEvent) {
     super(rawEvent);
     this.killerUcid = rawEvent.killerUcid;
@@ -31,3 +31,5 @@ export default class KillEvent extends GameEvent {
     };
   }
 }
+
+export default KillEvent

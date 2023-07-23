@@ -1,22 +1,22 @@
-import log from 'electron-log'
-import http from 'http'
-import https from 'https'
+const log = require('electron-log');
+const http = require('http');
+const https = require('https');
 
-export class APIClientError extends Error {
+class APIClientError extends Error {
   constructor(message) {
     super(message);
     this.name = 'APIClientError';
   }
 }
 
-export class APISaveEventError extends APIClientError {
+class APISaveEventError extends APIClientError {
   constructor(message) {
     super(message);
     this.name = 'APISaveEventError';
   }
 }
 
-export class APIPingError extends APIClientError {
+class APIPingError extends APIClientError {
   constructor(message) {
     super(message);
     this.name = 'APIPingError';
@@ -33,8 +33,8 @@ class APIClient {
 
   saveEvent(payload) {
     return new Promise((resolve, reject) => {
-      let data = JSON.stringify(payload); 
-      
+      let data = JSON.stringify(payload);
+
       var options = {
         host: this.host,
         path: '/events',
@@ -53,7 +53,7 @@ class APIClient {
         })
 
         response.on('end', () => {
-          if(response.statusCode != 201) {
+          if (response.statusCode != 201) {
             reject(new APISaveEventError(`Failed to save event: ${Buffer.concat(body).toString()}`))
           }
           try {
@@ -69,7 +69,7 @@ class APIClient {
           reject(new APIClientError(`API request failed: ${error}`))
         })
       })
-      
+
       req.write(data)
       req.end()
     })
@@ -109,4 +109,9 @@ class APIClient {
   }
 }
 
-export default APIClient
+module.exports = {
+  APIClient,
+  APIClientError,
+  APISaveEventError,
+  APIPingError
+};

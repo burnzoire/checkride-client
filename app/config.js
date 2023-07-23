@@ -1,4 +1,4 @@
-import Store from 'electron-store';
+const Store = require('electron-store');
 
 const schema = {
   server_host: {
@@ -21,5 +21,5 @@ const schema = {
 
 const store = new Store({ schema });
 
-export default store;
+module.exports = store;
 

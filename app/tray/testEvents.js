@@ -1,4 +1,4 @@
-export const createTestEvents = (udpServer) => [
+const createTestEvents = (udpServer) => [
   {
     label: 'Send test kill event',
     click() {
@@ -103,3 +103,5 @@ export const createTestEvents = (udpServer) => [
     }
   },
 ];
+
+module.exports = createTestEvents;

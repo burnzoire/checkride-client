@@ -1,6 +1,6 @@
-import { createTestEvents } from './testEvents';
+const createTestEvents = require('./testEvents');
 
-export const contextMenuTemplate = (udpServer, api) => [
+const contextMenuTemplate = (udpServer, api) => [
   {
     label: 'About Quoll',
     role: 'about',
@@ -17,3 +17,5 @@ export const contextMenuTemplate = (udpServer, api) => [
     accelerator: 'CommandOrControl+Q',
   },
 ];
+
+module.exports = contextMenuTemplate;

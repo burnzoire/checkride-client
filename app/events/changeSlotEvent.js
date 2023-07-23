@@ -1,4 +1,4 @@
-import GameEvent from './gameEvent';
+const GameEvent = require('./gameEvent');
 
 class ChangeSlotEvent extends GameEvent {
   constructor(rawEvent) {
@@ -22,4 +22,4 @@ class ChangeSlotEvent extends GameEvent {
   }
 }
 
-export default ChangeSlotEvent
+module.exports = ChangeSlotEvent;

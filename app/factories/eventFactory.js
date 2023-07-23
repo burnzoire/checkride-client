@@ -1,12 +1,12 @@
-import AirfieldEvent from '../events/airfieldEvent'
-import ChangeSlotEvent from '../events/changeSlotEvent'
-import ConnectEvent from '../events/connectEvent'
-import DisconnectEvent from '../events/disconnectEvent'
-import KillEvent from '../events/killEvent'
-import PilotEvent from '../events/pilotEvent'
-import SelfKillEvent from '../events/selfKillEvent'
+const AirfieldEvent = require('../events/airfieldEvent');
+const ChangeSlotEvent = require('../events/changeSlotEvent');
+const ConnectEvent = require('../events/connectEvent');
+const DisconnectEvent = require('../events/disconnectEvent');
+const KillEvent = require('../events/killEvent');
+const PilotEvent = require('../events/pilotEvent');
+const SelfKillEvent = require('../events/selfKillEvent');
 
-export class InvalidEventTypeError extends Error {
+class InvalidEventTypeError extends Error {
   constructor(eventType) {
     super(`Invalid event type: ${eventType}`);
     this.name = 'InvalidEventTypeError';
@@ -40,4 +40,7 @@ class EventFactory {
   }
 }
 
-export default EventFactory
+module.exports = {
+  EventFactory,
+  InvalidEventTypeError
+}

@@ -1,34 +1,12 @@
-import { BrowserWindow, Menu, Tray, app, globalShortcut } from 'electron';
-import log from 'electron-log';
-import path from 'path';
-import APIClient from './clients/apiClient';
-import store from './config';
-import { contextMenuTemplate } from './tray/contextMenuTemplate'; // we'll create this new file 
-import DiscordClient from './clients/discordClient';
-import UDPServer from './services/udpServer';
-import EventFactory from './factories/eventFactory';
-
-function createWindow() {
-  const win = new BrowserWindow({
-    width: 800,
-    height: 600,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js')
-    }
-  })
-  win.loadFile('index.html')
-}
-
-// Set up electron-log hooks - do we need this?
-// log.hooks.push((msg) => {
-//   let currentDate = new Date().toISOString();
-//   // Convert the first item to a string and prepend the timestamp
-//   if (typeof msg.data[0] === 'string') {
-//     msg.data[0] = `[${currentDate}] ${msg.data[0]}`;
-//   }
-
-//   return msg;
-// });
+const { Menu, Tray, app, globalShortcut } = require('electron');
+const log = require('electron-log');
+const path = require('path');
+const { APIClient } = require('./clients/apiClient');
+const store = require('./config');
+const contextMenuTemplate = require('./tray/contextMenuTemplate');
+const { DiscordClient } = require('./clients/discordClient');
+const UDPServer = require('./services/udpServer');
+const { EventFactory } = require('./factories/eventFactory');
 
 let tray = null
 app.whenReady().then(() => {
@@ -42,7 +20,7 @@ app.whenReady().then(() => {
   const discordClient = new DiscordClient(discordWebhookPath)
   const udpServer = new UDPServer(udpPort)
   const contextMenu = Menu.buildFromTemplate(contextMenuTemplate(udpServer, apiClient))
-  
+
   udpServer.onEvent = (event) => {
     log.info(`Handling event: ${JSON.stringify(event)}`);
     return EventFactory.create(event)
@@ -52,7 +30,7 @@ app.whenReady().then(() => {
   }
 
   if (app.dock) { app.dock.hide() }
-  
+
   tray = new Tray(path.join(__dirname, './assets/icon.png'))
   tray.setToolTip('Quoll')
   tray.setContextMenu(contextMenu)

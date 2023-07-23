@@ -1,21 +1,21 @@
-import https from 'https'
-import log from 'electron-log'
+const https = require('https');
+const log = require('electron-log');
 
-export class DiscordClientError extends Error {
+class DiscordClientError extends Error {
   constructor(message) {
     super(message);
     this.name = 'DiscordClientError';
   }
 }
 
-export class DiscordPublishError extends DiscordClientError {
+class DiscordPublishError extends DiscordClientError {
   constructor(message) {
     super(message);
     this.name = 'DiscordPublishError';
   }
 }
 
-export class DiscordConnectionError extends DiscordClientError {
+class DiscordConnectionError extends DiscordClientError {
   constructor(message) {
     super(message);
     this.name = 'DiscordConnectionError';
@@ -69,4 +69,9 @@ class DiscordClient {
   }
 }
 
-export default DiscordClient;
+module.exports = {
+  DiscordClient,
+  DiscordClientError,
+  DiscordPublishError,
+  DiscordConnectionError
+}

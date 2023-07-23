@@ -1,4 +1,4 @@
-import GameEvent from './gameEvent'
+const GameEvent = require('./gameEvent');
 
 class PilotEvent extends GameEvent {
   prepare() {
@@ -14,4 +14,4 @@ class PilotEvent extends GameEvent {
   }
 }
 
-export default PilotEvent
+module.exports = PilotEvent;

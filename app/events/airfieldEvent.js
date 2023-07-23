@@ -1,6 +1,6 @@
-import GameEvent from './gameEvent.js';
+const GameEvent = require('./gameEvent.js');
 
-export default class AirfieldEvent extends GameEvent {
+class AirfieldEvent extends GameEvent {
   constructor(rawEvent) {
     super(rawEvent);
     this.playerUcid = rawEvent.playerUcid;
@@ -23,3 +23,5 @@ export default class AirfieldEvent extends GameEvent {
     };
   }
 }
+
+module.exports = AirfieldEvent;

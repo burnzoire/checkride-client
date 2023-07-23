@@ -1,5 +1,5 @@
-import dgram from 'dgram'
-import log from 'electron-log'
+const dgram = require('dgram');
+const log = require('electron-log');
 
 class UDPServer {
   constructor(port) {
@@ -56,4 +56,4 @@ class UDPServer {
   
 }
 
-export default UDPServer
+module.exports = UDPServer

@@ -7,4 +7,4 @@ class GameEvent {
     throw new Error('You have to implement the method toGameEvent!');
   }
 }
-export default GameEvent;
+module.exports = GameEvent;

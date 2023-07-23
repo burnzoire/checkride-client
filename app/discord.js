@@ -1,6 +1,5 @@
 import https from 'https'
 import log from 'electron-log'
-import store from './config'
 
 export class DiscordClientError extends Error {
   constructor(message) {
@@ -23,9 +22,9 @@ export class DiscordConnectionError extends DiscordClientError {
   }
 }
 class DiscordClient {
-  constructor() {
-    this.host = "discord.com";
-    this.path = store.get("discord_webhook_path");
+  constructor(webhookPath) {
+    this.host = "discord.com"
+    this.path = webhookPath
   }
 
   async send(message, publish) {
@@ -49,9 +48,9 @@ class DiscordClient {
 
     return new Promise((resolve, reject) => {
       const req = https.request(options, (response) => {
-        response.on('end', () => {
+        response.on('data', () => {
           // webhook response empty
-          log.info("sent event to discord successful");
+          log.info("Sent event to discord successful");
           resolve();
         });
 
@@ -70,5 +69,4 @@ class DiscordClient {
   }
 }
 
-const discord = new DiscordClient();
-export default discord;
+export default DiscordClient;

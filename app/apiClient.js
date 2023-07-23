@@ -1,7 +1,6 @@
 import log from 'electron-log'
 import http from 'http'
 import https from 'https'
-import store from './config'
 
 export class APIClientError extends Error {
   constructor(message) {
@@ -25,11 +24,11 @@ export class APIPingError extends APIClientError {
 }
 
 class APIClient {
-  constructor() {
-    this.use_ssl = store.get("use_ssl")
+  constructor(use_ssl, host, port) {
+    this.use_ssl = use_ssl
     this.http_module = this.use_ssl ? https : http
-    this.host = store.get("server_host")
-    this.port = store.get("server_port")
+    this.host = host
+    this.port = port
   }
 
   saveEvent(payload) {
@@ -62,6 +61,7 @@ class APIClient {
           } catch (e) {
             reject(new APIClientError('Failed to parse API response'))
           }
+          log.info("Event saved", body)
           resolve(body)
         })
 

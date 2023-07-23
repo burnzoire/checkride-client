@@ -1,15 +1,16 @@
 import dgram from 'dgram'
 import log from 'electron-log'
-import EventFactory from './eventFactory'
 
 class UDPServer {
-  constructor(port, apiClient, discord) {
+  constructor(port) {
     this.port = port
-    this.apiClient = apiClient
-    this.discord = discord
-
+    this.onEventCallback = null
     this.server = dgram.createSocket('udp4')
     this.start()
+  }
+
+  set onEvent(callback) {
+    this.onEventCallback = callback;
   }
 
   start() {
@@ -20,12 +21,13 @@ class UDPServer {
 
     this.server.on('message', (msg, rinfo) => {
       log.info(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
-      const eventData = JSON.parse(msg.toString())
-    
-      EventFactory.create(eventData)
-        .then(gameEvent => this.apiClient.saveEvent(gameEvent))
-        .then(response => this.discord.send(response.summary, response.publish))
-        .catch(err => log.error(err))
+      const event = JSON.parse(msg.toString())
+
+      if (this.onEventCallback) {
+
+        this.onEventCallback(event)
+          .catch(err => log.error(err))
+      }
     })      
 
     this.server.on('listening', () => {

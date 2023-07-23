@@ -6,8 +6,7 @@ import store from './config';
 import { contextMenuTemplate } from './contextMenuTemplate'; // we'll create this new file 
 import DiscordClient from './discord';
 import UDPServer from './udpServer';
-import { time } from 'console';
-
+import EventFactory from './eventFactory';
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -40,11 +39,19 @@ app.whenReady().then(() => {
   const apiPort = store.get("server_port")
   const discordWebhookPath = store.get("discord_webhook_path")
 
-  const api = new APIClient(useSsl, apiHost, apiPort)
-  const discord = new DiscordClient(discordWebhookPath)
-  const udpServer = new UDPServer(udpPort, api, discord)
-  const contextMenu = Menu.buildFromTemplate(contextMenuTemplate(udpServer, api))
+  const apiClient = new APIClient(useSsl, apiHost, apiPort)
+  const discordClient = new DiscordClient(discordWebhookPath)
+  const udpServer = new UDPServer(udpPort)
+  const contextMenu = Menu.buildFromTemplate(contextMenuTemplate(udpServer, apiClient))
   
+  udpServer.onEvent = (event) => {
+    log.info(`Handling event: ${JSON.stringify(event)}`);
+    return EventFactory.create(event)
+      .then(gameEvent => apiClient.saveEvent(gameEvent))
+      .then(response => discordClient.send(response.summary, response.publish))
+      .catch(error => log.error(error))
+  }
+
   if (app.dock) { app.dock.hide() }
   
   tray = new Tray(path.join(__dirname, './assets/icon.png'))

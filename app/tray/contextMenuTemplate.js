@@ -1,4 +1,4 @@
-import { createTestEvents } from './testEvents'; // we'll create this new file 
+import { createTestEvents } from './testEvents';
 
 export const contextMenuTemplate = (udpServer, api) => [
   {

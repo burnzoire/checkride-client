@@ -1,12 +1,12 @@
 import { BrowserWindow, Menu, Tray, app, globalShortcut } from 'electron';
 import log from 'electron-log';
 import path from 'path';
-import APIClient from './apiClient';
+import APIClient from './clients/apiClient';
 import store from './config';
-import { contextMenuTemplate } from './contextMenuTemplate'; // we'll create this new file 
-import DiscordClient from './discord';
-import UDPServer from './udpServer';
-import EventFactory from './eventFactory';
+import { contextMenuTemplate } from './tray/contextMenuTemplate'; // we'll create this new file 
+import DiscordClient from './clients/discordClient';
+import UDPServer from './services/udpServer';
+import EventFactory from './factories/eventFactory';
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -29,7 +29,6 @@ function createWindow() {
 
 //   return msg;
 // });
-
 
 let tray = null
 app.whenReady().then(() => {

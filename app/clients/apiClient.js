@@ -24,16 +24,16 @@ class APIPingError extends APIClientError {
 }
 
 class APIClient {
-  constructor(use_ssl, host, port) {
-    this.use_ssl = use_ssl
-    this.http_module = this.use_ssl ? https : http
+  constructor(useSsl, host, port) {
+    this.useSsl = useSsl
+    this.httpModule = this.useSsl ? https : http
     this.host = host
     this.port = port
   }
 
   saveEvent(payload) {
     return new Promise((resolve, reject) => {
-      let data = JSON.stringify(payload);
+      const data = JSON.stringify(payload);
 
       var options = {
         host: this.host,
@@ -46,7 +46,7 @@ class APIClient {
         }
       }
 
-      let req = this.http_module.request(options, (response) => {
+      const req = this.httpModule.request(options, (response) => {
         let body = []
         response.on('data', (chunk) => {
           body.push(chunk)
@@ -59,7 +59,7 @@ class APIClient {
           try {
             body = JSON.parse(Buffer.concat(body).toString())
           } catch (e) {
-            reject(new APIClientError('Failed to parse API response'))
+            reject(new APISaveEventError('Failed to parse API response'))
           }
           log.info("Event saved", body)
           resolve(body)
@@ -83,8 +83,8 @@ class APIClient {
         port: this.port,
         method: 'GET',
       }
-      log.info(`pinging ${this.use_ssl ? "https" : "http"}://${options.host} on port ${options.port}`)
-      let req = this.http_module.request(options, (response) => {
+      log.info(`pinging ${this.useSsl ? "https" : "http"}://${options.host} on port ${options.port}`)
+      const req = this.httpModule.request(options, (response) => {
         let body = []
         response.on('data', (chunk) => {
           body.push(chunk)
@@ -101,7 +101,7 @@ class APIClient {
         })
 
         response.on('error', error => {
-          reject(new APIPingError(`Failed to ping API: ${error}`))
+          reject(new APIClientError(`Failed to ping API: ${error}`))
         })
       })
       req.end()

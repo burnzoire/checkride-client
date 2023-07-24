@@ -1,22 +1,10 @@
 const { APIClient, APIClientError, APISaveEventError, APIPingError } = require('./apiClient');
 const nock = require('nock');
-const mockConsole = require('jest-mock-console');
 
 describe('APIClient', () => {
   let client;
   const host = 'api.example.com';
   const port = 80;
-  let restoreConsole;
-
-  beforeAll(() => {
-    // Silence the console logs during testing
-    restoreConsole = mockConsole();
-  });
-
-  afterAll(() => {
-    // Restore console logs after tests are done
-    restoreConsole();
-  });
 
   beforeEach(() => {
     client = new APIClient(false, host, port);
@@ -24,67 +12,94 @@ describe('APIClient', () => {
 
   afterEach(() => {
     nock.cleanAll();
+    jest.restoreAllMocks();
   });
 
-  it('sends event and handles successful response', async () => {
-    const eventData = { event: 'test' };
-    const responseBody = { id: 1, summary: 'event summary', publish: true };
+  describe('ping', () => {
+    it('handles successful ping response', async () => {
+      const responseBody = { message: 'Pong!' };
 
-    nock(`http://${host}:${port}`)
-      .post('/events', eventData)
-      .reply(201, responseBody);
+      nock(`http://${host}:${port}`)
+        .get('/ping')
+        .reply(200, responseBody);
 
-    const response = await client.saveEvent(eventData);
+      const response = await client.ping();
 
-    expect(response).toEqual(responseBody);
+      expect(response).toEqual(responseBody);
+    });
+
+    it('handles non-JSON response from ping', async () => {
+      nock(`http://${host}:${port}`)
+        .get('/ping')
+        .reply(200, 'not json');
+
+      await expect(client.ping()).rejects.toThrow(APIPingError);
+    });
+
+    it('throws an error when ping API request encounters an error', async () => {
+      nock(`http://${host}:${port}`)
+        .get('/ping')
+        .reply(500);
+
+      await expect(client.ping()).rejects.toThrow(APIPingError);
+    });
   });
 
-  it('handles error response from saveEvent', async () => {
-    const eventData = { event: 'test' };
-    const responseBody = { error: 'Something went wrong' };
+  describe('saveEvent', () => {
+    it('sends event and handles successful response', async () => {
+      const eventData = { event: 'test' };
+      const responseBody = { id: 1, summary: 'event summary', publish: true };
 
-    nock(`http://${host}:${port}`)
-      .post('/events', eventData)
-      .reply(400, responseBody);
+      nock(`http://${host}:${port}`)
+        .post('/events', eventData)
+        .reply(201, responseBody);
 
-    await expect(client.saveEvent(eventData)).rejects.toThrow(APISaveEventError);
-  });
+      const response = await client.saveEvent(eventData);
 
-  it('handles non-JSON response from saveEvent', async () => {
-    const eventData = { event: 'test' };
+      expect(response).toEqual(responseBody);
+    });
 
-    nock(`http://${host}:${port}`)
-      .post('/events', eventData)
-      .reply(201, 'not json');
 
-    await expect(client.saveEvent(eventData)).rejects.toThrow(APIClientError);
-  });
+    it('handles non-JSON response from saveEvent', async () => {
+      const eventData = { event: 'test' };
 
-  it('handles successful ping response', async () => {
-    const responseBody = { message: 'Pong!' };
+      nock(`http://${host}:${port}`)
+        .post('/events', eventData)
+        .reply(201, 'not json');
 
-    nock(`http://${host}:${port}`)
-      .get('/ping')
-      .reply(200, responseBody);
+      await expect(client.saveEvent(eventData)).rejects.toThrow(APIClientError);
+    });
 
-    const response = await client.ping();
+    it('sends correct request when saveEvent is called', async () => {
+      const payload = { type: 'test', data: '123' };
+      const response = { success: true };
+      nock(`http://${host}:${port}`)
+        .post('/events', payload)
+        .reply(201, response);
 
-    expect(response).toEqual(responseBody);
-  });
+      const result = await client.saveEvent(payload);
 
-  it('handles non-JSON response from ping', async () => {
-    nock(`http://${host}:${port}`)
-      .get('/ping')
-      .reply(200, 'not json');
+      expect(result).toEqual(response);
+    });
 
-    await expect(client.ping()).rejects.toThrow(APIPingError);
-  });
+    it('throws an error when API request fails', async () => {
+      const payload = { type: 'test', data: '123' };
+      nock(`http://${host}:${port}`)
+        .post('/events', payload)
+        .reply(500, 'Server Error');
 
-  it('handles error response from ping', async () => {
-    nock(`http://${host}:${port}`)
-      .get('/ping')
-      .reply(400);
+      await expect(client.saveEvent(payload)).rejects.toThrow(APIClientError);
+    });
 
-    await expect(client.ping()).rejects.toThrow(APIPingError);
+    it('throws an error when API response cannot be parsed', async () => {
+      const payload = { type: 'test', data: '123' };
+      const invalidResponse = "this is not json";
+
+      nock(`http://${host}:${port}`)
+        .post('/events', payload)
+        .reply(400, invalidResponse);
+
+      await expect(client.saveEvent(payload)).rejects.toThrow(APISaveEventError);
+    });
   });
 });

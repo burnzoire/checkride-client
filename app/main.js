@@ -29,7 +29,9 @@ app.whenReady().then(() => {
       .catch(error => log.error(error))
   }
 
-  if (app.dock) { app.dock.hide() }
+  if (app.dock) {
+    app.dock.hide()
+  }
 
   tray = new Tray(path.join(__dirname, './assets/icon.png'))
   tray.setToolTip('Quoll')
@@ -41,5 +43,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
 })

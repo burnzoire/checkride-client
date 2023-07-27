@@ -48,8 +48,8 @@ class DiscordClient {
 
     return new Promise((resolve, reject) => {
       const req = https.request(options, (response) => {
-        response.on('data', () => {
-          // webhook response empty
+
+        response.on('end', () => {
           log.info("Sent event to discord successful");
           resolve();
         });

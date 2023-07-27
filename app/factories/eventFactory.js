@@ -15,7 +15,7 @@ class InvalidEventTypeError extends Error {
 
 const eventClasses = {
   "kill": KillEvent,
-  "takeoff": AirfieldEvent, 
+  "takeoff": AirfieldEvent,
   "landing": AirfieldEvent,
   "crash": PilotEvent,
   "eject": PilotEvent,
@@ -30,9 +30,9 @@ class EventFactory {
   static create(eventData) {
     return new Promise((resolve, reject) => {
       const GameEvent = eventClasses[eventData.type];
-      
+
       if (GameEvent) {
-        resolve(new GameEvent(eventData).prepare());
+        resolve(new GameEvent(eventData));
       } else {
         reject(new InvalidEventTypeError(eventData.type));
       }

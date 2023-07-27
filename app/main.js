@@ -24,7 +24,7 @@ app.whenReady().then(() => {
   udpServer.onEvent = (event) => {
     log.info(`Handling event: ${JSON.stringify(event)}`);
     return EventFactory.create(event)
-      .then(gameEvent => apiClient.saveEvent(gameEvent))
+      .then(gameEvent => apiClient.saveEvent(gameEvent.prepare()))
       .then(response => discordClient.send(response.summary, response.publish))
       .catch(error => log.error(error))
   }

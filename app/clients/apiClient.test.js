@@ -1,5 +1,10 @@
 const { APIClient, APIClientError, APISaveEventError, APIPingError } = require('./apiClient');
+const { Readable } = require('stream');
+const http = require('http');
+const https = require('https');
 const nock = require('nock');
+const httpPort = 80;
+const httpsPort = 443;
 
 describe('APIClient', () => {
   let client;
@@ -15,6 +20,19 @@ describe('APIClient', () => {
     jest.restoreAllMocks();
   });
 
+
+  describe('constructor', () => {
+    it('uses http module when useSsl is false', () => {
+      const client = new APIClient(false, host, httpPort);
+      expect(client.httpModule).toBe(http);
+    });
+
+    it('uses https module when useSsl is true', () => {
+      const client = new APIClient(true, host, httpsPort);
+      expect(client.httpModule).toBe(https);
+    });
+  });
+
   describe('ping', () => {
     it('handles successful ping response', async () => {
       const responseBody = { message: 'Pong!' };
@@ -26,6 +44,32 @@ describe('APIClient', () => {
       const response = await client.ping();
 
       expect(response).toEqual(responseBody);
+    });
+
+    it('uses http module when useSsl is false', async () => {
+      client = new APIClient(false, host, httpPort);
+      const spyRequest = jest.spyOn(http, 'request');
+
+      nock(`http://${host}:${httpPort}`)
+        .get('/ping')
+        .reply(200, { message: 'Pong!' });
+
+      await client.ping();
+
+      expect(spyRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses https module when useSsl is true', async () => {
+      client = new APIClient(true, host, httpsPort);
+      const spyRequest = jest.spyOn(https, 'request');
+
+      nock(`https://${host}:${httpsPort}`)
+        .get('/ping')
+        .reply(200, { message: 'Pong!' });
+
+      await client.ping();
+
+      expect(spyRequest).toHaveBeenCalledTimes(1);
     });
 
     it('handles non-JSON response from ping', async () => {
@@ -43,9 +87,34 @@ describe('APIClient', () => {
 
       await expect(client.ping()).rejects.toThrow(APIPingError);
     });
+
+    it('handles response error', async () => {
+      const erroringStream = new Readable();
+      erroringStream._read = () => {
+        process.nextTick(() => erroringStream.emit('error', new Error('Response error')));
+      };
+
+      nock(`http://${host}:${port}`)
+        .get('/ping')
+        .reply(200, erroringStream);
+
+      await expect(client.ping()).rejects.toThrow(APIClientError);
+    });
+
+    it('throws an APIClientError when ping request encounters an error', async () => {
+      const mockError = new Error('request error');
+      const payload = { type: 'test', data: '123' };
+
+      nock(`http://${host}:${port}`)
+        .get('/ping')
+        .replyWithError(mockError);
+
+      await expect(client.ping()).rejects.toEqual(new APIClientError(`API request failed: ${mockError}`));
+    });
   });
 
   describe('saveEvent', () => {
+
     it('sends event and handles successful response', async () => {
       const eventData = { event: 'test' };
       const responseBody = { id: 1, summary: 'event summary', publish: true };
@@ -101,5 +170,32 @@ describe('APIClient', () => {
 
       await expect(client.saveEvent(payload)).rejects.toThrow(APISaveEventError);
     });
+
+    it('handles response error', async () => {
+      const eventData = { event: 'test' };
+
+      const erroringStream = new Readable();
+      erroringStream._read = () => {
+        process.nextTick(() => erroringStream.emit('error', new Error('Response error')));
+      };
+
+      nock(`http://${host}:${port}`)
+        .post('/events', eventData)
+        .reply(204, erroringStream);
+
+      await expect(client.saveEvent(eventData)).rejects.toThrow(APIClientError);
+    });
+
+    it('throws an APIClientError when saveEvent request encounters an error', async () => {
+      const mockError = new Error('request error');
+      const payload = { type: 'test', data: '123' };
+
+      nock(`http://${host}:${port}`)
+        .post('/events', payload)
+        .replyWithError(mockError);
+
+      await expect(client.saveEvent(payload)).rejects.toEqual(new APIClientError(`API request failed: ${mockError}`));
+    });
+
   });
 });

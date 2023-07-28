@@ -1,4 +1,6 @@
 const nock = require('nock');
+const { Readable } = require('stream');
+
 nock.emitter.on('no match', req => console.log('No match for request', req));
 
 const { DiscordClient, DiscordPublishError, DiscordConnectionError } = require('./discordClient');
@@ -44,16 +46,18 @@ describe('DiscordClient', () => {
       await expect(client.send('test message', true)).rejects.toThrow(DiscordConnectionError);
     });
 
-    it('throws an error when the connection cannot be established', async () => {
-      jest.spyOn(DiscordClient.prototype, 'send').mockImplementation(() => {
-        throw new DiscordConnectionError('Connection failed');
-      });
+    it('handles response error', async () => {
+      const message = 'test message';
+      const erroringStream = new Readable();
+      erroringStream._read = () => {
+        process.nextTick(() => erroringStream.emit('error', new Error('Response error')));
+      };
 
-      try {
-        await client.send('test message', true);
-      } catch (error) {
-        expect(error).toBeInstanceOf(DiscordConnectionError);
-      }
+      nock(`https://${host}`)
+        .post(path)
+        .reply(204, erroringStream);
+
+      await expect(client.send(message, true)).rejects.toThrow(DiscordPublishError);
     });
   });
 });

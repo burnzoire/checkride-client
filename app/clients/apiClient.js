@@ -70,6 +70,10 @@ class APIClient {
         })
       })
 
+      req.on('error', (error) => {
+        reject(new APIClientError(`API request failed: ${error}`));
+      });
+
       req.write(data)
       req.end()
     })
@@ -104,6 +108,11 @@ class APIClient {
           reject(new APIClientError(`Failed to ping API: ${error}`))
         })
       })
+
+      req.on('error', (error) => {
+        reject(new APIClientError(`API request failed: ${error}`));
+      });
+
       req.end()
     })
   }

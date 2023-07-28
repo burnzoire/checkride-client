@@ -27,8 +27,5 @@
   "dependencies": {
     "electron-log": "^4.4.1",
     "electron-store": "^8.0.0"
-  },
-  "jest": {
-    "testEnvironment": "node"
   }
 }

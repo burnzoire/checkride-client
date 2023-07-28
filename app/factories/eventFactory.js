@@ -1,13 +1,12 @@
-import log from 'electron-log'
-import AirfieldEvent from './events/airfieldEvent'
-import ChangeSlotEvent from './events/changeSlotEvent'
-import ConnectEvent from './events/connectEvent'
-import DisconnectEvent from './events/disconnectEvent'
-import KillEvent from './events/killEvent'
-import PilotEvent from './events/pilotEvent'
-import SelfKillEvent from './events/selfKillEvent'
+const AirfieldEvent = require('../events/airfieldEvent');
+const ChangeSlotEvent = require('../events/changeSlotEvent');
+const ConnectEvent = require('../events/connectEvent');
+const DisconnectEvent = require('../events/disconnectEvent');
+const KillEvent = require('../events/killEvent');
+const PilotEvent = require('../events/pilotEvent');
+const SelfKillEvent = require('../events/selfKillEvent');
 
-export class InvalidEventTypeError extends Error {
+class InvalidEventTypeError extends Error {
   constructor(eventType) {
     super(`Invalid event type: ${eventType}`);
     this.name = 'InvalidEventTypeError';
@@ -16,7 +15,7 @@ export class InvalidEventTypeError extends Error {
 
 const eventClasses = {
   "kill": KillEvent,
-  "takeoff": AirfieldEvent, 
+  "takeoff": AirfieldEvent,
   "landing": AirfieldEvent,
   "crash": PilotEvent,
   "eject": PilotEvent,
@@ -31,9 +30,9 @@ class EventFactory {
   static create(eventData) {
     return new Promise((resolve, reject) => {
       const GameEvent = eventClasses[eventData.type];
-      
+
       if (GameEvent) {
-        resolve(new GameEvent(eventData).prepare());
+        resolve(new GameEvent(eventData));
       } else {
         reject(new InvalidEventTypeError(eventData.type));
       }
@@ -41,4 +40,7 @@ class EventFactory {
   }
 }
 
-export default EventFactory
+module.exports = {
+  EventFactory,
+  InvalidEventTypeError
+}

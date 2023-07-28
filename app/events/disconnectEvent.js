@@ -1,4 +1,4 @@
-import GameEvent from './gameEvent';
+const GameEvent = require('./gameEvent');
 
 class DisconnectEvent extends GameEvent {
   constructor(rawEvent) {
@@ -22,4 +22,4 @@ class DisconnectEvent extends GameEvent {
   }
 }
 
-export default DisconnectEvent
+module.exports = DisconnectEvent;

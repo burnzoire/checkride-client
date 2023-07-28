@@ -1,22 +1,22 @@
-import log from 'electron-log'
-import http from 'http'
-import https from 'https'
+const log = require('electron-log');
+const http = require('http');
+const https = require('https');
 
-export class APIClientError extends Error {
+class APIClientError extends Error {
   constructor(message) {
     super(message);
     this.name = 'APIClientError';
   }
 }
 
-export class APISaveEventError extends APIClientError {
+class APISaveEventError extends APIClientError {
   constructor(message) {
     super(message);
     this.name = 'APISaveEventError';
   }
 }
 
-export class APIPingError extends APIClientError {
+class APIPingError extends APIClientError {
   constructor(message) {
     super(message);
     this.name = 'APIPingError';
@@ -24,17 +24,17 @@ export class APIPingError extends APIClientError {
 }
 
 class APIClient {
-  constructor(use_ssl, host, port) {
-    this.use_ssl = use_ssl
-    this.http_module = this.use_ssl ? https : http
+  constructor(useSsl, host, port) {
+    this.useSsl = useSsl
+    this.httpModule = this.useSsl ? https : http
     this.host = host
     this.port = port
   }
 
   saveEvent(payload) {
     return new Promise((resolve, reject) => {
-      let data = JSON.stringify(payload); 
-      
+      const data = JSON.stringify(payload);
+
       var options = {
         host: this.host,
         path: '/events',
@@ -46,20 +46,20 @@ class APIClient {
         }
       }
 
-      let req = this.http_module.request(options, (response) => {
+      const req = this.httpModule.request(options, (response) => {
         let body = []
         response.on('data', (chunk) => {
           body.push(chunk)
         })
 
         response.on('end', () => {
-          if(response.statusCode != 201) {
+          if (response.statusCode != 201) {
             reject(new APISaveEventError(`Failed to save event: ${Buffer.concat(body).toString()}`))
           }
           try {
             body = JSON.parse(Buffer.concat(body).toString())
           } catch (e) {
-            reject(new APIClientError('Failed to parse API response'))
+            reject(new APISaveEventError('Failed to parse API response'))
           }
           log.info("Event saved", body)
           resolve(body)
@@ -69,7 +69,11 @@ class APIClient {
           reject(new APIClientError(`API request failed: ${error}`))
         })
       })
-      
+
+      req.on('error', (error) => {
+        reject(new APIClientError(`API request failed: ${error}`));
+      });
+
       req.write(data)
       req.end()
     })
@@ -83,8 +87,8 @@ class APIClient {
         port: this.port,
         method: 'GET',
       }
-      log.info(`pinging ${this.use_ssl ? "https" : "http"}://${options.host} on port ${options.port}`)
-      let req = this.http_module.request(options, (response) => {
+      log.info(`pinging ${this.useSsl ? "https" : "http"}://${options.host} on port ${options.port}`)
+      const req = this.httpModule.request(options, (response) => {
         let body = []
         response.on('data', (chunk) => {
           body.push(chunk)
@@ -101,12 +105,22 @@ class APIClient {
         })
 
         response.on('error', error => {
-          reject(new APIPingError(`Failed to ping API: ${error}`))
+          reject(new APIClientError(`Failed to ping API: ${error}`))
         })
       })
+
+      req.on('error', (error) => {
+        reject(new APIClientError(`API request failed: ${error}`));
+      });
+
       req.end()
     })
   }
 }
 
-export default APIClient
+module.exports = {
+  APIClient,
+  APIClientError,
+  APISaveEventError,
+  APIPingError
+};

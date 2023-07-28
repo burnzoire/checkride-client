@@ -1,4 +1,4 @@
-import GameEvent from './gameEvent';
+const GameEvent = require('./gameEvent');
 
 class SelfKillEvent extends GameEvent {
   constructor(rawEvent) {
@@ -18,4 +18,4 @@ class SelfKillEvent extends GameEvent {
   }
 }
 
-export default SelfKillEvent
+module.exports =  SelfKillEvent;

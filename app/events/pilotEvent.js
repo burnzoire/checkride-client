@@ -1,6 +1,14 @@
 const GameEvent = require('./gameEvent');
 
 class PilotEvent extends GameEvent {
+  constructor(rawEvent, tagDictionary) {
+    super(rawEvent, tagDictionary);
+    this.playerUcid = rawEvent.playerUcid;
+    this.playerName = rawEvent.playerName;
+    this.unitType = rawEvent.unitType;
+    this.unitCategory = rawEvent.unitCategory;
+  }
+
   prepare() {
     return {
       event_type: this.eventType,

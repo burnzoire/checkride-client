@@ -1,0 +1,5 @@
+{
+  "AIM-9M": ["sidewinder", "srm"],
+  "AIM-9X": ["sidewinder", "srm"],
+  "Mk-82": ["general-purpose", "bomb", "low-drag"]
+}

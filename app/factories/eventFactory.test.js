@@ -6,6 +6,9 @@ const DisconnectEvent = require('../events/disconnectEvent');
 const KillEvent = require('../events/killEvent');
 const PilotEvent = require('../events/pilotEvent');
 const SelfKillEvent = require('../events/selfKillEvent');
+const TagDictionary = require('../services/tagDictionary');
+
+jest.mock('../services/tagDictionary');
 
 describe('EventFactory', () => {
 
@@ -23,9 +26,10 @@ describe('EventFactory', () => {
   ])('creates an instance of the correct event class based on event type', ({ type, expectedClass }) => {
 
     it(`returns an instance of ${expectedClass.name} when type is ${type}`, async () => {
-      const eventData = { type, otherData: 'other' };
+      const eventData = { type, ... { otherData: 'other' }};
+      const mockTagDictionary = jest.fn();
 
-      const result = await EventFactory.create(eventData);
+      const result = await EventFactory.create(eventData, mockTagDictionary);
 
       expect(result).toBeInstanceOf(expectedClass);
     });
@@ -33,7 +37,11 @@ describe('EventFactory', () => {
     it(`prepares payload for instance of ${expectedClass}`, async () => {
       const eventData = { type, otherData: 'other' };
 
-      const result = await EventFactory.create(eventData);
+      const mockTagDictionary = new TagDictionary()
+
+      mockTagDictionary.getTagsForField.mockReturnValue(['tag1', 'tag2']);
+
+      const result = await EventFactory.create(eventData, mockTagDictionary);
 
       expect(result.prepare().event_type).toEqual(type);
     })
@@ -41,8 +49,9 @@ describe('EventFactory', () => {
 
   it('throws an error when event type is invalid', async () => {
     const eventData = { type: 'invalid', otherData: 'other' };
+    const mockTagDictionary = jest.fn();
 
-    await expect(EventFactory.create(eventData)).rejects.toThrow(InvalidEventTypeError);
+    await expect(EventFactory.create(eventData, mockTagDictionary)).rejects.toThrow(InvalidEventTypeError);
   });
 
 });

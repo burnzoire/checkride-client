@@ -8,6 +8,7 @@ class PilotEvent extends GameEvent {
         player_ucid: this.playerUcid,
         player_name: this.playerName,
         unit_type: this.unitType,
+        unit_tags: this.tagDictionary.getTagsForField('units', this.unitType),
         unit_category: this.unitCategory
       }
     }

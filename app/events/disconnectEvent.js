@@ -1,8 +1,8 @@
 const GameEvent = require('./gameEvent');
 
 class DisconnectEvent extends GameEvent {
-  constructor(rawEvent) {
-    super(rawEvent);
+  constructor(rawEvent, tagDictionary) {
+    super(rawEvent, tagDictionary);
     this.playerUcid = rawEvent.playerUcid;
     this.playerName = rawEvent.playerName;
     this.playerSide = rawEvent.playerSide;

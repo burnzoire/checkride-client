@@ -1,8 +1,8 @@
 const GameEvent = require('./gameEvent');
 
 class KillEvent extends GameEvent {
-  constructor(rawEvent) {
-    super(rawEvent);
+  constructor(rawEvent, tagDictionary) {
+    super(rawEvent, tagDictionary);
     this.killerUcid = rawEvent.killerUcid;
     this.killerName = rawEvent.killerName;
     this.killerUnitType = rawEvent.killerUnitType;
@@ -23,14 +23,17 @@ class KillEvent extends GameEvent {
         killer_ucid: this.killerUcid,
         killer_name: this.killerName,
         killer_unit_name: this.killerUnitType,
+        killer_unit_tags: this.tagDictionary.getTagsForField('units', this.killerUnitType),
         killer_unit_category: this.killerUnitCategory,
         killer_size: this.killerSide,
         victim_ucid: this.victimUcid,
         victim_name: this.victimName,
         victim_unit_name: this.victimUnitType,
+        victim_unit_tags: this.tagDictionary.getTagsForField('units', this.victimUnitType),
         victim_unit_category: this.victimUnitCategory,
         victim_side: this.victimSide,
-        weapon_name: this.weaponName
+        weapon_name: this.weaponName,
+        weapon_tags: this.tagDictionary.getTagsForField('weapons', this.weaponName),
       }
     };
   }

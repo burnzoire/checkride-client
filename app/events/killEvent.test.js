@@ -38,7 +38,7 @@ describe('KillEvent', () => {
         killer_unit_name: 'F-14A',
         killer_unit_tags: ['tomcat', 'fighter'],
         killer_unit_category: 'Fixed-wing',
-        killer_size: 'blue',
+        killer_side: 'blue',
         victim_ucid: 'test2',
         victim_name: 'Test Pilot 2',
         victim_unit_name: 'JF-17',

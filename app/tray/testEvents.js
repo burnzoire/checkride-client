@@ -8,10 +8,12 @@ const createTestEvents = (udpServer) => [
         killerName: "Test Pilot",
         killerUnitType: "F-14A",
         killerUnitCategory: "Fixed-wing",
+        killerSide: "blue",
         victimUcid: "test2",
         victimName: "Test Pilot 2",
         victimUnitType: "JF-17",
         victimUnitCategory: "Fixed-wing",
+        victimSide: "red",
         weaponName: "AIM-9L"
       });
     }
@@ -102,6 +104,54 @@ const createTestEvents = (udpServer) => [
       });
     }
   },
+  {
+    label: 'Send crash event',
+    click() {
+      udpServer.send({
+        type: "crash",
+        playerUcid: "test1",
+        playerName: "Test Pilot",
+        unitType: "F-14B",
+        unitCategory: "Fixed-wing",
+      });
+    }
+  },
+  {
+    label: 'Send eject event',
+    click() {
+      udpServer.send({
+        type: "eject",
+        playerUcid: "test1",
+        playerName: "Test Pilot",
+        unitType: "F-14B",
+        unitCategory: "Fixed-wing",
+      });
+    }
+  },
+  {
+    label: 'Send pilot death event',
+    click() {
+      udpServer.send({
+        type: "pilot_death",
+        playerUcid: "test1",
+        playerName: "Test Pilot",
+        unitType: "F-14B",
+        unitCategory: "Fixed-wing",
+      });
+    }
+  },
+  {
+    label: 'Send self kill event',
+    click() {
+      udpServer.send({
+        type: "self_kill",
+        playerUcid: "test1",
+        playerName: "Test Pilot",
+      });
+    }
+  },
+
+
 ];
 
 module.exports = createTestEvents;

@@ -26,7 +26,7 @@ describe('TagDictionary', () => {
 
     expect(result).toEqual(tags);
     expect(fs.readFileSync).toHaveBeenCalledWith(
-      path.join(__dirname, 'data', `${dictionaryName}.json`),
+      path.join(__dirname, '..', 'data', `${dictionaryName}.json`),
       'utf8'
     );
   });
@@ -41,7 +41,7 @@ describe('TagDictionary', () => {
 
     expect(result).toEqual([]);
     expect(fs.readFileSync).toHaveBeenCalledWith(
-      path.join(__dirname, 'data', `${dictionaryName}.json`),
+      path.join(__dirname, '..', 'data', `${dictionaryName}.json`),
       'utf8'
     );
   });

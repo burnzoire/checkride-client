@@ -18,7 +18,6 @@ class AirfieldEvent extends GameEvent {
         player_name: this.playerName,
         unit_type: this.unitType,
         unit_category: this.unitCategory,
-        unit_tags: this.tagDictionary.getTagsForField('units', this.unitType),
         airdrome_name: this.airdromeName
       }
     };

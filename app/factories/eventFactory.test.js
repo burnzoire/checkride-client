@@ -43,7 +43,7 @@ describe('EventFactory', () => {
 
       const result = await EventFactory.create(eventData, mockTagDictionary);
 
-      expect(result.prepare().event_type).toEqual(type);
+      expect(result.prepare().event.event_type).toEqual(type);
     })
   });
 

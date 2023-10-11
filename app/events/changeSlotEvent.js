@@ -11,12 +11,14 @@ class ChangeSlotEvent extends GameEvent {
 
   prepare() {
     return {
-      event_type: this.eventType,
       event: {
-        player_ucid: this.playerUcid,
-        player_name: this.playerName,
-        slot_id: this.slotId,
-        prev_side: this.prevSide
+        event_type: this.eventType,
+        event_data: {
+          player_ucid: this.playerUcid,
+          player_name: this.playerName,
+          slot_id: this.slotId,
+          prev_side: this.prevSide
+        }
       }
     };
   }

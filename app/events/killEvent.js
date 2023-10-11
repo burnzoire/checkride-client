@@ -18,19 +18,21 @@ class KillEvent extends GameEvent {
 
   prepare() {
     return {
-      event_type: this.eventType,
       event: {
-        killer_ucid: this.killerUcid,
-        killer_name: this.killerName,
-        killer_unit_name: this.killerUnitType,
-        killer_unit_category: this.killerUnitCategory,
-        killer_side: this.killerSide,
-        victim_ucid: this.victimUcid,
-        victim_name: this.victimName,
-        victim_unit_name: this.victimUnitType,
-        victim_unit_category: this.victimUnitCategory,
-        victim_side: this.victimSide,
-        weapon_name: this.weaponName,
+        event_type: this.eventType,
+        event_data: {
+          killer_ucid: this.killerUcid,
+          killer_name: this.killerName,
+          killer_unit_name: this.killerUnitType,
+          killer_unit_category: this.killerUnitCategory,
+          killer_side: this.killerSide,
+          victim_ucid: this.victimUcid,
+          victim_name: this.victimName,
+          victim_unit_name: this.victimUnitType,
+          victim_unit_category: this.victimUnitCategory,
+          victim_side: this.victimSide,
+          weapon_name: this.weaponName,
+        }
       }
     };
   }

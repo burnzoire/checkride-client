@@ -19,12 +19,14 @@ describe('ChangeSlotEvent', () => {
     const preparedPayload = event.prepare();
 
     expect(preparedPayload).toEqual({
-      event_type: 'change_slot',
       event: {
-        player_ucid: "test1",
-        player_name: "Test Pilot",
-        slot_id: "1",
-        prev_side: "1"
+        event_type: 'change_slot',
+        event_data: {
+          player_ucid: "test1",
+          player_name: "Test Pilot",
+          slot_id: "1",
+          prev_side: "1"
+        }
       }
     });
   });

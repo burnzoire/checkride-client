@@ -17,10 +17,12 @@ describe('ConnectEvent', () => {
     const preparedPayload = event.prepare();
 
     expect(preparedPayload).toEqual({
-      event_type: 'connect',
       event: {
-        player_ucid: "test1",
-        player_name: "Test Pilot",
+        event_type: 'connect',
+        event_data: {
+          player_ucid: "test1",
+          player_name: "Test Pilot",
+        }
       }
     });
   });

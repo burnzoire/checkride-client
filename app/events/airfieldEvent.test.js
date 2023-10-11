@@ -24,13 +24,15 @@ describe('AirfieldEvent', () => {
     const preparedPayload = event.prepare();
 
     expect(preparedPayload).toEqual({
-      event_type: 'takeoff',
       event: {
-        player_ucid: "test1",
-        player_name: "Test Pilot",
-        unit_type: "F-14A",
-        unit_category: "Fixed-wing",
-        airdrome_name: "Test Field"
+        event_type: 'takeoff',
+        event_data: {
+          player_ucid: "test1",
+          player_name: "Test Pilot",
+          unit_type: "F-14A",
+          unit_category: "Fixed-wing",
+          airdrome_name: "Test Field"
+        }
       }
     });
 

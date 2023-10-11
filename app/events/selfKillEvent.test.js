@@ -19,10 +19,12 @@ describe('SelfKillEvent', () => {
     const preparedPayload = event.prepare();
 
     expect(preparedPayload).toEqual({
-      event_type: 'crash',
       event: {
-        player_ucid: "test1",
-        player_name: "Test Pilot",
+        event_type: 'crash',
+        event_data: {
+          player_ucid: "test1",
+          player_name: "Test Pilot",
+        }
       }
     });
   });

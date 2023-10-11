@@ -9,10 +9,12 @@ class ConnectEvent extends GameEvent {
 
   prepare() {
     return {
-      event_type: this.eventType,
       event: {
-        player_ucid: this.playerUcid,
-        player_name: this.playerName
+        event_type: this.eventType,
+        event_data: {
+          player_ucid: this.playerUcid,
+          player_name: this.playerName
+        }
       }
     };
   }

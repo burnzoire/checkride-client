@@ -19,12 +19,14 @@ describe('DisconnectEvent', () => {
     const preparedPayload = event.prepare();
 
     expect(preparedPayload).toEqual({
-      event_type: 'disconnect',
       event: {
-        player_ucid: "test1",
-        player_name: "Test Pilot",
-        player_side: "1",
-        reason_code: "1"
+        event_type: 'disconnect',
+        event_data: {
+          player_ucid: "test1",
+          player_name: "Test Pilot",
+          player_side: "1",
+          reason_code: "1"
+        }
       }
     });
   });

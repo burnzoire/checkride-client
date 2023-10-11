@@ -23,12 +23,14 @@ describe('PilotEvent', () => {
     const preparedPayload = event.prepare();
 
     expect(preparedPayload).toEqual({
-      event_type: 'crash',
       event: {
-        player_ucid: "test1",
-        player_name: "Test Pilot",
-        unit_type: "F-14A",
-        unit_category: "Fixed-wing",
+        event_type: 'crash',
+        event_data: {
+          player_ucid: "test1",
+          player_name: "Test Pilot",
+          unit_type: "F-14A",
+          unit_category: "Fixed-wing",
+        }
       }
     });
 

@@ -53,7 +53,7 @@ class APIClient {
         })
 
         response.on('end', () => {
-          if (response.statusCode != 201) {
+          if (response.statusCode !== 201) {
             reject(new APISaveEventError(`Failed to save event: ${Buffer.concat(body).toString()}`))
           }
           try {

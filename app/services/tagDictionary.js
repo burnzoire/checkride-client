@@ -10,8 +10,7 @@ class TagDictionary {
     if (this.data[dictionaryName]) {
       return;
     }
-
-    const filePath = path.join(__dirname, 'data', `${dictionaryName}.json`);
+    const filePath = path.join(__dirname, '..', 'data', `${dictionaryName}.json`);
     this.data[dictionaryName] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   }
 

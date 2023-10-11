@@ -3,10 +3,13 @@ const path = require('path');
 const contextMenuTemplate = require('./tray/contextMenuTemplate');
 const { initApp } = require('./appInit');
 
+var tray = null
+const iconPath = path.join(__dirname, './assets/icon.png');
+
 app.whenReady().then(async () => {
   const { udpServer, apiClient } = await initApp();
   const contextMenu = Menu.buildFromTemplate(contextMenuTemplate(udpServer, apiClient))
-  const tray = new Tray(path.join(__dirname, './assets/icon.png'))
+  tray = new Tray(iconPath)
 
   if (app.dock) {
     app.dock.hide()

@@ -1,5 +1,8 @@
 # quoll-client
 
+[![Test Suite](https://github.com/burnzoire/quoll-client/actions/workflows/test.yml/badge.svg)](https://github.com/burnzoire/quoll-client/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/coverage-58.8%25-yellow.svg)](https://github.com/burnzoire/quoll-client)
+
 DCS Qualification Tracker
 
 ## Installation
@@ -25,12 +28,39 @@ It's recommended to create a symbolic link from `DCS-Quoll` to ``Saved Games\DCS
 
 ### Quoll App
 
-To launch the quoll app in dev nnvmmode, simply run:
+To launch the quoll app in dev mode, simply run:
 
 ```
+cd app
 npm install
 npm start
 ```
+
+### Testing
+
+The project has comprehensive test coverage (58.8%) with tests for core functionality. To run tests:
+
+```
+cd app
+npm test                  # Run all tests
+npm run test:watch        # Run tests in watch mode
+npm run test:coverage     # Generate coverage report
+```
+
+Tests run automatically on push to main branch via GitHub Actions. The test suite includes:
+- Unit tests for event models (100% coverage on events/)
+- Unit tests for factories and services (100% coverage)
+- Integration tests for UDP server
+- App initialization tests
+
+**Coverage breakdown**:
+- Events: 100% (kill, takeoff, landing, crash, eject, pilot_death, etc.)
+- Factories: 100% (eventFactory)
+- Services: 100% (udpServer, tagDictionary)
+- App initialization: 100% (appInit.js, config.js)
+- Preload: 100%
+
+**Note**: Client tests (apiClient, discordClient) are temporarily skipped due to nock compatibility issues with Node 18.16.1.
 
 ## Packaging
 

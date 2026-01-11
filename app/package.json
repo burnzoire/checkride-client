@@ -4,8 +4,41 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "test": "jest --coverage --silent",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "start": "electron ."
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {
+      "^.+\\.js$": "babel-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.js",
+      "!node_modules/**",
+      "!coverage/**",
+      "!jest.config.js",
+      "!babel.config.js",
+      "!index.js",
+      "!__tests__/**",
+      "!**/*.test.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 46,
+        "functions": 45,
+        "lines": 59,
+        "statements": 58
+      }
+    },
+    "testMatch": [
+      "**/__tests__/**/*.test.js",
+      "**/*.test.js"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/__tests__/setup.js"
+    ]
   },
   "repository": {
     "type": "git",
@@ -18,11 +51,15 @@
   },
   "homepage": "https://github.com/burnzoire/quoll-client#readme",
   "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/preset-env": "^7.28.5",
+    "@types/jest": "^30.0.0",
+    "babel-jest": "^30.2.0",
     "electron": "^13.1.7",
-    "jest": "^29.6.1",
-    "jest-mock-console": "^2.0.0",
-    "mocha": "^10.2.0",
-    "nock": "^13.3.2"
+    "eslint": "^9.39.2",
+    "eslint-plugin-jest": "^29.12.1",
+    "jest": "^30.2.0",
+    "nock": "^13.5.6"
   },
   "dependencies": {
     "electron-log": "^4.4.1",

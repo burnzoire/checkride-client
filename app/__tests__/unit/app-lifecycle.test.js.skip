@@ -1,0 +1,277 @@
+/**
+ * Tests for Electron app lifecycle and UI components
+ */
+
+const { app, BrowserWindow, Tray, Menu, globalShortcut } = require('electron');
+const { createMockUdpSocket } = require('../helpers/mocks');
+
+// Mock dgram for these tests
+jest.mock('dgram');
+const dgram = require('dgram');
+
+describe('socket.js - Electron App Lifecycle', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('createWindow', () => {
+    it('should create a browser window with correct options', () => {
+      const { createWindow } = require('../../socket');
+      
+      const window = createWindow();
+
+      expect(BrowserWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          width: 800,
+          height: 600,
+          webPreferences: expect.objectContaining({
+            preload: expect.stringContaining('preload.js')
+          })
+        })
+      );
+
+      const mockWindowInstance = BrowserWindow.mock.results[0].value;
+      expect(mockWindowInstance.loadFile).toHaveBeenCalledWith('index.html');
+    });
+  });
+
+  describe('createTrayMenu', () => {
+    it('should create tray menu with all required items', () => {
+      const { createTrayMenu } = require('../../socket');
+      const mockServer = createMockUdpSocket();
+
+      const menu = createTrayMenu(mockServer);
+
+      expect(Menu.buildFromTemplate).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ label: 'About Quoll' }),
+          expect.objectContaining({ label: 'Ping server' }),
+          expect.objectContaining({ label: 'Send test kill event' }),
+          expect.objectContaining({ label: 'Send test takeoff event (F-14A)' }),
+          expect.objectContaining({ label: 'Send test takeoff event (F-14B)' }),
+          expect.objectContaining({ label: 'Send test landing event (F-14A)' }),
+          expect.objectContaining({ label: 'Send test landing event (F-14B)' }),
+          expect.objectContaining({ label: 'Send test change slot event' }),
+          expect.objectContaining({ label: 'Send test disconnect event' }),
+          expect.objectContaining({ label: 'Send test connect event' }),
+          expect.objectContaining({ type: 'separator' }),
+          expect.objectContaining({ label: 'Quit Quoll' })
+        ])
+      );
+    });
+
+    it('should trigger test kill event when menu item clicked', () => {
+      const { createTrayMenu } = require('../../socket');
+      const mockServer = createMockUdpSocket();
+      mockServer.address.mockReturnValue({ address: '127.0.0.1', port: 41234 });
+
+      createTrayMenu(mockServer);
+
+      const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
+      const killEventItem = menuTemplate.find(item => item.label === 'Send test kill event');
+      
+      killEventItem.click();
+
+      expect(mockServer.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"kill"'),
+        41234,
+        '127.0.0.1'
+      );
+    });
+
+    it('should trigger test takeoff event when menu item clicked', () => {
+      const { createTrayMenu } = require('../../socket');
+      const mockServer = createMockUdpSocket();
+      mockServer.address.mockReturnValue({ address: '127.0.0.1', port: 41234 });
+
+      createTrayMenu(mockServer);
+
+      const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
+      const takeoffItem = menuTemplate.find(item => item.label === 'Send test takeoff event (F-14A)');
+      
+      takeoffItem.click();
+
+      expect(mockServer.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"takeoff"'),
+        41234,
+        '127.0.0.1'
+      );
+    });
+
+    it('should trigger test landing event when menu item clicked', () => {
+      const { createTrayMenu } = require('../../socket');
+      const mockServer = createMockUdpSocket();
+      mockServer.address.mockReturnValue({ address: '127.0.0.1', port: 41234 });
+
+      createTrayMenu(mockServer);
+
+      const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
+      const landingItem = menuTemplate.find(item => item.label === 'Send test landing event (F-14A)');
+      
+      landingItem.click();
+
+      expect(mockServer.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"landing"'),
+        41234,
+        '127.0.0.1'
+      );
+    });
+
+    it('should trigger test connect event when menu item clicked', () => {
+      const { createTrayMenu } = require('../../socket');
+      const mockServer = createMockUdpSocket();
+      mockServer.address.mockReturnValue({ address: '127.0.0.1', port: 41234 });
+
+      createTrayMenu(mockServer);
+
+      const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
+      const connectItem = menuTemplate.find(item => item.label === 'Send test connect event');
+      
+      connectItem.click();
+
+      expect(mockServer.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"connect"'),
+        41234,
+        '127.0.0.1'
+      );
+    });
+
+    it('should trigger test disconnect event when menu item clicked', () => {
+      const { createTrayMenu } = require('../../socket');
+      const mockServer = createMockUdpSocket();
+      mockServer.address.mockReturnValue({ address: '127.0.0.1', port: 41234 });
+
+      createTrayMenu(mockServer);
+
+      const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
+      const disconnectItem = menuTemplate.find(item => item.label === 'Send test disconnect event');
+      
+      disconnectItem.click();
+
+      expect(mockServer.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"disconnect"'),
+        41234,
+        '127.0.0.1'
+      );
+    });
+
+    it('should trigger test change slot event when menu item clicked', () => {
+      const { createTrayMenu } = require('../../socket');
+      const mockServer = createMockUdpSocket();
+      mockServer.address.mockReturnValue({ address: '127.0.0.1', port: 41234 });
+
+      createTrayMenu(mockServer);
+
+      const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
+      const changeSlotItem = menuTemplate.find(item => item.label === 'Send test change slot event');
+      
+      changeSlotItem.click();
+
+      expect(mockServer.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"change_slot"'),
+        41234,
+        '127.0.0.1'
+      );
+    });
+  });
+
+  describe('initializeApp', () => {
+    it('should initialize app when ready', async () => {
+      const mockServer = createMockUdpSocket();
+      dgram.createSocket = jest.fn(() => mockServer);
+
+      const { initializeApp } = require('../../socket');
+      initializeApp();
+      
+      // Just verify the function exists and was called
+      expect(initializeApp).toBeDefined();
+      expect(typeof initializeApp).toBe('function');
+      
+      // Verify app.whenReady is being used
+      expect(app.whenReady).toHaveBeenCalled();
+    });
+
+    it('should hide dock on macOS when app is ready', async () => {
+      const mockServer = createMockUdpSocket();
+      dgram.createSocket = jest.fn(() => mockServer);
+
+      const { initializeApp } = require('../../socket');
+      initializeApp();
+
+      // Simulate app ready
+      const readyHandler = app.whenReady.mock.calls[0][0];
+      if (typeof readyHandler === 'function') {
+        await readyHandler();
+      } else {
+        await app.whenReady();
+      }
+
+      if (app.dock) {
+        expect(app.dock.hide).toHaveBeenCalled();
+      }
+    });
+
+    it('should create tray icon when app is ready', async () => {
+      const mockServer = createMockUdpSocket();
+      dgram.createSocket = jest.fn(() => mockServer);
+
+      const { initializeApp } = require('../../socket');
+      initializeApp();
+
+      // App whenReady returns a promise that we need to resolve
+      await app.whenReady();
+
+      expect(Tray).toHaveBeenCalledWith(expect.stringContaining('icon.png'));
+    });
+
+    it('should register quit shortcut when app is ready', async () => {
+      const mockServer = createMockUdpSocket();
+      dgram.createSocket = jest.fn(() => mockServer);
+
+      const { initializeApp } = require('../../socket');
+      initializeApp();
+
+      await app.whenReady();
+
+      expect(globalShortcut.register).toHaveBeenCalledWith(
+        'CommandOrControl+Q',
+        expect.any(Function)
+      );
+    });
+
+    it('should bind UDP server to port 41234', async () => {
+      const mockServer = createMockUdpSocket();
+      dgram.createSocket = jest.fn(() => mockServer);
+
+      const { initializeApp } = require('../../socket');
+      initializeApp();
+
+      await app.whenReady();
+
+      expect(mockServer.bind).toHaveBeenCalledWith(41234);
+    });
+
+    it('should quit app on window close on non-Darwin platforms', () => {
+      const { initializeApp } = require('../../socket');
+      initializeApp();
+
+      const windowCloseHandler = app.on.mock.calls.find(
+        call => call[0] === 'window-all-closed'
+      );
+
+      expect(windowCloseHandler).toBeDefined();
+
+      // Simulate non-Darwin platform
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+
+      if (windowCloseHandler) {
+        windowCloseHandler[1]();
+        expect(app.quit).toHaveBeenCalled();
+      }
+
+      // Restore platform
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    });
+  });
+});

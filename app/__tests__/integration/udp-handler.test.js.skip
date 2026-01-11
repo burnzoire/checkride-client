@@ -1,0 +1,311 @@
+/**
+ * Integration tests for UDP message handling
+ */
+
+const {
+  createMockHttpRequest,
+  createMockHttpResponse,
+  createMockStore,
+  createMockUdpSocket
+} = require('../helpers/mocks');
+
+const eventFixtures = require('../fixtures/events');
+
+// Mock modules
+jest.mock('dgram');
+jest.mock('http');
+jest.mock('https');
+
+const dgram = require('dgram');
+const http = require('http');
+const https = require('https');
+
+describe('socket.js - Integration Tests', () => {
+  let mockStore;
+  let mockHttpResponse;
+  let mockHttpRequest;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    mockStore = createMockStore({
+      server_host: 'localhost',
+      server_port: '3000',
+      use_ssl: false,
+      discord_webhook_path: ''
+    });
+
+    mockHttpResponse = createMockHttpResponse();
+    mockHttpRequest = createMockHttpRequest();
+    
+    http.request = jest.fn((options, callback) => {
+      callback(mockHttpResponse);
+      return mockHttpRequest;
+    });
+  });
+
+  describe('handleUdpMessage', () => {
+    it('should handle kill event end-to-end', async () => {
+      // Need to dynamically require to get fresh instance with mocked dependencies
+      jest.isolateModules(() => {
+        const { handleUdpMessage } = require('../../socket');
+        
+        const msg = Buffer.from(JSON.stringify(eventFixtures.killEvent));
+        const rinfo = { address: '127.0.0.1', port: 12345 };
+
+        const handlePromise = handleUdpMessage(msg, rinfo);
+
+        // Simulate server response
+        const serverResponse = {
+          summary: 'Top Gun destroyed Enemy Pilot',
+          awards: [],
+          publish: true
+        };
+        mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
+        mockHttpResponse._triggerEnd();
+
+        return handlePromise.then(result => {
+          expect(result).toEqual(serverResponse);
+          expect(http.request).toHaveBeenCalledWith(
+            expect.objectContaining({
+              path: '/events',
+              method: 'POST'
+            }),
+            expect.any(Function)
+          );
+        });
+      });
+    });
+
+    it('should handle takeoff event with awards', async () => {
+      jest.isolateModules(() => {
+        const { handleUdpMessage } = require('../../socket');
+        
+        const mockDiscordResponse = createMockHttpResponse();
+        const mockDiscordRequest = createMockHttpRequest();
+        
+        const discordStore = createMockStore({
+          server_host: 'localhost',
+          server_port: '3000',
+          use_ssl: false,
+          discord_webhook_path: '/api/webhooks/test'
+        });
+
+        https.request = jest.fn(() => mockDiscordRequest);
+
+        const msg = Buffer.from(JSON.stringify(eventFixtures.takeoffEvent));
+        const rinfo = { address: '127.0.0.1', port: 12345 };
+
+        const handlePromise = handleUdpMessage(msg, rinfo);
+
+        // Simulate server response with award
+        const serverResponse = {
+          summary: 'Test Pilot took off',
+          awards: [{
+            pilot: 'Test Pilot',
+            badge: { title: 'First Flight' }
+          }],
+          publish: true
+        };
+        
+        mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
+        mockHttpResponse._triggerEnd();
+
+        // Simulate Discord responses
+        setTimeout(() => {
+          mockDiscordRequest._triggerEvent('end');
+        }, 10);
+
+        return handlePromise.then(result => {
+          expect(result).toEqual(serverResponse);
+        });
+      });
+    });
+
+    it('should handle landing event and send to Discord', async () => {
+      jest.isolateModules(() => {
+        const { handleUdpMessage } = require('../../socket');
+        
+        const mockDiscordRequest = createMockHttpRequest();
+        
+        const discordStore = createMockStore({
+          server_host: 'localhost',
+          server_port: '3000',
+          use_ssl: false,
+          discord_webhook_path: '/api/webhooks/test'
+        });
+
+        https.request = jest.fn(() => mockDiscordRequest);
+
+        const msg = Buffer.from(JSON.stringify(eventFixtures.landingEvent));
+        const rinfo = { address: '127.0.0.1', port: 12345 };
+
+        const handlePromise = handleUdpMessage(msg, rinfo);
+
+        const serverResponse = {
+          summary: 'Test Pilot landed safely',
+          awards: [],
+          publish: true
+        };
+        
+        mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
+        mockHttpResponse._triggerEnd();
+
+        return handlePromise;
+      });
+    });
+
+    it('should handle error when server is unreachable', async () => {
+      return jest.isolateModules(async () => {
+        const { handleUdpMessage } = require('../../socket');
+        
+        http.request = jest.fn(() => {
+          const req = createMockHttpRequest();
+          setTimeout(() => req._triggerEvent('error', new Error('ECONNREFUSED')), 0);
+          return req;
+        });
+
+        const msg = Buffer.from(JSON.stringify(eventFixtures.connectEvent));
+        const rinfo = { address: '127.0.0.1', port: 12345 };
+
+        await expect(handleUdpMessage(msg, rinfo)).rejects.toThrow();
+      });
+    });
+
+    it('should handle crash event', async () => {
+      jest.isolateModules(() => {
+        const { handleUdpMessage } = require('../../socket');
+        
+        const msg = Buffer.from(JSON.stringify(eventFixtures.crashEvent));
+        const rinfo = { address: '127.0.0.1', port: 12345 };
+
+        const handlePromise = handleUdpMessage(msg, rinfo);
+
+        const serverResponse = {
+          summary: 'Test Pilot crashed',
+          awards: [],
+          publish: true
+        };
+        
+        mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
+        mockHttpResponse._triggerEnd();
+
+        return handlePromise.then(result => {
+          expect(result).toEqual(serverResponse);
+        });
+      });
+    });
+
+    it('should handle eject event', async () => {
+      jest.isolateModules(() => {
+        const { handleUdpMessage } = require('../../socket');
+        
+        const msg = Buffer.from(JSON.stringify(eventFixtures.ejectEvent));
+        const rinfo = { address: '127.0.0.1', port: 12345 };
+
+        const handlePromise = handleUdpMessage(msg, rinfo);
+
+        const serverResponse = {
+          summary: 'Test Pilot ejected',
+          awards: [],
+          publish: false
+        };
+        
+        mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
+        mockHttpResponse._triggerEnd();
+
+        return handlePromise.then(result => {
+          expect(result).toEqual(serverResponse);
+        });
+      });
+    });
+
+    it('should handle disconnect event', async () => {
+      jest.isolateModules(() => {
+        const { handleUdpMessage } = require('../../socket');
+        
+        const msg = Buffer.from(JSON.stringify(eventFixtures.disconnectEvent));
+        const rinfo = { address: '127.0.0.1', port: 12345 };
+
+        const handlePromise = handleUdpMessage(msg, rinfo);
+
+        const serverResponse = {
+          summary: 'Test Pilot disconnected',
+          awards: [],
+          publish: false
+        };
+        
+        mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
+        mockHttpResponse._triggerEnd();
+
+        return handlePromise.then(result => {
+          expect(result).toEqual(serverResponse);
+        });
+      });
+    });
+
+    it('should handle change slot event', async () => {
+      jest.isolateModules(() => {
+        const { handleUdpMessage } = require('../../socket');
+        
+        const msg = Buffer.from(JSON.stringify(eventFixtures.changeSlotEvent));
+        const rinfo = { address: '127.0.0.1', port: 12345 };
+
+        const handlePromise = handleUdpMessage(msg, rinfo);
+
+        const serverResponse = {
+          summary: 'Test Pilot changed slot',
+          awards: [],
+          publish: false
+        };
+        
+        mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
+        mockHttpResponse._triggerEnd();
+
+        return handlePromise.then(result => {
+          expect(result).toEqual(serverResponse);
+        });
+      });
+    });
+  });
+
+  describe('createUdpServer', () => {
+    it('should create and configure UDP server', () => {
+      const mockSocket = createMockUdpSocket();
+      dgram.createSocket = jest.fn(() => mockSocket);
+
+      const { createUdpServer } = require('../../socket');
+      const server = createUdpServer();
+
+      expect(dgram.createSocket).toHaveBeenCalledWith('udp4');
+      expect(mockSocket.on).toHaveBeenCalledWith('error', expect.any(Function));
+      expect(mockSocket.on).toHaveBeenCalledWith('message', expect.any(Function));
+      expect(mockSocket.on).toHaveBeenCalledWith('listening', expect.any(Function));
+    });
+
+    it('should handle server errors gracefully', () => {
+      const mockSocket = createMockUdpSocket();
+      dgram.createSocket = jest.fn(() => mockSocket);
+
+      const { createUdpServer } = require('../../socket');
+      const server = createUdpServer();
+
+      const error = new Error('Port in use');
+      mockSocket._triggerError(error);
+
+      expect(mockSocket.close).toHaveBeenCalled();
+    });
+
+    it('should log when server starts listening', () => {
+      const mockSocket = createMockUdpSocket();
+      dgram.createSocket = jest.fn(() => mockSocket);
+
+      const { createUdpServer } = require('../../socket');
+      const server = createUdpServer();
+
+      mockSocket._triggerListening();
+
+      expect(mockSocket.address).toHaveBeenCalled();
+    });
+  });
+});

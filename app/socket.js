@@ -30,7 +30,7 @@ const use_ssl = store.get("use_ssl")
 
 const http_module = use_ssl?https:http
 
-function createWindow () {
+export function createWindow () {
   const win = new BrowserWindow({
     width: 800,
     height: 600,
@@ -42,16 +42,16 @@ function createWindow () {
   win.loadFile('index.html')
 }
 
-function ping() {
+export function ping(storeInstance = store, httpModule = http_module) {
   return new Promise(function(resolve, reject) {
     var options = {
-      host: store.get("server_host"),
+      host: storeInstance.get("server_host"),
       path: '/ping',
-      port: store.get("server_port"),
+      port: storeInstance.get("server_port"),
       method: 'GET',
     }
     log.info(`pinging ${use_ssl?"https":"http"}://${options.host} on port ${options.port}`)
-    let req = http_module.request(options, (response) => {
+    let req = httpModule.request(options, (response) => {
       let body = [];
       response.on('data', (chunk) => {
         body.push(chunk)
@@ -69,15 +69,18 @@ function ping() {
 
       response.on('error', error => {
         log.error(`couldn't ping the server at ${use_ssl?"https":"http"}://${options.host}${options.path} on port ${options.port}.`)
-        reject(err);
+        reject(error);
       })
+    })
+    req.on('error', error => {
+      reject(error);
     })
     req.end()
   })
 }
 
-function sendToDiscord(message, publish)  {
-  let discordWebhookPath = store.get("discord_webhook_path")
+export function sendToDiscord(message, publish, storeInstance = store)  {
+  let discordWebhookPath = storeInstance.get("discord_webhook_path")
   if(publish === false) {
     console.log("skipping discord publish: event not publishable")
     return Promise.resolve()
@@ -117,8 +120,11 @@ function sendToDiscord(message, publish)  {
       })
 
       response.on('error', error => {
-        reject(err);
+        reject(error);
       })
+    })
+    req.on('error', error => {
+      reject(error);
     })
     req.write(payload)
     req.end()
@@ -280,13 +286,8 @@ server.on('error', (err) => {
   server.close()
 })
 
-server.on('message', (msg, rinfo) => {
-  log.debug(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
-  let event = JSON.parse(msg)
-  let payload = "{}"
+export function transformEventToGameEvent(event) {
   let gameEvent = {}
-  const path = "/events"
-  log.debug("Event type: " + event.type)
   switch(event.type) {
     case "kill":
       log.debug(`killer ucid: ${event.killerUcid} killer name: ${event.killerName}, killer unit: ${event.killerUnitType}, victim ucid: ${event.victimUcid}  victim name: ${event.victimName}, victim unit: ${event.victimUnitType}, weapon: ${event.weaponName}`)
@@ -378,6 +379,16 @@ server.on('message', (msg, rinfo) => {
       }
       break;
   }
+  return gameEvent
+}
+
+export function handleUdpMessage(msg, rinfo) {
+  log.debug(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
+  let event = JSON.parse(msg)
+  let payload = "{}"
+  const path = "/events"
+  log.debug("Event type: " + event.type)
+  let gameEvent = transformEventToGameEvent(event)
   log.debug("Sending game event to server: ", gameEvent)
   payload = new TextEncoder().encode(
     JSON.stringify(gameEvent)
@@ -407,22 +418,26 @@ server.on('message', (msg, rinfo) => {
     .catch((err) => {
       log.error("Failed to save event: " + err)
     })
+}
+
+server.on('message', (msg, rinfo) => {
+  handleUdpMessage(msg, rinfo)
 })
 
-function sendEventToServer(payload, path) {
+export function sendEventToServer(payload, path, storeInstance = store, httpModule = http_module) {
   return new Promise(function(resolve, reject) {
     var options = {
-      host: store.get("server_host"),
+      host: storeInstance.get("server_host"),
       path: path,
-      port: store.get("server_port"),
+      port: storeInstance.get("server_port"),
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': payload.length
+        'Content-Length': payload ? payload.length : 0
       }
     }
 
-    let req = http_module.request(options, (response) => {
+    let req = httpModule.request(options, (response) => {
       let body = [];
       response.on('data', (chunk) => {
         body.push(chunk)
@@ -438,8 +453,11 @@ function sendEventToServer(payload, path) {
       })
 
       response.on('error', error => {
-        reject(err);
+        reject(error);
       })
+    })
+    req.on('error', error => {
+      reject(error);
     })
     if(payload){
       req.write(payload)
@@ -447,11 +465,13 @@ function sendEventToServer(payload, path) {
     req.end()
   })
 }
-
 server.on('listening', () => {
   const address = server.address()
   log.info(`server listening ${address.address}:${address.port}`)
 })
 
 server.bind(41234)
-// Prints: server listening 0.0.0.0:
+
+// Export for testing
+export { server, store, http_module }
+

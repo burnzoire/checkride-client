@@ -1,7 +1,7 @@
 # quoll-client
 
 [![Test Suite](https://github.com/burnzoire/quoll-client/actions/workflows/test.yml/badge.svg)](https://github.com/burnzoire/quoll-client/actions/workflows/test.yml)
-[![Coverage](https://img.shields.io/badge/coverage-58.8%25-yellow.svg)](https://github.com/burnzoire/quoll-client)
+[![codecov](https://codecov.io/gh/burnzoire/quoll-client/branch/main/graph/badge.svg)](https://codecov.io/gh/burnzoire/quoll-client)
 
 DCS Qualification Tracker
 
@@ -38,7 +38,7 @@ npm start
 
 ### Testing
 
-The project has comprehensive test coverage (58.8%) with tests for core functionality. To run tests:
+The project has comprehensive test coverage (92%+) with tests for core functionality. To run tests:
 
 ```
 cd app
@@ -48,15 +48,33 @@ npm run test:coverage     # Generate coverage report
 ```
 
 Tests run automatically on push to main branch via GitHub Actions. The test suite includes:
-- Unit tests for event models (100% coverage on events/)
+- Unit tests for event models (100% coverage)
 - Unit tests for factories and services (100% coverage)
-- Integration tests for UDP server
-- App initialization tests
+- Unit tests for API and Discord clients (100% coverage)
+- Integration tests for UDP server (100% coverage)
+- App initialization and tray menu tests
 
-**Note**: Client tests (apiClient, discordClient) are temporarily skipped due to nock compatibility issues with Node 18.16.1.
+Coverage thresholds enforced:
+- Statements: 90%
+- Branches: 80%
+- Functions: 95%
+- Lines: 90%
 
 ## Packaging
 
 Install the electron packager with `npm install electron-packager -g`
 
 Package for windows (as it must run alongside DCS) with `electron-packager app --platform=win32 --asar --overwrite`. The `--asar` switch is to protect the source code in the package.
+
+## Coverage Badges
+
+The coverage badge in this README updates automatically via Codecov when tests run on the main branch. Coverage data is collected during CI runs and uploaded to Codecov.
+
+For the optional dynamic badge setup (requires configuration):
+1. Create a GitHub Gist for storing badge data
+2. Create a GitHub Personal Access Token with gist permissions
+3. Add secrets to repository:
+   - `GIST_SECRET`: Your GitHub token
+   - `GIST_ID`: The ID of your gist
+
+The coverage badge will then update automatically on every push to main.

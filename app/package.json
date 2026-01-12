@@ -32,6 +32,11 @@
         "statements": 90
       }
     },
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "json-summary"
+    ],
     "testMatch": [
       "**/__tests__/**/*.test.js",
       "**/*.test.js"

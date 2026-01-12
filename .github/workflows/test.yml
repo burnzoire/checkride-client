@@ -47,6 +47,27 @@ jobs:
         fail_ci_if_error: false
       continue-on-error: true
     
+    - name: Extract coverage percentage
+      if: matrix.node-version == '20.x'
+      working-directory: ./app
+      run: |
+        $coverage = Get-Content coverage/coverage-summary.json | ConvertFrom-Json
+        $percentage = [math]::Round($coverage.total.statements.pct, 2)
+        echo "COVERAGE=$percentage" >> $env:GITHUB_ENV
+      shell: pwsh
+    
+    - name: Create coverage badge
+      if: matrix.node-version == '20.x' && github.ref == 'refs/heads/main'
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_SECRET }}
+        gistID: ${{ secrets.GIST_ID }}
+        filename: quoll-client-coverage.json
+        label: coverage
+        message: ${{ env.COVERAGE }}%
+        color: ${{ env.COVERAGE > 90 && 'brightgreen' || env.COVERAGE > 80 && 'green' || env.COVERAGE > 70 && 'yellow' || env.COVERAGE > 60 && 'orange' || 'red' }}
+      continue-on-error: true
+    
     - name: Archive test results
       if: always()
       uses: actions/upload-artifact@v6

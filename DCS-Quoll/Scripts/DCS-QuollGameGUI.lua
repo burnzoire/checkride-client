@@ -93,6 +93,27 @@ local function getPlayerOrAI(playerID)
     return Quoll.clients[playerID] or { name = "AI", ucid = "" }
 end
 
+function Quoll.getUnitAttributes(unitType)
+    if not unitType or unitType == "" then
+        return {}
+    end
+    
+    local attributes = DCS.getUnitTypeAttribute(unitType, "attribute")
+    if not attributes then
+        return {}
+    end
+    
+    -- Convert to array of attribute names for easier JSON handling
+    local attrList = {}
+    for key, value in pairs(attributes) do
+        if value then
+            table.insert(attrList, key)
+        end
+    end
+    
+    return attrList
+end
+
 -- ============================================================================
 -- Event Handlers
 -- ============================================================================
@@ -191,10 +212,12 @@ function Quoll.onKill(time, killerPlayerID, killerUnitType, killerSide, victimPl
     event.killerUcid = killer.ucid
     event.killerName = killer.name
     event.killerUnitType = killerUnitType
+    event.killerUnitAttributes = Quoll.getUnitAttributes(killerUnitType)
     event.killerSide = killerSide
     event.victimName = victim.name
     event.victimUcid = victim.ucid
     event.victimUnitType = victimUnitType
+    event.victimUnitAttributes = Quoll.getUnitAttributes(victimUnitType)
     event.victimSide = victimSide
     event.weaponName = weaponName
     Quoll.sendEvent(event)
@@ -215,6 +238,7 @@ function Quoll.onTakeoff(time, playerID, unit_missionID, airdromeName)
     local unitType = DCS.getUnitType(unit_missionID)
     if unitType then
         event.unitType = unitType
+        event.unitAttributes = Quoll.getUnitAttributes(unitType)
     end
     
     Quoll.sendEvent(event)
@@ -235,6 +259,7 @@ function Quoll.onLanding(time, playerID, unit_missionID, airdromeName)
     local unitType = DCS.getUnitType(unit_missionID)
     if unitType then
         event.unitType = unitType
+        event.unitAttributes = Quoll.getUnitAttributes(unitType)
     end
     
     Quoll.sendEvent(event)
@@ -254,6 +279,7 @@ function Quoll.onCrash(time, playerID, unit_missionID)
     local unitType = DCS.getUnitType(unit_missionID)
     if unitType then
         event.unitType = unitType
+        event.unitAttributes = Quoll.getUnitAttributes(unitType)
     end
     
     Quoll.sendEvent(event)
@@ -273,6 +299,7 @@ function Quoll.onEject(time, playerID, unit_missionID)
     local unitType = DCS.getUnitType(unit_missionID)
     if unitType then
         event.unitType = unitType
+        event.unitAttributes = Quoll.getUnitAttributes(unitType)
     end
     
     Quoll.sendEvent(event)
@@ -292,6 +319,7 @@ function Quoll.onPilotDeath(time, playerID, unit_missionID)
     local unitType = DCS.getUnitType(unit_missionID)
     if unitType then
         event.unitType = unitType
+        event.unitAttributes = Quoll.getUnitAttributes(unitType)
     end
     
     Quoll.sendEvent(event)

@@ -63,6 +63,6 @@
   },
   "dependencies": {
     "electron-log": "^5.4.3",
-    "electron-store": "^8.0.0"
+    "electron-store": "^11.0.2"
   }
 }

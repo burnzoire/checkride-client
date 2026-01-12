@@ -1,8 +1,8 @@
 const GameEvent = require('./gameEvent');
 
 class ChangeSlotEvent extends GameEvent {
-  constructor(rawEvent, tagDictionary) {
-    super(rawEvent, tagDictionary);
+  constructor(rawEvent) {
+    super(rawEvent);
     this.playerUcid = rawEvent.playerUcid;
     this.playerName = rawEvent.playerName;
     this.slotId = rawEvent.slotId;

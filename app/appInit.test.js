@@ -5,12 +5,10 @@ const { EventFactory } = require('./factories/eventFactory');
 const store = require('./config');
 const { initApp } = require('./appInit');
 const log = require('electron-log');
-const TagDictionary = require('./services/tagDictionary');
 
 jest.mock('./clients/apiClient');
 jest.mock('./clients/discordClient');
 jest.mock('./services/udpServer');
-jest.mock('./services/tagDictionary');
 jest.mock('./factories/eventFactory');
 jest.mock('./config');
 jest.mock('electron-log');
@@ -81,19 +79,17 @@ describe('initApp', () => {
     const discordClientMock = {
       send: jest.fn(),
     };
-    const mockTagDictionary = jest.fn();
 
 
     APIClient.mockImplementation(() => apiClientMock);
     DiscordClient.mockImplementation(() => discordClientMock);
-    TagDictionary.mockImplementation(() => mockTagDictionary);
     EventFactory.create.mockResolvedValue(gameEvent);
 
     const { udpServer } = await initApp();
 
     await udpServer.onEvent(fakeEvent);
 
-    expect(EventFactory.create).toHaveBeenCalledWith(fakeEvent, mockTagDictionary);
+    expect(EventFactory.create).toHaveBeenCalledWith(fakeEvent);
     expect(gameEvent.prepare).toHaveBeenCalled();
     expect(apiClientMock.saveEvent).toHaveBeenCalledWith('prepared event');
     expect(discordClientMock.send).toHaveBeenCalledWith(apiResponse.summary, apiResponse.publish);

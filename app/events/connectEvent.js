@@ -1,8 +1,8 @@
 const GameEvent = require('./gameEvent');
 
 class ConnectEvent extends GameEvent {
-  constructor(rawEvent, tagDictionary) {
-    super(rawEvent, tagDictionary);
+  constructor(rawEvent) {
+    super(rawEvent);
     this.playerUcid = rawEvent.playerUcid;
     this.playerName = rawEvent.playerName;
   }

@@ -27,12 +27,12 @@ const eventClasses = {
 };
 
 class EventFactory {
-  static create(eventData, tagDictionary) {
+  static create(eventData) {
     return new Promise((resolve, reject) => {
       const GameEvent = eventClasses[eventData.type];
 
       if (GameEvent) {
-        resolve(new GameEvent(eventData, tagDictionary));
+        resolve(new GameEvent(eventData));
       } else {
         reject(new InvalidEventTypeError(eventData.type));
       }

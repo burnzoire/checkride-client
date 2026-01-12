@@ -1,11 +1,8 @@
 const DisconnectEvent = require('./disconnectEvent');
-const TagDictionary = require('../services/tagDictionary');
-
-jest.mock('../services/tagDictionary');
 
 describe('DisconnectEvent', () => {
 
-  it('prepares the expected payload with correct tags', () => {
+  it('prepares the expected payload', () => {
     const rawEvent = {
       type: "disconnect",
       playerUcid: "test1",
@@ -14,8 +11,7 @@ describe('DisconnectEvent', () => {
       reasonCode: "1"
     }
 
-    const mockTagDictionary = new TagDictionary();
-    const event = new DisconnectEvent(rawEvent, mockTagDictionary);
+    const event = new DisconnectEvent(rawEvent);
     const preparedPayload = event.prepare();
 
     expect(preparedPayload).toEqual({

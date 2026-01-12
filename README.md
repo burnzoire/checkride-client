@@ -1,7 +1,7 @@
 # quoll-client
 
 [![Test Suite](https://github.com/burnzoire/quoll-client/actions/workflows/test.yml/badge.svg)](https://github.com/burnzoire/quoll-client/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/burnzoire/quoll-client/branch/main/graph/badge.svg)](https://codecov.io/gh/burnzoire/quoll-client)
+[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)](https://github.com/burnzoire/quoll-client)
 
 DCS Qualification Tracker
 
@@ -66,15 +66,6 @@ Install the electron packager with `npm install electron-packager -g`
 
 Package for windows (as it must run alongside DCS) with `electron-packager app --platform=win32 --asar --overwrite`. The `--asar` switch is to protect the source code in the package.
 
-## Coverage Badges
+## Coverage
 
-The coverage badge in this README updates automatically via Codecov when tests run on the main branch. Coverage data is collected during CI runs and uploaded to Codecov.
-
-For the optional dynamic badge setup (requires configuration):
-1. Create a GitHub Gist for storing badge data
-2. Create a GitHub Personal Access Token with gist permissions
-3. Add secrets to repository:
-   - `GIST_SECRET`: Your GitHub token
-   - `GIST_ID`: The ID of your gist
-
-The coverage badge will then update automatically on every push to main.
+Coverage is tracked locally and displayed in the badge above. Run `npm test -- --coverage` in the app directory to generate a full coverage report.

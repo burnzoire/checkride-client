@@ -1,19 +1,15 @@
 const ConnectEvent = require('./connectEvent');
-const TagDictionary = require('../services/tagDictionary');
-
-jest.mock('../services/tagDictionary');
 
 describe('ConnectEvent', () => {
 
-  it('prepares the expected payload with correct tags', () => {
+  it('prepares the expected payload', () => {
     const rawEvent = {
       type: "connect",
       playerUcid: "test1",
       playerName: "Test Pilot"
     }
 
-    const mockTagDictionary = new TagDictionary();
-    const event = new ConnectEvent(rawEvent, mockTagDictionary);
+    const event = new ConnectEvent(rawEvent);
     const preparedPayload = event.prepare();
 
     expect(preparedPayload).toEqual({

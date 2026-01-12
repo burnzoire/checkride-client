@@ -53,13 +53,6 @@ Tests run automatically on push to main branch via GitHub Actions. The test suit
 - Integration tests for UDP server
 - App initialization tests
 
-**Coverage breakdown**:
-- Events: 100% (kill, takeoff, landing, crash, eject, pilot_death, etc.)
-- Factories: 100% (eventFactory)
-- Services: 100% (udpServer, tagDictionary)
-- App initialization: 100% (appInit.js, config.js)
-- Preload: 100%
-
 **Note**: Client tests (apiClient, discordClient) are temporarily skipped due to nock compatibility issues with Node 18.16.1.
 
 ## Packaging

@@ -59,7 +59,7 @@
     "eslint": "^9.39.2",
     "eslint-plugin-jest": "^29.12.1",
     "jest": "^30.2.0",
-    "nock": "^13.5.6"
+    "nock": "^14.0.10"
   },
   "dependencies": {
     "electron-log": "^5.4.3",

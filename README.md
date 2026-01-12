@@ -1,7 +1,6 @@
 # quoll-client
 
 [![Test Suite](https://github.com/burnzoire/quoll-client/actions/workflows/test.yml/badge.svg)](https://github.com/burnzoire/quoll-client/actions/workflows/test.yml)
-[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)](https://github.com/burnzoire/quoll-client)
 
 DCS Qualification Tracker
 

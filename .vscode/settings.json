@@ -35,6 +35,7 @@
         "!Split sequence"
     ],
     "cSpell.words": [
+        "Checkride",
         "Ucid"
     ],
     "jest.jestCommandLine": "npm test --",

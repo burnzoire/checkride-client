@@ -72,7 +72,7 @@
   </style>
 </head>
 <body>
-  <h1>Settings</h1>
+  <h1>Checkride Settings</h1>
   <form id="settings-form">
     <div>
       <label for="server_host">Server Host</label>
@@ -82,6 +82,10 @@
       <label for="server_port">Server Port</label>
       <input id="server_port" name="server_port" type="text" required>
     </div>
+    <div>
+      <label for="api_token">API Token</label>
+      <input id="api_token" name="api_token" type="text">
+    </div>
     <div class="checkbox-row">
       <input id="use_ssl" name="use_ssl" type="checkbox">
       <label for="use_ssl">Use SSL</label>
@@ -89,10 +93,6 @@
     <div>
       <label for="discord_webhook_path">Discord Webhook Path</label>
       <input id="discord_webhook_path" name="discord_webhook_path" type="text">
-    </div>
-    <div>
-      <label for="api_token">API Token</label>
-      <input id="api_token" name="api_token" type="text">
     </div>
     <div class="button-row">
       <button type="button" id="cancel-button">Cancel</button>

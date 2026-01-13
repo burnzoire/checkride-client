@@ -14,13 +14,14 @@ jest.mock('./config');
 jest.mock('electron-log');
 
 describe('initApp', () => {
-  let fakeUdpPort, fakeUseSsl, fakeApiHost, fakeApiPort, fakeDiscordWebhookPath, udpServerMock;
+  let fakeUdpPort, fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakeDiscordWebhookPath, udpServerMock;
 
   beforeEach(() => {
     fakeUdpPort = 41234;
     fakeUseSsl = true;
     fakeApiHost = 'localhost';
     fakeApiPort = 8080;
+    fakeApiToken = 'token-123';
     fakeDiscordWebhookPath = '/path/to/discord/webhook';
 
     udpServerMock = {
@@ -39,6 +40,8 @@ describe('initApp', () => {
           return fakeApiHost;
         case 'server_port':
           return fakeApiPort;
+        case 'api_token':
+          return fakeApiToken;
         case 'discord_webhook_path':
           return fakeDiscordWebhookPath;
         default:
@@ -58,7 +61,7 @@ describe('initApp', () => {
     expect(apiClient).toBeInstanceOf(APIClient);
 
     expect(UDPServer).toHaveBeenCalledWith(fakeUdpPort);
-    expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort);
+    expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken);
     expect(DiscordClient).toHaveBeenCalledWith(fakeDiscordWebhookPath);
 
     expect(udpServer.onEvent).toBeDefined();

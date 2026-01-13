@@ -12,8 +12,9 @@ async function initApp() {
   const useSsl = store.get("use_ssl")
   const apiHost = store.get("server_host")
   const apiPort = store.get("server_port")
+  const apiToken = store.get("api_token")
   const discordWebhookPath = store.get("discord_webhook_path")
-  const apiClient = new APIClient(useSsl, apiHost, apiPort)
+  const apiClient = new APIClient(useSsl, apiHost, apiPort, apiToken)
   const discordClient = new DiscordClient(discordWebhookPath)
   const udpServer = new UDPServer(udpPort)
 

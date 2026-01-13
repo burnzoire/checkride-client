@@ -14,6 +14,10 @@ const schema = {
     type: 'boolean',
     default: false,
   },
+  api_token: {
+    type: 'string',
+    default: '',
+  },
   discord_webhook_path: {
     type: 'string',
     default: '',

@@ -32,6 +32,16 @@ class APIClient {
     this.apiToken = apiToken
   }
 
+  update({ useSsl, host, port, apiToken }) {
+    this.useSsl = useSsl
+    this.httpModule = this.useSsl ? https : http
+    this.host = host
+    this.port = port
+    if (typeof apiToken !== 'undefined') {
+      this.apiToken = apiToken
+    }
+  }
+
   buildHeaders(additionalHeaders = {}) {
     const headers = { ...additionalHeaders }
 

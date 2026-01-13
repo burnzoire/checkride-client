@@ -7,6 +7,16 @@ const { APIClient } = require('./clients/apiClient');
 const log = require('electron-log');
 const store = require('./config');
 
+function attachEventPipeline({ udpServer, apiClient, discordClient }) {
+  udpServer.onEvent = (event) => {
+    log.info(`Handling event: ${JSON.stringify(event)}`)
+    return EventFactory.create(event)
+      .then(gameEvent => apiClient.saveEvent(gameEvent.prepare()))
+      .then(response => discordClient.send(response.summary, response.publish))
+      .catch(error => log.error(error))
+  }
+}
+
 async function initApp() {
   const udpPort = store.get('udp_port', 41234)
   const useSsl = store.get("use_ssl")
@@ -18,15 +28,9 @@ async function initApp() {
   const discordClient = new DiscordClient(discordWebhookPath)
   const udpServer = new UDPServer(udpPort)
 
-  udpServer.onEvent = (event) => {
-    log.info(`Handling event: ${JSON.stringify(event)}`);
-    return EventFactory.create(event)
-      .then(gameEvent => apiClient.saveEvent(gameEvent.prepare()))
-      .then(response => discordClient.send(response.summary, response.publish))
-      .catch(error => log.error(error))
-  }
+  attachEventPipeline({ udpServer, apiClient, discordClient })
 
-  return { udpServer, apiClient };
+  return { udpServer, apiClient, discordClient };
 }
 
-module.exports = { initApp };
+module.exports = { initApp, attachEventPipeline };

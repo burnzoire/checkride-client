@@ -9,43 +9,38 @@ on:
 jobs:
   test:
     runs-on: windows-latest
-    
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
-    
+
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Setup Node.js ${{ matrix.node-version }}
+
+    - name: Setup Node.js
       uses: actions/setup-node@v6
       with:
-        node-version: ${{ matrix.node-version }}
+        node-version: 20.x
         cache: 'npm'
         cache-dependency-path: app/package-lock.json
-    
+
     - name: Install dependencies
       working-directory: ./app
       run: npm ci
-    
+
     - name: Run tests
       working-directory: ./app
       run: npm test -- --ci --coverage --maxWorkers=2
-    
+
     - name: Extract coverage percentage
-      if: matrix.node-version == '20.x'
       working-directory: ./app
       run: |
         $coverage = Get-Content coverage/coverage-summary.json | ConvertFrom-Json
         $percentage = [math]::Round($coverage.total.statements.pct, 2)
         echo "COVERAGE=$percentage" >> $env:GITHUB_ENV
       shell: pwsh
-    
+
     - name: Archive test results
       if: always()
       uses: actions/upload-artifact@v6
       with:
-        name: test-results-node-${{ matrix.node-version }}
+        name: test-results-node-20
         path: |
           app/coverage/
           app/__tests__/

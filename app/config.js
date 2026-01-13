@@ -1,4 +1,5 @@
-const Store = require('electron-store');
+const StoreModule = require('electron-store');
+const Store = StoreModule.default || StoreModule; // electron-store v11 exposes the constructor on the default export
 
 const schema = {
   server_host: {

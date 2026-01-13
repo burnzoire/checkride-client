@@ -14,6 +14,10 @@ const schema = {
     type: 'boolean',
     default: false,
   },
+  udp_port: {
+    type: 'number',
+    default: 41234,
+  },
   api_token: {
     type: 'string',
     default: '',

@@ -1,6 +1,11 @@
 const createTestEvents = require('./testEvents');
 
-const contextMenuTemplate = (udpServer, api) => [
+const contextMenuTemplate = (udpServer, api, openSettings) => [
+  {
+    label: 'Settings',
+    click: openSettings,
+  },
+  { type: 'separator' },
   {
     label: 'About Checkride',
     role: 'about',

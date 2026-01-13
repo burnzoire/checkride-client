@@ -3,7 +3,7 @@ const { DiscordClient } = require('./clients/discordClient');
 const UDPServer = require('./services/udpServer');
 const { EventFactory } = require('./factories/eventFactory');
 const store = require('./config');
-const { initApp } = require('./appInit');
+const { initApp, attachEventPipeline } = require('./appInit');
 const log = require('electron-log');
 
 jest.mock('./clients/apiClient');
@@ -48,6 +48,9 @@ describe('initApp', () => {
           return defaultValue;
       }
     });
+
+    log.info = jest.fn();
+    log.error = jest.fn();
   });
 
   afterEach(() => {
@@ -55,10 +58,11 @@ describe('initApp', () => {
   });
 
   it('initializes application with correct configurations and sets up udp server', async () => {
-    const { udpServer, apiClient } = await initApp();
+    const { udpServer, apiClient, discordClient } = await initApp();
 
     expect(udpServer).toBe(udpServerMock);
     expect(apiClient).toBeInstanceOf(APIClient);
+    expect(discordClient).toBeInstanceOf(DiscordClient);
 
     expect(UDPServer).toHaveBeenCalledWith(fakeUdpPort);
     expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken);
@@ -109,6 +113,30 @@ describe('initApp', () => {
     await udpServer.onEvent(fakeEvent);
 
     expect(log.error.mock.calls[0][0].message).toBe('Test error');
+  });
+
+
+  it('reattaches event pipeline when requested', async () => {
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue('prepared event'),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ summary: 'summary', publish: true }),
+    };
+    const discordClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
+    const udpServer = {};
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    attachEventPipeline({ udpServer, apiClient: apiClientMock, discordClient: discordClientMock });
+
+    await udpServer.onEvent({ type: 'event' });
+
+    expect(EventFactory.create).toHaveBeenCalled();
+    expect(apiClientMock.saveEvent).toHaveBeenCalledWith('prepared event');
+    expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
   });
 
 

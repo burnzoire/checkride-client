@@ -3,7 +3,7 @@ const log = require('electron-log');
 
 class UDPServer {
   constructor(port) {
-    this.port = port
+    this.port = Number(port)
     this.onEventCallback = null
     this.server = dgram.createSocket('udp4')
     this.start()
@@ -28,7 +28,7 @@ class UDPServer {
         this.onEventCallback(event)
           .catch(err => log.error(err))
       }
-    })      
+    })
 
     this.server.on('listening', () => {
       const address = this.server.address()
@@ -36,6 +36,33 @@ class UDPServer {
     })
 
     this.server.bind(this.port)
+  }
+
+  updatePort(port) {
+    const nextPort = Number(port)
+
+    if (!Number.isFinite(nextPort)) {
+      throw new Error('Invalid UDP port provided')
+    }
+
+    if (nextPort === this.port) {
+      return Promise.resolve()
+    }
+
+    this.port = nextPort
+
+    return new Promise((resolve, reject) => {
+      this.server.close((error) => {
+        if (error) {
+          reject(error)
+          return
+        }
+
+        this.server = dgram.createSocket('udp4')
+        this.start()
+        resolve()
+      })
+    })
   }
 
   close() {
@@ -52,8 +79,8 @@ class UDPServer {
     const msg = JSON.stringify(data)
     this.server.send(msg, address.port, address.address)
   }
-  
-  
+
+
 }
 
 module.exports = UDPServer

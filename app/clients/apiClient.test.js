@@ -65,6 +65,51 @@ describe('APIClient', () => {
     });
   });
 
+  describe('update', () => {
+    it('should update transport and connection details', () => {
+      const client = new APIClient(false, 'localhost', 3000, 'token-1');
+
+      client.update({ useSsl: true, host: 'api.example.com', port: 443 });
+
+      expect(client.useSsl).toBe(true);
+      expect(client.httpModule).toBe(https);
+      expect(client.host).toBe('api.example.com');
+      expect(client.port).toBe(443);
+      expect(client.apiToken).toBe('token-1');
+
+      client.update({ useSsl: false, host: 'internal', port: 8080, apiToken: 'token-2' });
+
+      expect(client.useSsl).toBe(false);
+      expect(client.httpModule).toBe(http);
+      expect(client.host).toBe('internal');
+      expect(client.port).toBe(8080);
+      expect(client.apiToken).toBe('token-2');
+    });
+  });
+
+  describe('buildHeaders', () => {
+    it('merges additional headers and appends authorization when token is set', () => {
+      const client = new APIClient(false, 'localhost', 3000, 'secret');
+
+      const headers = client.buildHeaders({ 'Content-Type': 'application/json' });
+
+      expect(headers).toEqual({
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer secret',
+      });
+    });
+
+    it('returns a copy of additional headers when token is empty', () => {
+      const client = new APIClient(false, 'localhost', 3000);
+      const input = { Accept: 'application/json' };
+
+      const headers = client.buildHeaders(input);
+
+      expect(headers).toEqual(input);
+      expect(headers).not.toBe(input);
+    });
+  });
+
   describe('saveEvent', () => {
     it('should successfully save an event', async () => {
       const client = new APIClient(false, 'localhost', 3000);

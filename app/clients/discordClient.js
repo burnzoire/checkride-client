@@ -27,6 +27,10 @@ class DiscordClient {
     this.path = webhookPath
   }
 
+  updateWebhookPath(webhookPath) {
+    this.path = webhookPath
+  }
+
   async send(message, publish) {
     if (publish === false) {
       throw new DiscordPublishError("Event not publishable")

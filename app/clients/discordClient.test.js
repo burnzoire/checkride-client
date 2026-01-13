@@ -22,7 +22,7 @@ describe('DiscordClient', () => {
 
     mockRequest = jest.fn((options, callback) => {
       const handlers = {};
-      
+
       mockReq.on = jest.fn((event, handler) => {
         handlers[event] = handler;
         return mockReq;
@@ -47,9 +47,15 @@ describe('DiscordClient', () => {
     it('should create an instance with webhook path', () => {
       const webhookPath = '/api/webhooks/123456/abcdef';
       const client = new DiscordClient(webhookPath);
-      
+
       expect(client.host).toBe('discord.com');
       expect(client.path).toBe(webhookPath);
+    });
+
+    it('should allow updating the webhook path', () => {
+      const client = new DiscordClient('/first');
+      client.updateWebhookPath('/second');
+      expect(client.path).toBe('/second');
     });
   });
 
@@ -66,7 +72,7 @@ describe('DiscordClient', () => {
       });
 
       await expect(client.send(message, true)).resolves.toBeUndefined();
-      
+
       expect(mockRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           host: 'discord.com',
@@ -130,11 +136,11 @@ describe('DiscordClient', () => {
           handlers[event] = handler;
           return mockReq;
         });
-        
+
         process.nextTick(() => {
           handlers.error(error);
         });
-        
+
         return mockReq;
       });
 
@@ -154,7 +160,7 @@ describe('DiscordClient', () => {
       });
 
       await expect(client.send(message, true)).resolves.toBeUndefined();
-      
+
       const writtenData = mockReq.write.mock.calls[0][0];
       const payload = JSON.parse(new TextDecoder().decode(writtenData));
       expect(payload.content).toBe(message);

@@ -1,28 +1,36 @@
 (function () {
   const form = document.getElementById('settings-form');
   const cancelButton = document.getElementById('cancel-button');
+  const getField = (name) => form.elements.namedItem(name) || document.getElementById(name);
+
+  const serverHostInput = getField('server_host');
+  const serverPortInput = getField('server_port');
+  const useSslInput = getField('use_ssl');
+  const udpPortInput = getField('udp_port');
+  const discordWebhookInput = getField('discord_webhook_path');
+  const apiTokenInput = getField('api_token');
 
   function populateForm(config) {
     if (!config) {
       return;
     }
 
-    form.server_host.value = config.server_host ?? '';
-    form.server_port.value = config.server_port ?? '';
-    form.use_ssl.checked = Boolean(config.use_ssl);
-    form.udp_port.value = config.udp_port ?? '';
-    form.discord_webhook_path.value = config.discord_webhook_path ?? '';
-    form.api_token.value = config.api_token ?? '';
+    if (serverHostInput) serverHostInput.value = config.server_host ?? '';
+    if (serverPortInput) serverPortInput.value = config.server_port ?? '';
+    if (useSslInput) useSslInput.checked = Boolean(config.use_ssl);
+    if (udpPortInput) udpPortInput.value = config.udp_port ?? '';
+    if (discordWebhookInput) discordWebhookInput.value = config.discord_webhook_path ?? '';
+    if (apiTokenInput) apiTokenInput.value = config.api_token ?? '';
   }
 
   function readForm() {
     return {
-      server_host: form.server_host.value.trim(),
-      server_port: form.server_port.value.trim(),
-      use_ssl: form.use_ssl.checked,
-      udp_port: Number(form.udp_port.value),
-      discord_webhook_path: form.discord_webhook_path.value.trim(),
-      api_token: form.api_token.value.trim(),
+      server_host: serverHostInput?.value.trim() ?? '',
+      server_port: serverPortInput?.value.trim() ?? '',
+      use_ssl: Boolean(useSslInput?.checked),
+      udp_port: Number(udpPortInput?.value ?? ''),
+      discord_webhook_path: discordWebhookInput?.value.trim() ?? '',
+      api_token: apiTokenInput?.value.trim() ?? '',
     };
   }
 

@@ -45,6 +45,7 @@ jest.mock('electron-store', () => {
         'server_port': '3000',
         'use_ssl': false,
         'server_tls': false,
+        'api_token': '',
         'discord_webhook_path': ''
       };
       return defaults[key];

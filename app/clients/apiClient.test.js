@@ -23,7 +23,7 @@ describe('APIClient', () => {
 
     mockRequest = jest.fn((options, callback) => {
       const handlers = {};
-      
+
       mockReq.on = jest.fn((event, handler) => {
         handlers[event] = handler;
         return mockReq;
@@ -52,14 +52,16 @@ describe('APIClient', () => {
       expect(client.httpModule).toBe(http);
       expect(client.host).toBe('localhost');
       expect(client.port).toBe(3000);
+      expect(client.apiToken).toBe('');
     });
 
     it('should create an instance with https when useSsl is true', () => {
-      const client = new APIClient(true, 'example.com', 443);
+      const client = new APIClient(true, 'example.com', 443, 'token');
       expect(client.useSsl).toBe(true);
       expect(client.httpModule).toBe(https);
       expect(client.host).toBe('example.com');
       expect(client.port).toBe(443);
+      expect(client.apiToken).toBe('token');
     });
   });
 
@@ -79,7 +81,7 @@ describe('APIClient', () => {
       });
 
       const result = await client.saveEvent(payload);
-      
+
       expect(result).toEqual(responseBody);
       expect(mockRequest).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -95,6 +97,28 @@ describe('APIClient', () => {
       );
       expect(mockReq.write).toHaveBeenCalledWith(JSON.stringify(payload));
       expect(mockReq.end).toHaveBeenCalled();
+    });
+
+    it('should include bearer token when provided', async () => {
+      jest.clearAllMocks();
+
+      const client = new APIClient(false, 'localhost', 3000, 'secret');
+      const payload = { type: 'test', data: 'sample' };
+      const responseBody = { id: 1 };
+
+      mockResponse.statusCode = 201;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') {
+          handler(Buffer.from(JSON.stringify(responseBody)));
+        } else if (event === 'end') {
+          handler();
+        }
+      });
+
+      await client.saveEvent(payload);
+
+      const options = mockRequest.mock.calls[0][0];
+      expect(options.headers['Authorization']).toBe('Bearer secret');
     });
 
     it('should reject when response status code is not 201', async () => {
@@ -158,11 +182,11 @@ describe('APIClient', () => {
           handlers[event] = handler;
           return mockReq;
         });
-        
+
         process.nextTick(() => {
           handlers.error(error);
         });
-        
+
         return mockReq;
       });
 
@@ -186,7 +210,7 @@ describe('APIClient', () => {
       });
 
       const result = await client.ping();
-      
+
       expect(result).toEqual(responseBody);
       expect(mockRequest).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -200,10 +224,30 @@ describe('APIClient', () => {
       expect(mockReq.end).toHaveBeenCalled();
     });
 
+    it('should include bearer token on ping when provided', async () => {
+      jest.clearAllMocks();
+
+      const client = new APIClient(false, 'localhost', 3000, 'ping-token');
+      const responseBody = { message: 'pong' };
+
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') {
+          handler(Buffer.from(JSON.stringify(responseBody)));
+        } else if (event === 'end') {
+          handler();
+        }
+      });
+
+      await client.ping();
+
+      const options = mockRequest.mock.calls[0][0];
+      expect(options.headers['Authorization']).toBe('Bearer ping-token');
+    });
+
     it('should use https when useSsl is true', async () => {
       // Clear previous mock calls
       jest.clearAllMocks();
-      
+
       const client = new APIClient(true, 'example.com', 443);
       const responseBody = { message: 'pong' };
 
@@ -216,7 +260,7 @@ describe('APIClient', () => {
       });
 
       await client.ping();
-      
+
       expect(https.request).toHaveBeenCalled();
       expect(http.request).not.toHaveBeenCalled();
     });
@@ -260,11 +304,11 @@ describe('APIClient', () => {
           handlers[event] = handler;
           return mockReq;
         });
-        
+
         process.nextTick(() => {
           handlers.error(error);
         });
-        
+
         return mockReq;
       });
 

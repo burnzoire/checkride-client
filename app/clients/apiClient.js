@@ -24,11 +24,22 @@ class APIPingError extends APIClientError {
 }
 
 class APIClient {
-  constructor(useSsl, host, port) {
+  constructor(useSsl, host, port, apiToken = '') {
     this.useSsl = useSsl
     this.httpModule = this.useSsl ? https : http
     this.host = host
     this.port = port
+    this.apiToken = apiToken
+  }
+
+  buildHeaders(additionalHeaders = {}) {
+    const headers = { ...additionalHeaders }
+
+    if (this.apiToken) {
+      headers['Authorization'] = `Bearer ${this.apiToken}`
+    }
+
+    return headers
   }
 
   saveEvent(payload) {
@@ -40,10 +51,10 @@ class APIClient {
         path: '/events',
         port: this.port,
         method: 'POST',
-        headers: {
+        headers: this.buildHeaders({
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(data)
-        }
+        })
       }
 
       const req = this.httpModule.request(options, (response) => {
@@ -86,6 +97,7 @@ class APIClient {
         path: '/ping',
         port: this.port,
         method: 'GET',
+        headers: this.buildHeaders()
       }
       log.info(`pinging ${this.useSsl ? "https" : "http"}://${options.host} on port ${options.port}`)
       const req = this.httpModule.request(options, (response) => {

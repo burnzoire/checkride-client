@@ -15,7 +15,7 @@ app.whenReady().then(async () => {
     app.dock.hide()
   }
 
-  tray.setToolTip('Quoll')
+  tray.setToolTip('Checkride')
   tray.setContextMenu(contextMenu)
 
   globalShortcut.register('CommandOrControl+Q', () => {

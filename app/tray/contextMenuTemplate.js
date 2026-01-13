@@ -2,7 +2,7 @@ const createTestEvents = require('./testEvents');
 
 const contextMenuTemplate = (udpServer, api) => [
   {
-    label: 'About Quoll',
+    label: 'About Checkride',
     role: 'about',
   },
   {
@@ -12,7 +12,7 @@ const contextMenuTemplate = (udpServer, api) => [
   ...createTestEvents(udpServer),
   { type: 'separator' },
   {
-    label: 'Quit Quoll',
+    label: 'Quit Checkride',
     role: 'quit',
     accelerator: 'CommandOrControl+Q',
   },

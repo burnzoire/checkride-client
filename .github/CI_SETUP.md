@@ -21,7 +21,7 @@ The CI pipeline:
 ## Viewing Results
 
 - **Status Badge**: Check the README.md for the build status badge
-- **Actions Tab**: Visit https://github.com/burnzoire/quoll-client/actions
+- **Actions Tab**: Visit https://github.com/burnzoire/checkride-client/actions
 - **Pull Requests**: CI status appears on each PR
 
 ## Test Requirements

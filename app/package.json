@@ -1,5 +1,5 @@
 {
-  "name": "quoll-client",
+  "name": "checkride-client",
   "version": "1.0.0",
   "description": "",
   "main": "main.js",
@@ -47,14 +47,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/burnzoire/quoll-client.git"
+    "url": "git+https://github.com/burnzoire/checkride-client.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/burnzoire/quoll-client/issues"
+    "url": "https://github.com/burnzoire/checkride-client/issues"
   },
-  "homepage": "https://github.com/burnzoire/quoll-client#readme",
+  "homepage": "https://github.com/burnzoire/checkride-client#readme",
   "devDependencies": {
     "@babel/core": "^7.28.5",
     "@babel/preset-env": "^7.28.5",

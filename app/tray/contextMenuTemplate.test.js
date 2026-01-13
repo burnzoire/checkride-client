@@ -19,10 +19,10 @@ describe('contextMenuTemplate', () => {
     expect(menu.length).toBeGreaterThan(0);
   });
 
-  it('should include About Quoll menu item', () => {
+  it('should include About Checkride menu item', () => {
     const menu = contextMenuTemplate(mockUdpServer, mockApi);
-    const aboutItem = menu.find(item => item.label === 'About Quoll');
-    
+    const aboutItem = menu.find(item => item.label === 'About Checkride');
+
     expect(aboutItem).toBeDefined();
     expect(aboutItem.role).toBe('about');
   });
@@ -30,7 +30,7 @@ describe('contextMenuTemplate', () => {
   it('should include Ping server menu item', () => {
     const menu = contextMenuTemplate(mockUdpServer, mockApi);
     const pingItem = menu.find(item => item.label === 'Ping server');
-    
+
     expect(pingItem).toBeDefined();
     expect(typeof pingItem.click).toBe('function');
   });
@@ -38,14 +38,14 @@ describe('contextMenuTemplate', () => {
   it('should call api.ping when Ping server is clicked', () => {
     const menu = contextMenuTemplate(mockUdpServer, mockApi);
     const pingItem = menu.find(item => item.label === 'Ping server');
-    
+
     pingItem.click();
     expect(mockApi.ping).toHaveBeenCalled();
   });
 
   it('should include test events from createTestEvents', () => {
     const menu = contextMenuTemplate(mockUdpServer, mockApi);
-    
+
     // Test events should be included
     const testKillEvent = menu.find(item => item.label === 'Send test kill event');
     expect(testKillEvent).toBeDefined();
@@ -54,14 +54,14 @@ describe('contextMenuTemplate', () => {
   it('should include separator', () => {
     const menu = contextMenuTemplate(mockUdpServer, mockApi);
     const separator = menu.find(item => item.type === 'separator');
-    
+
     expect(separator).toBeDefined();
   });
 
-  it('should include Quit Quoll menu item', () => {
+  it('should include Quit Checkride menu item', () => {
     const menu = contextMenuTemplate(mockUdpServer, mockApi);
-    const quitItem = menu.find(item => item.label === 'Quit Quoll');
-    
+    const quitItem = menu.find(item => item.label === 'Quit Checkride');
+
     expect(quitItem).toBeDefined();
     expect(quitItem.role).toBe('quit');
     expect(quitItem.accelerator).toBe('CommandOrControl+Q');
@@ -69,7 +69,7 @@ describe('contextMenuTemplate', () => {
 
   it('should create menu items with proper structure', () => {
     const menu = contextMenuTemplate(mockUdpServer, mockApi);
-    
+
     menu.forEach(item => {
       if (item.type !== 'separator') {
         expect(item).toHaveProperty('label');

@@ -1,6 +1,6 @@
-# Quoll Client Test Suite
+# Checkride Client Test Suite
 
-This directory contains comprehensive tests for the Quoll Client application.
+This directory contains comprehensive tests for the Checkride Client application.
 
 ## Quick Start
 
@@ -18,7 +18,7 @@ npm run test:coverage
 ## Test Structure
 
 - **unit/** - Unit tests for individual functions and components
-- **integration/** - Integration tests for combined functionality  
+- **integration/** - Integration tests for combined functionality
 - **e2e/** - End-to-end tests (currently skipped)
 - **fixtures/** - Test data and event samples
 - **helpers/** - Mock utilities and test helpers

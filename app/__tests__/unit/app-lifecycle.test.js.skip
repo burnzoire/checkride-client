@@ -17,7 +17,7 @@ describe('socket.js - Electron App Lifecycle', () => {
   describe('createWindow', () => {
     it('should create a browser window with correct options', () => {
       const { createWindow } = require('../../socket');
-      
+
       const window = createWindow();
 
       expect(BrowserWindow).toHaveBeenCalledWith(
@@ -44,7 +44,7 @@ describe('socket.js - Electron App Lifecycle', () => {
 
       expect(Menu.buildFromTemplate).toHaveBeenCalledWith(
         expect.arrayContaining([
-          expect.objectContaining({ label: 'About Quoll' }),
+          expect.objectContaining({ label: 'About Checkride' }),
           expect.objectContaining({ label: 'Ping server' }),
           expect.objectContaining({ label: 'Send test kill event' }),
           expect.objectContaining({ label: 'Send test takeoff event (F-14A)' }),
@@ -55,7 +55,7 @@ describe('socket.js - Electron App Lifecycle', () => {
           expect.objectContaining({ label: 'Send test disconnect event' }),
           expect.objectContaining({ label: 'Send test connect event' }),
           expect.objectContaining({ type: 'separator' }),
-          expect.objectContaining({ label: 'Quit Quoll' })
+          expect.objectContaining({ label: 'Quit Checkride' })
         ])
       );
     });
@@ -69,7 +69,7 @@ describe('socket.js - Electron App Lifecycle', () => {
 
       const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
       const killEventItem = menuTemplate.find(item => item.label === 'Send test kill event');
-      
+
       killEventItem.click();
 
       expect(mockServer.send).toHaveBeenCalledWith(
@@ -88,7 +88,7 @@ describe('socket.js - Electron App Lifecycle', () => {
 
       const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
       const takeoffItem = menuTemplate.find(item => item.label === 'Send test takeoff event (F-14A)');
-      
+
       takeoffItem.click();
 
       expect(mockServer.send).toHaveBeenCalledWith(
@@ -107,7 +107,7 @@ describe('socket.js - Electron App Lifecycle', () => {
 
       const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
       const landingItem = menuTemplate.find(item => item.label === 'Send test landing event (F-14A)');
-      
+
       landingItem.click();
 
       expect(mockServer.send).toHaveBeenCalledWith(
@@ -126,7 +126,7 @@ describe('socket.js - Electron App Lifecycle', () => {
 
       const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
       const connectItem = menuTemplate.find(item => item.label === 'Send test connect event');
-      
+
       connectItem.click();
 
       expect(mockServer.send).toHaveBeenCalledWith(
@@ -145,7 +145,7 @@ describe('socket.js - Electron App Lifecycle', () => {
 
       const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
       const disconnectItem = menuTemplate.find(item => item.label === 'Send test disconnect event');
-      
+
       disconnectItem.click();
 
       expect(mockServer.send).toHaveBeenCalledWith(
@@ -164,7 +164,7 @@ describe('socket.js - Electron App Lifecycle', () => {
 
       const menuTemplate = Menu.buildFromTemplate.mock.calls[0][0];
       const changeSlotItem = menuTemplate.find(item => item.label === 'Send test change slot event');
-      
+
       changeSlotItem.click();
 
       expect(mockServer.send).toHaveBeenCalledWith(
@@ -182,11 +182,11 @@ describe('socket.js - Electron App Lifecycle', () => {
 
       const { initializeApp } = require('../../socket');
       initializeApp();
-      
+
       // Just verify the function exists and was called
       expect(initializeApp).toBeDefined();
       expect(typeof initializeApp).toBe('function');
-      
+
       // Verify app.whenReady is being used
       expect(app.whenReady).toHaveBeenCalled();
     });

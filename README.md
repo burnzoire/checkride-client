@@ -19,6 +19,54 @@ Once packaged (see below), the app can be distributed by copying `checkride-clie
 
 Browse to `%APPDATA%/checkride-client` and edit `config.json` to change settings, such as where to find the Checkride server. If this file is deleted, a new one will be created automatically with default values.
 
+## Event Payload
+
+Events pulled from DCS are normalised before being POSTed to the server at `/events`. The request body always has the following envelope:
+
+```
+{
+	"event": {
+		"event_type": "<one of the supported event names>",
+		"event_uid": "<stable UUIDv5 derived from the raw event>",
+		"event_data": {
+			/* keys listed below */
+		}
+	}
+}
+```
+
+Envelope fields:
+
+- event.event_type — required. One of `kill`, `takeoff`, `landing`, `crash`, `eject`, `pilot_death`, `self_kill`, `connect`, `disconnect`, `change_slot`.
+- event.event_uid — required. Deterministic UUIDv5 generated from the raw event payload.
+- event.event_data — required. Container for the fields below. Keys omitted when the source value is unavailable.
+
+event_data fields:
+
+- airdrome_name — present for takeoff or landing, airfield name string.
+- flyable — present on change_slot, boolean indicating whether the new slot is flyable.
+- flight_uid — injected when player_ucid has an active assignment, UUIDv4.
+- killer_flight_uid — injected on kill when the killer has an assignment, UUIDv4.
+- killer_name — present on kill, killer callsign string.
+- killer_side — present on kill, integer or enum reflecting allegiance.
+- killer_ucid — present on kill, unique client identifier string.
+- killer_unit_name — present on kill, DCS unit name string.
+- player_name — present on events with player_ucid, player callsign string.
+- player_side — present on disconnect, integer or enum reflecting allegiance.
+- player_ucid — present on connect, disconnect, takeoff, landing, crash, eject, pilot_death, self_kill, change_slot.
+- prev_side — present on change_slot, previous coalition integer or enum.
+- reason_code — present on disconnect, disconnect reason string or code.
+- slot_id — present on change_slot, slot identifier string.
+- unit_type — present on takeoff, landing, crash, eject, pilot_death, aircraft type string.
+- victim_flight_uid — injected on kill when the victim has an assignment, UUIDv4.
+- victim_name — present on kill, victim callsign string.
+- victim_side — present on kill, integer or enum reflecting allegiance.
+- victim_ucid — present on kill, victim unique client identifier string.
+- victim_unit_name — present on kill, DCS unit name string.
+- weapon_name — present on kill, weapon identifier string.
+
+All properties omitted in the list above are never part of the payload. Downstream services should treat unspecified keys as absent rather than null.
+
 ## Development
 
 ### DCS Mod

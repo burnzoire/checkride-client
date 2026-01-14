@@ -13,7 +13,7 @@ describe('FlightTracker', () => {
     generateFlightUid.mockReturnValueOnce('flight-1');
     const eventData = {};
 
-    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot' }, eventData);
+    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot', flyable: true }, eventData);
 
     expect(generateFlightUid).toHaveBeenCalledTimes(1);
     expect(eventData.flight_uid).toBe('flight-1');
@@ -24,10 +24,10 @@ describe('FlightTracker', () => {
       .mockReturnValueOnce('flight-1')
       .mockReturnValueOnce('flight-2');
 
-    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot-a' }, { player_ucid: 'pilot' });
+    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot-a', flyable: true }, { player_ucid: 'pilot' });
 
     const changeSlotData = { player_ucid: 'pilot', slot_id: 'slot-b' };
-    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot-b' }, changeSlotData);
+    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot-b', flyable: true }, changeSlotData);
 
     expect(changeSlotData.flight_uid).toBe('flight-1');
 
@@ -43,7 +43,7 @@ describe('FlightTracker', () => {
     const takeoffData = { player_ucid: 'pilot' };
     const landingData = { player_ucid: 'pilot' };
 
-    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot' }, { player_ucid: 'pilot', slot_id: 'slot' });
+    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot', flyable: true }, { player_ucid: 'pilot', slot_id: 'slot' });
     tracker.decorate({ type: 'takeoff', playerUcid: 'pilot' }, takeoffData);
     tracker.decorate({ type: 'landing', playerUcid: 'pilot' }, landingData);
 
@@ -68,8 +68,8 @@ describe('FlightTracker', () => {
       .mockReturnValueOnce('killer-flight')
       .mockReturnValueOnce('victim-flight');
 
-    tracker.decorate({ type: 'change_slot', playerUcid: 'killer', slotId: 'slotA' }, { player_ucid: 'killer' });
-    tracker.decorate({ type: 'change_slot', playerUcid: 'victim', slotId: 'slotB' }, { player_ucid: 'victim' });
+    tracker.decorate({ type: 'change_slot', playerUcid: 'killer', slotId: 'slotA', flyable: true }, { player_ucid: 'killer' });
+    tracker.decorate({ type: 'change_slot', playerUcid: 'victim', slotId: 'slotB', flyable: true }, { player_ucid: 'victim' });
 
     const killData = { killer_ucid: 'killer', victim_ucid: 'victim' };
     tracker.decorate({ type: 'kill', killerUcid: 'killer', victimUcid: 'victim' }, killData);
@@ -83,7 +83,7 @@ describe('FlightTracker', () => {
       .mockReturnValueOnce('flight-3')
       .mockReturnValueOnce('flight-4');
 
-    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot' }, { player_ucid: 'pilot' });
+    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot', flyable: true }, { player_ucid: 'pilot' });
 
     const leaveData = { player_ucid: 'pilot', slot_id: null };
     tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: null }, leaveData);
@@ -113,5 +113,27 @@ describe('FlightTracker', () => {
 
     expect(killData.killer_flight_uid).toBe('killer-flight');
     expect(killData.victim_flight_uid).toBe('victim-flight');
+  });
+
+  it('skips flight creation for connect events', () => {
+    tracker.decorate({ type: 'connect', playerUcid: 'pilot' }, { player_ucid: 'pilot' });
+
+    expect(generateFlightUid).not.toHaveBeenCalled();
+  });
+
+  it('clears the active flight when switching to a spectator slot', () => {
+    generateFlightUid
+      .mockReturnValueOnce('flight-10')
+      .mockReturnValueOnce('flight-11');
+
+    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot-a', flyable: true }, { player_ucid: 'pilot' });
+
+    const spectatorData = { player_ucid: 'pilot', slot_id: 'spectators' };
+    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'spectators', flyable: false }, spectatorData);
+    expect(spectatorData.flight_uid).toBe('flight-10');
+
+    const followUpData = { player_ucid: 'pilot' };
+    tracker.decorate({ type: 'takeoff', playerUcid: 'pilot' }, followUpData);
+    expect(followUpData.flight_uid).toBe('flight-11');
   });
 });

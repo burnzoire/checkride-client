@@ -31,7 +31,8 @@ describe('Flight session integration', () => {
       playerUcid: 'pilot-1',
       playerName: 'Pilot 1',
       slotId: 'slot-1',
-      prevSide: null
+      prevSide: null,
+      flyable: true
     };
 
     const takeoffEvent = {
@@ -63,7 +64,8 @@ describe('Flight session integration', () => {
       playerUcid: 'pilot-1',
       playerName: 'Pilot 1',
       slotId: 'slot-2',
-      prevSide: 1
+      prevSide: 1,
+      flyable: true
     };
 
     const postSlotChangeTakeoffEvent = {
@@ -133,7 +135,8 @@ describe('Flight session integration', () => {
       playerUcid: 'pilot-42',
       playerName: 'Pilot 42',
       slotId: 'slot-42',
-      prevSide: null
+      prevSide: null,
+      flyable: true
     };
 
     const takeoffEvent = {
@@ -167,5 +170,58 @@ describe('Flight session integration', () => {
     const restartedFlightUid = savedPayloads[2].event.event_data.flight_uid;
     expect(restartedFlightUid).toBeDefined();
     expect(restartedFlightUid).not.toBe(initialFlightUid);
+  });
+
+  it('waits for a flyable slot after connect before generating flights', async () => {
+    const connectEvent = {
+      type: 'connect',
+      playerUcid: 'pilot-7',
+      playerName: 'Pilot 7'
+    };
+
+    const spectatorSlotEvent = {
+      type: 'change_slot',
+      playerUcid: 'pilot-7',
+      playerName: 'Pilot 7',
+      slotId: 'spectators',
+      prevSide: null,
+      flyable: false
+    };
+
+    const flyableSlotEvent = {
+      type: 'change_slot',
+      playerUcid: 'pilot-7',
+      playerName: 'Pilot 7',
+      slotId: 'slot-10',
+      prevSide: 1,
+      flyable: true
+    };
+
+    const takeoffEvent = {
+      type: 'takeoff',
+      playerUcid: 'pilot-7',
+      playerName: 'Pilot 7',
+      unitType: 'F-16',
+      airdromeName: 'Base A'
+    };
+
+    await udpServer.onEvent(connectEvent);
+    await udpServer.onEvent(spectatorSlotEvent);
+    await udpServer.onEvent(flyableSlotEvent);
+    await udpServer.onEvent(takeoffEvent);
+
+    expect(savedPayloads).toHaveLength(4);
+
+    const connectPayloadFlight = savedPayloads[0].event.event_data.flight_uid;
+    expect(connectPayloadFlight).toBeUndefined();
+
+    const spectatorPayloadFlight = savedPayloads[1].event.event_data.flight_uid;
+    expect(spectatorPayloadFlight).toBeUndefined();
+
+    const slotPayloadFlight = savedPayloads[2].event.event_data.flight_uid;
+    expect(slotPayloadFlight).toBeDefined();
+
+    const takeoffPayloadFlight = savedPayloads[3].event.event_data.flight_uid;
+    expect(takeoffPayloadFlight).toBe(slotPayloadFlight);
   });
 });

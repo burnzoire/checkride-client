@@ -28,8 +28,8 @@ describe('EventProcessor', () => {
   it('generates flight and event identifiers on slot entry', () => {
     uuid.v4.mockReturnValueOnce('flight-uid-1');
 
-    const rawEvent = { type: 'change_slot', playerUcid: 'pilot-1', slotId: 'slot-a' };
-    const prepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-1', slot_id: 'slot-a' } } };
+    const rawEvent = { type: 'change_slot', playerUcid: 'pilot-1', slotId: 'slot-a', flyable: true };
+    const prepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-1', slot_id: 'slot-a', flyable: true } } };
 
     const result = processor.process(rawEvent, prepared);
 
@@ -44,12 +44,12 @@ describe('EventProcessor', () => {
       .mockReturnValueOnce('flight-uid-2');
 
     processor.process(
-      { type: 'change_slot', playerUcid: 'pilot-1', slotId: 'slot-a' },
-      { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-1', slot_id: 'slot-a' } } }
+      { type: 'change_slot', playerUcid: 'pilot-1', slotId: 'slot-a', flyable: true },
+      { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-1', slot_id: 'slot-a', flyable: true } } }
     );
 
-    const secondChangeSlot = { type: 'change_slot', playerUcid: 'pilot-1', slotId: 'slot-b' };
-    const secondPrepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-1', slot_id: 'slot-b' } } };
+    const secondChangeSlot = { type: 'change_slot', playerUcid: 'pilot-1', slotId: 'slot-b', flyable: true };
+    const secondPrepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-1', slot_id: 'slot-b', flyable: true } } };
     const secondResult = processor.process(secondChangeSlot, secondPrepared);
 
     expect(secondResult.event.event_data.flight_uid).toBe('flight-uid-1');
@@ -65,8 +65,8 @@ describe('EventProcessor', () => {
   it('keeps the flight active across landings and only clears on end events', () => {
     uuid.v4.mockReturnValueOnce('flight-uid-2');
 
-    const changeSlotEvent = { type: 'change_slot', playerUcid: 'pilot-2', slotId: 'slot-b' };
-    const changeSlotPrepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-2', slot_id: 'slot-b' } } };
+    const changeSlotEvent = { type: 'change_slot', playerUcid: 'pilot-2', slotId: 'slot-b', flyable: true };
+    const changeSlotPrepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-2', slot_id: 'slot-b', flyable: true } } };
     processor.process(changeSlotEvent, changeSlotPrepared);
 
     const takeoffEvent = { type: 'takeoff', playerUcid: 'pilot-2' };
@@ -101,13 +101,13 @@ describe('EventProcessor', () => {
       .mockReturnValueOnce('flight-victim');
 
     processor.process(
-      { type: 'change_slot', playerUcid: 'killer', slotId: 'slot-1' },
-      { event: { event_type: 'change_slot', event_data: { player_ucid: 'killer', slot_id: 'slot-1' } } }
+      { type: 'change_slot', playerUcid: 'killer', slotId: 'slot-1', flyable: true },
+      { event: { event_type: 'change_slot', event_data: { player_ucid: 'killer', slot_id: 'slot-1', flyable: true } } }
     );
 
     processor.process(
-      { type: 'change_slot', playerUcid: 'victim', slotId: 'slot-2' },
-      { event: { event_type: 'change_slot', event_data: { player_ucid: 'victim', slot_id: 'slot-2' } } }
+      { type: 'change_slot', playerUcid: 'victim', slotId: 'slot-2', flyable: true },
+      { event: { event_type: 'change_slot', event_data: { player_ucid: 'victim', slot_id: 'slot-2', flyable: true } } }
     );
 
     const killEvent = {
@@ -137,12 +137,12 @@ describe('EventProcessor', () => {
     uuid.v4.mockReturnValueOnce('flight-uid-3');
 
     processor.process(
-      { type: 'change_slot', playerUcid: 'pilot-3', slotId: 'slot-c' },
-      { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-3', slot_id: 'slot-c' } } }
+      { type: 'change_slot', playerUcid: 'pilot-3', slotId: 'slot-c', flyable: true },
+      { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-3', slot_id: 'slot-c', flyable: true } } }
     );
 
-    const leaveSlotEvent = { type: 'change_slot', playerUcid: 'pilot-3', slotId: null };
-    const leaveSlotPrepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-3', slot_id: null } } };
+    const leaveSlotEvent = { type: 'change_slot', playerUcid: 'pilot-3', slotId: null, flyable: false };
+    const leaveSlotPrepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-3', slot_id: null, flyable: false } } };
     const leaveSlotResult = processor.process(leaveSlotEvent, leaveSlotPrepared);
     expect(leaveSlotResult.event.event_data.flight_uid).toBe('flight-uid-3');
 

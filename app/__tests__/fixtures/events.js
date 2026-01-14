@@ -81,7 +81,8 @@ module.exports = {
     playerUcid: "player123",
     playerName: "Test Pilot",
     slotId: "5",
-    prevSide: "1"
+    prevSide: "1",
+    flyable: true
   },
 
   expectedGameEvent: {
@@ -184,7 +185,8 @@ module.exports = {
         player_ucid: "player123",
         player_name: "Test Pilot",
         slot_id: "5",
-        prev_side: "1"
+        prev_side: "1",
+        flyable: true
       }
     }
   }

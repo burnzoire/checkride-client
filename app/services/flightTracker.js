@@ -19,6 +19,14 @@ class FlightTracker {
   }
 
   updateAssignments(rawEvent) {
+    if (!rawEvent || typeof rawEvent !== 'object') {
+      return {};
+    }
+
+    if (rawEvent.type === 'connect') {
+      return {};
+    }
+
     const assignments = {};
     const participants = this.extractParticipantUcids(rawEvent);
 
@@ -32,7 +40,7 @@ class FlightTracker {
     if (rawEvent.type === 'change_slot' && rawEvent.playerUcid) {
       const existingFlight = this.activeFlights.get(rawEvent.playerUcid);
 
-      if (rawEvent.slotId) {
+      if (rawEvent.flyable !== false && rawEvent.slotId) {
         if (!existingFlight) {
           const newFlightUid = this.generateFlightUid();
           this.activeFlights.set(rawEvent.playerUcid, newFlightUid);

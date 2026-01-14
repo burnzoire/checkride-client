@@ -7,6 +7,7 @@ class ChangeSlotEvent extends GameEvent {
     this.playerName = rawEvent.playerName;
     this.slotId = rawEvent.slotId;
     this.prevSide = rawEvent.prevSide;
+    this.flyable = rawEvent.flyable;
   }
 
   prepare() {
@@ -17,7 +18,8 @@ class ChangeSlotEvent extends GameEvent {
           player_ucid: this.playerUcid,
           player_name: this.playerName,
           slot_id: this.slotId,
-          prev_side: this.prevSide
+          prev_side: this.prevSide,
+          flyable: this.flyable
         }
       }
     };

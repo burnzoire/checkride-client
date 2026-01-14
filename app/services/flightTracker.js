@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 
-const FLIGHT_END_EVENTS = new Set(['landing', 'crash', 'eject', 'pilot_death', 'self_kill', 'disconnect']);
+const FLIGHT_END_EVENTS = new Set(['crash', 'eject', 'pilot_death', 'self_kill', 'disconnect']);
 
 class FlightTracker {
   constructor(generateFlightUid = uuidv4) {
@@ -30,12 +30,19 @@ class FlightTracker {
     });
 
     if (rawEvent.type === 'change_slot' && rawEvent.playerUcid) {
+      const existingFlight = this.activeFlights.get(rawEvent.playerUcid);
+
       if (rawEvent.slotId) {
-        const flightUid = this.generateFlightUid();
-        this.activeFlights.set(rawEvent.playerUcid, flightUid);
-        assignments[rawEvent.playerUcid] = flightUid;
+        if (!existingFlight) {
+          const newFlightUid = this.generateFlightUid();
+          this.activeFlights.set(rawEvent.playerUcid, newFlightUid);
+          assignments[rawEvent.playerUcid] = newFlightUid;
+        } else {
+          assignments[rawEvent.playerUcid] = existingFlight;
+          const nextFlightUid = this.generateFlightUid();
+          this.activeFlights.set(rawEvent.playerUcid, nextFlightUid);
+        }
       } else {
-        const existingFlight = this.activeFlights.get(rawEvent.playerUcid);
         if (existingFlight) {
           assignments[rawEvent.playerUcid] = existingFlight;
         }
@@ -45,10 +52,19 @@ class FlightTracker {
       return assignments;
     }
 
+    participants.forEach((ucid) => {
+      if (!assignments[ucid]) {
+        const newFlightUid = this.generateFlightUid();
+        this.activeFlights.set(ucid, newFlightUid);
+        assignments[ucid] = newFlightUid;
+      }
+    });
+
     if (rawEvent.playerUcid && FLIGHT_END_EVENTS.has(rawEvent.type)) {
-      const existingFlight = this.activeFlights.get(rawEvent.playerUcid);
-      if (existingFlight) {
-        assignments[rawEvent.playerUcid] = existingFlight;
+      const assignedFlight = assignments[rawEvent.playerUcid];
+      if (!assignedFlight) {
+        const newFlightUid = this.generateFlightUid();
+        assignments[rawEvent.playerUcid] = newFlightUid;
       }
       this.activeFlights.delete(rawEvent.playerUcid);
       return assignments;

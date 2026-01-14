@@ -38,7 +38,31 @@ describe('EventProcessor', () => {
     expect(result.event.event_uid).toBe(actualUuid.v5(stableStringify(rawEvent), EVENT_NAMESPACE));
   });
 
-  it('reuses active flight identifier until landing event ends it', () => {
+  it('ends the current flight and seeds a new one on slot change mid-flight', () => {
+    uuid.v4
+      .mockReturnValueOnce('flight-uid-1')
+      .mockReturnValueOnce('flight-uid-2');
+
+    processor.process(
+      { type: 'change_slot', playerUcid: 'pilot-1', slotId: 'slot-a' },
+      { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-1', slot_id: 'slot-a' } } }
+    );
+
+    const secondChangeSlot = { type: 'change_slot', playerUcid: 'pilot-1', slotId: 'slot-b' };
+    const secondPrepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-1', slot_id: 'slot-b' } } };
+    const secondResult = processor.process(secondChangeSlot, secondPrepared);
+
+    expect(secondResult.event.event_data.flight_uid).toBe('flight-uid-1');
+
+    const followup = processor.process(
+      { type: 'takeoff', playerUcid: 'pilot-1' },
+      { event: { event_type: 'takeoff', event_data: { player_ucid: 'pilot-1' } } }
+    );
+
+    expect(followup.event.event_data.flight_uid).toBe('flight-uid-2');
+  });
+
+  it('keeps the flight active across landings and only clears on end events', () => {
     uuid.v4.mockReturnValueOnce('flight-uid-2');
 
     const changeSlotEvent = { type: 'change_slot', playerUcid: 'pilot-2', slotId: 'slot-b' };
@@ -58,7 +82,17 @@ describe('EventProcessor', () => {
     const postLandingEvent = { type: 'takeoff', playerUcid: 'pilot-2' };
     const postLandingPrepared = { event: { event_type: 'takeoff', event_data: { player_ucid: 'pilot-2' } } };
     const postLandingResult = processor.process(postLandingEvent, postLandingPrepared);
-    expect(postLandingResult.event.event_data.flight_uid).toBeUndefined();
+    expect(postLandingResult.event.event_data.flight_uid).toBe('flight-uid-2');
+
+    const crashEvent = { type: 'crash', playerUcid: 'pilot-2' };
+    const crashPrepared = { event: { event_type: 'crash', event_data: { player_ucid: 'pilot-2' } } };
+    const crashResult = processor.process(crashEvent, crashPrepared);
+    expect(crashResult.event.event_data.flight_uid).toBe('flight-uid-2');
+
+    const postCrashEvent = { type: 'takeoff', playerUcid: 'pilot-2' };
+    const postCrashPrepared = { event: { event_type: 'takeoff', event_data: { player_ucid: 'pilot-2' } } };
+    const postCrashResult = processor.process(postCrashEvent, postCrashPrepared);
+    expect(postCrashResult.event.event_data.flight_uid).toBeUndefined();
   });
 
   it('records participant flight identifiers on kill events', () => {

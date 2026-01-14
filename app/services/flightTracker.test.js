@@ -19,8 +19,27 @@ describe('FlightTracker', () => {
     expect(eventData.flight_uid).toBe('flight-1');
   });
 
-  it('reuses the active flight id until a landing clears it', () => {
-    generateFlightUid.mockReturnValueOnce('flight-2');
+  it('ends the current flight and starts a new one when changing slots mid-flight', () => {
+    generateFlightUid
+      .mockReturnValueOnce('flight-1')
+      .mockReturnValueOnce('flight-2');
+
+    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot-a' }, { player_ucid: 'pilot' });
+
+    const changeSlotData = { player_ucid: 'pilot', slot_id: 'slot-b' };
+    tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot-b' }, changeSlotData);
+
+    expect(changeSlotData.flight_uid).toBe('flight-1');
+
+    const nextEventData = { player_ucid: 'pilot' };
+    tracker.decorate({ type: 'takeoff', playerUcid: 'pilot' }, nextEventData);
+    expect(nextEventData.flight_uid).toBe('flight-2');
+  });
+
+  it('keeps the active flight id across landings and clears it on an end event', () => {
+    generateFlightUid
+      .mockReturnValueOnce('flight-2')
+      .mockReturnValueOnce('flight-3');
     const takeoffData = { player_ucid: 'pilot' };
     const landingData = { player_ucid: 'pilot' };
 
@@ -33,7 +52,15 @@ describe('FlightTracker', () => {
 
     const postLandingData = { player_ucid: 'pilot' };
     tracker.decorate({ type: 'takeoff', playerUcid: 'pilot' }, postLandingData);
-    expect(postLandingData.flight_uid).toBeUndefined();
+    expect(postLandingData.flight_uid).toBe('flight-2');
+
+    const crashData = { player_ucid: 'pilot' };
+    tracker.decorate({ type: 'crash', playerUcid: 'pilot' }, crashData);
+    expect(crashData.flight_uid).toBe('flight-2');
+
+    const postCrashData = { player_ucid: 'pilot' };
+    tracker.decorate({ type: 'takeoff', playerUcid: 'pilot' }, postCrashData);
+    expect(postCrashData.flight_uid).toBe('flight-3');
   });
 
   it('propagates killer and victim flight ids during a kill event', () => {
@@ -52,7 +79,9 @@ describe('FlightTracker', () => {
   });
 
   it('drops the tracked flight when the slot is vacated', () => {
-    generateFlightUid.mockReturnValueOnce('flight-3');
+    generateFlightUid
+      .mockReturnValueOnce('flight-3')
+      .mockReturnValueOnce('flight-4');
 
     tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot' }, { player_ucid: 'pilot' });
 
@@ -62,6 +91,27 @@ describe('FlightTracker', () => {
 
     const followUpData = { player_ucid: 'pilot' };
     tracker.decorate({ type: 'takeoff', playerUcid: 'pilot' }, followUpData);
-    expect(followUpData.flight_uid).toBeUndefined();
+    expect(followUpData.flight_uid).toBe('flight-4');
+  });
+
+  it('creates new flight ids when events arrive without prior tracking', () => {
+    generateFlightUid.mockReturnValueOnce('orphan-flight');
+    const eventData = { player_ucid: 'pilot' };
+
+    tracker.decorate({ type: 'takeoff', playerUcid: 'pilot' }, eventData);
+
+    expect(eventData.flight_uid).toBe('orphan-flight');
+  });
+
+  it('recreates killer and victim flight ids after a restart', () => {
+    generateFlightUid
+      .mockReturnValueOnce('killer-flight')
+      .mockReturnValueOnce('victim-flight');
+
+    const killData = { killer_ucid: 'killer', victim_ucid: 'victim' };
+    tracker.decorate({ type: 'kill', killerUcid: 'killer', victimUcid: 'victim' }, killData);
+
+    expect(killData.killer_flight_uid).toBe('killer-flight');
+    expect(killData.victim_flight_uid).toBe('victim-flight');
   });
 });

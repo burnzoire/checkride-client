@@ -46,9 +46,9 @@ class FlightTracker {
           this.activeFlights.set(rawEvent.playerUcid, newFlightUid);
           assignments[rawEvent.playerUcid] = newFlightUid;
         } else {
-          assignments[rawEvent.playerUcid] = existingFlight;
           const nextFlightUid = this.generateFlightUid();
           this.activeFlights.set(rawEvent.playerUcid, nextFlightUid);
+          assignments[rawEvent.playerUcid] = nextFlightUid;
         }
       } else {
         if (existingFlight) {
@@ -60,22 +60,18 @@ class FlightTracker {
       return assignments;
     }
 
-    participants.forEach((ucid) => {
-      if (!assignments[ucid]) {
-        const newFlightUid = this.generateFlightUid();
-        this.activeFlights.set(ucid, newFlightUid);
-        assignments[ucid] = newFlightUid;
-      }
-    });
+    if (!FLIGHT_END_EVENTS.has(rawEvent.type)) {
+      participants.forEach((ucid) => {
+        if (!assignments[ucid]) {
+          const newFlightUid = this.generateFlightUid();
+          this.activeFlights.set(ucid, newFlightUid);
+          assignments[ucid] = newFlightUid;
+        }
+      });
+    }
 
     if (rawEvent.playerUcid && FLIGHT_END_EVENTS.has(rawEvent.type)) {
-      const assignedFlight = assignments[rawEvent.playerUcid];
-      if (!assignedFlight) {
-        const newFlightUid = this.generateFlightUid();
-        assignments[rawEvent.playerUcid] = newFlightUid;
-      }
       this.activeFlights.delete(rawEvent.playerUcid);
-      return assignments;
     }
 
     return assignments;

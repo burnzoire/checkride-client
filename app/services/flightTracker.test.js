@@ -29,7 +29,7 @@ describe('FlightTracker', () => {
     const changeSlotData = { player_ucid: 'pilot', slot_id: 'slot-b', flyable: true };
     tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot-b', flyable: true }, changeSlotData);
 
-    expect(changeSlotData.flight_uid).toBe('flight-1');
+    expect(changeSlotData.flight_uid).toBe('flight-2');
 
     const nextEventData = { player_ucid: 'pilot' };
     tracker.decorate({ type: 'takeoff', playerUcid: 'pilot' }, nextEventData);
@@ -68,7 +68,7 @@ describe('FlightTracker', () => {
 
     const changeSlotNewAirframeData = { player_ucid: 'pilot', slot_id: 'slot-b', flyable: true };
     tracker.decorate({ type: 'change_slot', playerUcid: 'pilot', slotId: 'slot-b', flyable: true }, changeSlotNewAirframeData);
-    expect(changeSlotNewAirframeData.flight_uid).toBe('flight-3');
+    expect(changeSlotNewAirframeData.flight_uid).toBe('flight-4');
 
     const takeoffAfterSlotChangeData = { player_ucid: 'pilot' };
     tracker.decorate({ type: 'takeoff', playerUcid: 'pilot' }, takeoffAfterSlotChangeData);
@@ -131,6 +131,15 @@ describe('FlightTracker', () => {
     tracker.decorate({ type: 'connect', playerUcid: 'pilot' }, { player_ucid: 'pilot' });
 
     expect(generateFlightUid).not.toHaveBeenCalled();
+  });
+
+  it('skips flight creation for disconnect events without an active flight', () => {
+    const eventData = { player_ucid: 'pilot' };
+
+    tracker.decorate({ type: 'disconnect', playerUcid: 'pilot' }, eventData);
+
+    expect(generateFlightUid).not.toHaveBeenCalled();
+    expect(eventData.flight_uid).toBeUndefined();
   });
 
   it('clears the active flight when switching to a spectator slot', () => {

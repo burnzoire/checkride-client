@@ -1,7 +1,16 @@
+const GameEvent = require('./gameEvent');
 const KillEvent = require('./killEvent');
 
 describe('KillEvent', () => {
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('prepares the expected payload', () => {
+    const occurredAt = '2023-01-01T00:00:00.000Z';
+    jest.spyOn(GameEvent, 'generateOccurredAt').mockReturnValue(occurredAt);
+
     const rawEvent = {
       type: 'kill',
       killerUcid: 'test1',
@@ -21,6 +30,7 @@ describe('KillEvent', () => {
     expect(preparedPayload).toEqual({
       event: {
         event_type: 'kill',
+        occurred_at: occurredAt,
         event_data: {
           killer_ucid: 'test1',
           killer_name: 'Test Pilot',

@@ -16,10 +16,9 @@ const log = require('electron-log');
 const { EventProcessor } = require('./services/eventProcessor');
 
 describe('initApp', () => {
-  let fakeUdpPort, fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakeDiscordWebhookPath, udpServerMock, processMock;
+  let fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakeDiscordWebhookPath, udpServerMock, processMock;
 
   beforeEach(() => {
-    fakeUdpPort = 41234;
     fakeUseSsl = true;
     fakeApiHost = 'localhost';
     fakeApiPort = 8080;
@@ -37,8 +36,6 @@ describe('initApp', () => {
 
     store.get.mockImplementation((key, defaultValue) => {
       switch (key) {
-        case 'udp_port':
-          return fakeUdpPort;
         case 'use_ssl':
           return fakeUseSsl;
         case 'server_host':
@@ -69,7 +66,7 @@ describe('initApp', () => {
     expect(apiClient).toBeInstanceOf(APIClient);
     expect(discordClient).toBeInstanceOf(DiscordClient);
 
-    expect(UDPServer).toHaveBeenCalledWith(fakeUdpPort);
+    expect(UDPServer).toHaveBeenCalledWith(41234);
     expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken);
     expect(DiscordClient).toHaveBeenCalledWith(fakeDiscordWebhookPath);
 

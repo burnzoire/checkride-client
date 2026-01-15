@@ -112,7 +112,6 @@ ipcMain.handle('settings:load', () => {
     server_host: store.get('server_host'),
     server_port: store.get('server_port'),
     use_ssl: store.get('use_ssl'),
-    udp_port: store.get('udp_port'),
     discord_webhook_path: store.get('discord_webhook_path'),
     api_token: store.get('api_token'),
   };
@@ -123,19 +122,13 @@ ipcMain.handle('settings:save', async (_event, payload) => {
     server_host: payload.server_host?.trim() || '',
     server_port: payload.server_port?.trim() || '',
     use_ssl: Boolean(payload.use_ssl),
-    udp_port: Number(payload.udp_port),
     discord_webhook_path: payload.discord_webhook_path?.trim() || '',
     api_token: payload.api_token?.trim() || '',
   };
 
-  if (!Number.isFinite(nextConfig.udp_port) || nextConfig.udp_port <= 0 || nextConfig.udp_port > 65535) {
-    throw new Error('Invalid UDP port value');
-  }
-
   store.set('server_host', nextConfig.server_host);
   store.set('server_port', nextConfig.server_port);
   store.set('use_ssl', nextConfig.use_ssl);
-  store.set('udp_port', nextConfig.udp_port);
   store.set('discord_webhook_path', nextConfig.discord_webhook_path);
   store.set('api_token', nextConfig.api_token);
 
@@ -150,10 +143,6 @@ ipcMain.handle('settings:save', async (_event, payload) => {
 
   if (discordClient?.updateWebhookPath) {
     discordClient.updateWebhookPath(nextConfig.discord_webhook_path);
-  }
-
-  if (udpServer?.updatePort) {
-    await udpServer.updatePort(nextConfig.udp_port);
   }
 
   if (udpServer && apiClient && discordClient) {

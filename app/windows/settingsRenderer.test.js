@@ -5,7 +5,6 @@ describe('settingsRenderer', () => {
     server_host: 'example.com',
     server_port: '8080',
     use_ssl: true,
-    udp_port: 41235,
     discord_webhook_path: '/hook',
     api_token: 'token',
   };
@@ -26,7 +25,6 @@ describe('settingsRenderer', () => {
       '  <input id="server_host" name="server_host" type="text" />',
       '  <input id="server_port" name="server_port" type="text" />',
       '  <input id="use_ssl" name="use_ssl" type="checkbox" />',
-      '  <input id="udp_port" name="udp_port" type="number" />',
       '  <input id="discord_webhook_path" name="discord_webhook_path" type="text" />',
       '  <input id="api_token" name="api_token" type="text" />',
       '  <button id="cancel-button" type="button">Cancel</button>',
@@ -70,7 +68,6 @@ describe('settingsRenderer', () => {
     expect(document.getElementById('server_host').value).toBe('example.com');
     expect(document.getElementById('server_port').value).toBe('8080');
     expect(document.getElementById('use_ssl').checked).toBe(true);
-    expect(document.getElementById('udp_port').value).toBe('41235');
     expect(document.getElementById('discord_webhook_path').value).toBe('/hook');
     expect(document.getElementById('api_token').value).toBe('token');
   });
@@ -82,7 +79,6 @@ describe('settingsRenderer', () => {
     document.getElementById('server_host').value = '  new.host ';
     document.getElementById('server_port').value = ' 9000 ';
     document.getElementById('use_ssl').checked = false;
-    document.getElementById('udp_port').value = '45000';
     document.getElementById('discord_webhook_path').value = ' /new ';
     document.getElementById('api_token').value = ' secret ';
 
@@ -93,7 +89,6 @@ describe('settingsRenderer', () => {
       server_host: 'new.host',
       server_port: '9000',
       use_ssl: false,
-      udp_port: 45000,
       discord_webhook_path: '/new',
       api_token: 'secret',
     });
@@ -135,7 +130,6 @@ describe('settingsRenderer', () => {
 
     document.getElementById('server_host').value = 'example.com';
     document.getElementById('server_port').value = '3000';
-    document.getElementById('udp_port').value = '45000';
 
     console.error.mockClear();
     closeMock.mockClear();
@@ -164,7 +158,6 @@ describe('settingsRenderer', () => {
       server_host: '',
       server_port: '',
       use_ssl: false,
-      udp_port: 0,
       discord_webhook_path: '',
       api_token: '',
     });

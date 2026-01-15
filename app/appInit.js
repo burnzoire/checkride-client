@@ -8,6 +8,8 @@ const { APIClient } = require('./clients/apiClient');
 const log = require('electron-log');
 const store = require('./config');
 
+const DEFAULT_UDP_PORT = 41234;
+
 function attachEventPipeline({ udpServer, apiClient, discordClient }) {
   const eventProcessor = new EventProcessor();
   udpServer.onEvent = (event) => {
@@ -24,7 +26,6 @@ function attachEventPipeline({ udpServer, apiClient, discordClient }) {
 }
 
 async function initApp() {
-  const udpPort = store.get('udp_port', 41234)
   const useSsl = store.get("use_ssl")
   const apiHost = store.get("server_host")
   const apiPort = store.get("server_port")
@@ -32,7 +33,7 @@ async function initApp() {
   const discordWebhookPath = store.get("discord_webhook_path")
   const apiClient = new APIClient(useSsl, apiHost, apiPort, apiToken)
   const discordClient = new DiscordClient(discordWebhookPath)
-  const udpServer = new UDPServer(udpPort)
+  const udpServer = new UDPServer(DEFAULT_UDP_PORT)
 
   attachEventPipeline({ udpServer, apiClient, discordClient })
 

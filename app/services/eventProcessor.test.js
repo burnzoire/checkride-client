@@ -64,7 +64,9 @@ describe('EventProcessor', () => {
   });
 
   it('keeps the flight active across landings and only clears on end events', () => {
-    uuid.v4.mockReturnValueOnce('flight-uid-2');
+    uuid.v4
+      .mockReturnValueOnce('flight-uid-2')
+      .mockReturnValueOnce('flight-uid-3');
 
     const changeSlotEvent = { type: 'change_slot', playerUcid: 'pilot-2', slotId: 'slot-b', flyable: true };
     const changeSlotPrepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-2', slot_id: 'slot-b', flyable: true } } };
@@ -93,7 +95,17 @@ describe('EventProcessor', () => {
     const postCrashEvent = { type: 'takeoff', playerUcid: 'pilot-2' };
     const postCrashPrepared = { event: { event_type: 'takeoff', event_data: { player_ucid: 'pilot-2' } } };
     const postCrashResult = processor.process(postCrashEvent, postCrashPrepared);
-    expect(postCrashResult.event.event_data.flight_uid).toBeUndefined();
+    expect(postCrashResult.event.event_data.flight_uid).toBe('flight-uid-2');
+
+    const changeSlotEventAfterCrash = { type: 'change_slot', playerUcid: 'pilot-2', slotId: 'slot-c', flyable: true };
+    const changeSlotPreparedAfterCrash = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-2', slot_id: 'slot-c', flyable: true } } };
+    const changeSlotResult = processor.process(changeSlotEventAfterCrash, changeSlotPreparedAfterCrash);
+    expect(changeSlotResult.event.event_data.flight_uid).toBe('flight-uid-2');
+
+    const postSlotChangeEvent = { type: 'takeoff', playerUcid: 'pilot-2' };
+    const postSlotChangePrepared = { event: { event_type: 'takeoff', event_data: { player_ucid: 'pilot-2' } } };
+    const postSlotChangeResult = processor.process(postSlotChangeEvent, postSlotChangePrepared);
+    expect(postSlotChangeResult.event.event_data.flight_uid).toBe('flight-uid-3');
   });
 
   it('records participant flight identifiers on kill events', () => {

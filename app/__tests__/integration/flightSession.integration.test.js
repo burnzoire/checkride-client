@@ -126,7 +126,7 @@ describe('Flight session integration', () => {
 
     const postCrashFlightUid = savedPayloads[7].event.event_data.flight_uid;
     expect(postCrashFlightUid).toBeDefined();
-    expect(postCrashFlightUid).not.toBe(secondFlightUid);
+    expect(postCrashFlightUid).toBe(secondFlightUid);
   });
 
   it('generates new flight ids after pipeline reinitialization', async () => {

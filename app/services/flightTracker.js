@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 
-const FLIGHT_END_EVENTS = new Set(['crash', 'eject', 'pilot_death', 'self_kill', 'disconnect']);
+const FLIGHT_END_EVENTS = new Set(['disconnect', 'change_slot']);
 
 class FlightTracker {
   constructor(generateFlightUid = uuidv4) {

@@ -7,12 +7,10 @@ const createTestEvents = (udpServer) => [
         killerUcid: "test1",
         killerName: "Test Pilot",
         killerUnitType: "F-14A",
-        killerUnitCategory: "Fixed-wing",
         killerSide: "blue",
         victimUcid: "test2",
         victimName: "Test Pilot 2",
         victimUnitType: "JF-17",
-        victimUnitCategory: "Fixed-wing",
         victimSide: "red",
         weaponName: "AIM-9L"
       });
@@ -26,7 +24,6 @@ const createTestEvents = (udpServer) => [
         playerUcid: "test1",
         playerName: "Test Pilot",
         unitType: "F-14A",
-        unitCategory: "Fixed-wing",
         airdromeName: "Test Field"
       });
     }
@@ -39,7 +36,6 @@ const createTestEvents = (udpServer) => [
         playerUcid: "test1",
         playerName: "Test Pilot",
         unitType: "F-14B",
-        unitCategory: "Fixed-wing",
         airdromeName: "Test Field"
       });
     }
@@ -52,7 +48,6 @@ const createTestEvents = (udpServer) => [
         playerUcid: "test1",
         playerName: "Test Pilot",
         unitType: "F-14A",
-        unitCategory: "Fixed-wing",
         airdromeName: "Test Field"
       });
     }
@@ -65,7 +60,6 @@ const createTestEvents = (udpServer) => [
         playerUcid: "test1",
         playerName: "Test Pilot",
         unitType: "F-14B",
-        unitCategory: "Fixed-wing",
         airdromeName: "Test Field"
       });
     }
@@ -113,7 +107,6 @@ const createTestEvents = (udpServer) => [
         playerUcid: "test1",
         playerName: "Test Pilot",
         unitType: "F-14B",
-        unitCategory: "Fixed-wing",
       });
     }
   },
@@ -125,7 +118,6 @@ const createTestEvents = (udpServer) => [
         playerUcid: "test1",
         playerName: "Test Pilot",
         unitType: "F-14B",
-        unitCategory: "Fixed-wing",
       });
     }
   },
@@ -137,7 +129,6 @@ const createTestEvents = (udpServer) => [
         playerUcid: "test1",
         playerName: "Test Pilot",
         unitType: "F-14B",
-        unitCategory: "Fixed-wing",
       });
     }
   },

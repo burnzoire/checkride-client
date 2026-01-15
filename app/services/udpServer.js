@@ -77,7 +77,8 @@ class UDPServer {
 
     const address = this.server.address()
     const msg = JSON.stringify(data)
-    this.server.send(msg, address.port, address.address)
+    const targetHost = address.address && address.address !== '0.0.0.0' && address.address !== '::' ? address.address : '127.0.0.1'
+    this.server.send(msg, address.port, targetHost)
   }
 
 

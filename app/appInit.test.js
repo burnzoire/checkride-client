@@ -1,3 +1,11 @@
+jest.mock('./clients/apiClient');
+jest.mock('./clients/discordClient');
+jest.mock('./services/udpServer');
+jest.mock('./factories/eventFactory');
+jest.mock('./config');
+jest.mock('electron-log');
+jest.mock('./services/eventProcessor');
+
 const { APIClient } = require('./clients/apiClient');
 const { DiscordClient } = require('./clients/discordClient');
 const UDPServer = require('./services/udpServer');
@@ -5,16 +13,10 @@ const { EventFactory } = require('./factories/eventFactory');
 const store = require('./config');
 const { initApp, attachEventPipeline } = require('./appInit');
 const log = require('electron-log');
-
-jest.mock('./clients/apiClient');
-jest.mock('./clients/discordClient');
-jest.mock('./services/udpServer');
-jest.mock('./factories/eventFactory');
-jest.mock('./config');
-jest.mock('electron-log');
+const { EventProcessor } = require('./services/eventProcessor');
 
 describe('initApp', () => {
-  let fakeUdpPort, fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakeDiscordWebhookPath, udpServerMock;
+  let fakeUdpPort, fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakeDiscordWebhookPath, udpServerMock, processMock;
 
   beforeEach(() => {
     fakeUdpPort = 41234;
@@ -29,6 +31,9 @@ describe('initApp', () => {
     };
 
     UDPServer.mockImplementation(() => udpServerMock);
+
+    processMock = jest.fn((_, payload) => payload);
+    EventProcessor.mockImplementation(() => ({ process: processMock }));
 
     store.get.mockImplementation((key, defaultValue) => {
       switch (key) {
@@ -74,7 +79,7 @@ describe('initApp', () => {
   it('calls saveEvent and send when an event occurs', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {
-      prepare: jest.fn().mockReturnValue('prepared event'),
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
     };
     const apiResponse = {
       summary: 'summary',
@@ -86,7 +91,7 @@ describe('initApp', () => {
     const discordClientMock = {
       send: jest.fn(),
     };
-
+    processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
 
     APIClient.mockImplementation(() => apiClientMock);
     DiscordClient.mockImplementation(() => discordClientMock);
@@ -98,7 +103,8 @@ describe('initApp', () => {
 
     expect(EventFactory.create).toHaveBeenCalledWith(fakeEvent);
     expect(gameEvent.prepare).toHaveBeenCalled();
-    expect(apiClientMock.saveEvent).toHaveBeenCalledWith('prepared event');
+    expect(processMock).toHaveBeenCalledWith(fakeEvent, { event: { event_type: 'event', event_data: { sample: true } } });
+    expect(apiClientMock.saveEvent).toHaveBeenCalledWith({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } });
     expect(discordClientMock.send).toHaveBeenCalledWith(apiResponse.summary, apiResponse.publish);
   });
 
@@ -118,7 +124,7 @@ describe('initApp', () => {
 
   it('reattaches event pipeline when requested', async () => {
     const gameEvent = {
-      prepare: jest.fn().mockReturnValue('prepared event'),
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: {} } }),
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue({ summary: 'summary', publish: true }),
@@ -128,6 +134,8 @@ describe('initApp', () => {
     };
     const udpServer = {};
 
+    processMock.mockImplementation((_, payload) => ({ ...payload, event: { ...payload.event, event_uid: 'uid' } }));
+
     EventFactory.create.mockResolvedValue(gameEvent);
 
     attachEventPipeline({ udpServer, apiClient: apiClientMock, discordClient: discordClientMock });
@@ -135,7 +143,7 @@ describe('initApp', () => {
     await udpServer.onEvent({ type: 'event' });
 
     expect(EventFactory.create).toHaveBeenCalled();
-    expect(apiClientMock.saveEvent).toHaveBeenCalledWith('prepared event');
+    expect(apiClientMock.saveEvent).toHaveBeenCalledWith({ event: { event_type: 'event', event_data: {}, event_uid: 'uid' } });
     expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
   });
 

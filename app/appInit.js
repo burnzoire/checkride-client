@@ -1,5 +1,6 @@
 const { DiscordClient } = require('./clients/discordClient');
 const UDPServer = require('./services/udpServer');
+const { EventProcessor } = require('./services/eventProcessor');
 const { EventFactory } = require('./factories/eventFactory');
 const { APIClient } = require('./clients/apiClient');
 
@@ -8,10 +9,15 @@ const log = require('electron-log');
 const store = require('./config');
 
 function attachEventPipeline({ udpServer, apiClient, discordClient }) {
+  const eventProcessor = new EventProcessor();
   udpServer.onEvent = (event) => {
     log.info(`Handling event: ${JSON.stringify(event)}`)
     return EventFactory.create(event)
-      .then(gameEvent => apiClient.saveEvent(gameEvent.prepare()))
+      .then(gameEvent => {
+        const preparedPayload = gameEvent.prepare();
+        const processedPayload = eventProcessor.process(event, preparedPayload);
+        return apiClient.saveEvent(processedPayload);
+      })
       .then(response => discordClient.send(response.summary, response.publish))
       .catch(error => log.error(error))
   }

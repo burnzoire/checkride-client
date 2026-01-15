@@ -178,17 +178,44 @@ function Checkride.onDisconnect(time, playerID, name, playerSide, reason_code)
     Checkride.sendEvent(event)
 end
 
+local function isFlyableSlot(side, slotID)
+    -- could be a better way, like checking unit category
+    if not slotID or slotID == "" then
+        return false
+    end
+
+    local slotString = tostring(slotID)
+    if slotString == "0" then
+        return false
+    end
+
+    local lowerSlot = string.lower(slotString)
+    if string.find(lowerSlot, "spectator") or string.find(lowerSlot, "observer") then
+        return false
+    end
+
+    local numericSide = tonumber(side)
+    if numericSide == nil then
+        return false
+    end
+
+    return numericSide ~= 0
+end
+
 function Checkride.onChangeSlot(time, playerID, slotID, prevSide)
-    Checkride.log("onChangeSlot " .. playerID .. " - " .. slotID)
+    Checkride.log("onChangeSlot " .. playerID .. " - " .. tostring(slotID))
     local player = Checkride.findOrCreatePlayer(playerID)
-    Checkride.log(player.name .. " to slot " .. slotID)
+    local side = net.get_player_info(playerID, 'side')
+    Checkride.log(player.name .. " to slot " .. tostring(slotID))
     player.slot = slotID
+    player.side = side
 
     local event = buildEvent("change_slot", time)
     event.playerUcid = player.ucid
     event.playerName = player.name
     event.slotId = slotID
     event.prevSide = prevSide
+    event.flyable = isFlyableSlot(side, slotID)
     Checkride.sendEvent(event)
 end
 

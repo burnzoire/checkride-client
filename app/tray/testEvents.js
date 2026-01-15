@@ -78,7 +78,8 @@ const createTestEvents = (udpServer) => [
         playerUcid: "test1",
         playerName: "Test Pilot",
         slotId: "1",
-        prevSide: "1"
+        prevSide: "1",
+        flyable: true
       });
     }
   },

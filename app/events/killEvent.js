@@ -18,6 +18,7 @@ class KillEvent extends GameEvent {
     return {
       event: {
         event_type: this.eventType,
+        occurred_at: this.occurredAt,
         event_data: {
           killer_ucid: this.killerUcid,
           killer_name: this.killerName,

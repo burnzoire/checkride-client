@@ -33,13 +33,13 @@ class EventProcessor {
 
     this.flightTracker.decorate(rawEvent, payload.event.event_data);
 
-    payload.event.event_uid = this.buildEventUid(rawEvent);
+    payload.event.event_uid = this.buildEventUid(payload.event);
 
     return payload;
   }
 
-  buildEventUid(rawEvent) {
-    return uuidv5(stableStringify(rawEvent), EVENT_UID_NAMESPACE);
+  buildEventUid(stableSource) {
+    return uuidv5(stableStringify(stableSource), EVENT_UID_NAMESPACE);
   }
 }
 

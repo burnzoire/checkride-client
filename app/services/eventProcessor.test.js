@@ -35,7 +35,8 @@ describe('EventProcessor', () => {
 
     expect(result).not.toBe(prepared);
     expect(result.event.event_data.flight_uid).toBe('flight-uid-1');
-    expect(result.event.event_uid).toBe(actualUuid.v5(stableStringify(rawEvent), EVENT_NAMESPACE));
+    const { event_uid: generatedUid, ...eventWithoutUid } = result.event;
+    expect(generatedUid).toBe(actualUuid.v5(stableStringify(eventWithoutUid), EVENT_NAMESPACE));
   });
 
   it('ends the current flight and seeds a new one on slot change mid-flight', () => {

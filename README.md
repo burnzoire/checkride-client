@@ -27,7 +27,7 @@ Events pulled from DCS are normalised before being POSTed to the server at `/eve
 {
 	"event": {
 		"event_type": "<one of the supported event names>",
-		"event_uid": "<stable UUIDv5 derived from the raw event>",
+		"event_uid": "<stable UUIDv5 derived from the enriched event payload>",
 		"event_data": {
 			/* keys listed below */
 		}
@@ -38,7 +38,7 @@ Events pulled from DCS are normalised before being POSTed to the server at `/eve
 Envelope fields:
 
 - event.event_type — required. One of `kill`, `takeoff`, `landing`, `crash`, `eject`, `pilot_death`, `self_kill`, `connect`, `disconnect`, `change_slot`.
-- event.event_uid — required. Deterministic UUIDv5 generated from the raw event payload.
+- event.event_uid — required. Deterministic UUIDv5 generated from the enriched event payload (including occurred_at, flight assignments, etc.).
 - event.event_data — required. Container for the fields below. Keys omitted when the source value is unavailable.
 
 event_data fields:

@@ -95,4 +95,30 @@ describe('contextMenuTemplate', () => {
       }
     });
   });
+
+  it('should include Start Demo Mode when demo controller is provided', () => {
+    const demoController = { isRunning: false, start: jest.fn(), stop: jest.fn() };
+    const onChange = jest.fn();
+
+    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings, { demoController, onChange });
+    const demoItem = menu.find(item => item.label === 'Start Demo Mode');
+
+    expect(demoItem).toBeDefined();
+    demoItem.click();
+    expect(demoController.start).toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalled();
+  });
+
+  it('should include Stop Demo Mode when demo controller is running', () => {
+    const demoController = { isRunning: true, start: jest.fn(), stop: jest.fn() };
+    const onChange = jest.fn();
+
+    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings, { demoController, onChange });
+    const demoItem = menu.find(item => item.label === 'Stop Demo Mode');
+
+    expect(demoItem).toBeDefined();
+    demoItem.click();
+    expect(demoController.stop).toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalled();
+  });
 });

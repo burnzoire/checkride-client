@@ -32,11 +32,11 @@ class DiscordClient {
   }
 
   async send(message, publish) {
+    if (!this.path) {
+      return;
+    }
     if (publish === false) {
       throw new DiscordPublishError("Event not publishable")
-    }
-    if (this.path === "") {
-      throw new DiscordPublishError("No webhook path found")
     }
 
     const options = {

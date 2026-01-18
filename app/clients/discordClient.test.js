@@ -100,12 +100,12 @@ describe('DiscordClient', () => {
       await expect(client.send(message, false)).rejects.toThrow('Event not publishable');
     });
 
-    it('should reject when webhook path is empty', async () => {
+    it('should silently skip when webhook path is empty', async () => {
       const client = new DiscordClient('');
       const message = 'Test message';
 
-      await expect(client.send(message, true)).rejects.toThrow(DiscordPublishError);
-      await expect(client.send(message, true)).rejects.toThrow('No webhook path found');
+      await expect(client.send(message, true)).resolves.toBeUndefined();
+      expect(mockRequest).not.toHaveBeenCalled();
     });
 
     it('should reject on response error', async () => {

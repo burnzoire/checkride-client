@@ -115,11 +115,11 @@ describe('Flight session integration', () => {
     expect(postLandingFlightUid).toBe(firstFlightUid);
 
     const changefirstFlightUid = savedPayloads[4].event.event_data.flight_uid;
-    expect(changefirstFlightUid).toBe(firstFlightUid);
+    expect(changefirstFlightUid).not.toBe(firstFlightUid);
 
     const secondFlightUid = savedPayloads[5].event.event_data.flight_uid;
     expect(secondFlightUid).toBeDefined();
-    expect(secondFlightUid).not.toBe(firstFlightUid);
+    expect(secondFlightUid).toBe(changefirstFlightUid);
 
     const crashFlightUid = savedPayloads[6].event.event_data.flight_uid;
     expect(crashFlightUid).toBe(secondFlightUid);

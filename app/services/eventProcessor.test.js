@@ -53,7 +53,7 @@ describe('EventProcessor', () => {
     const secondPrepared = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-1', slot_id: 'slot-b', flyable: true } } };
     const secondResult = processor.process(secondChangeSlot, secondPrepared);
 
-    expect(secondResult.event.event_data.flight_uid).toBe('flight-uid-1');
+    expect(secondResult.event.event_data.flight_uid).toBe('flight-uid-2');
 
     const followup = processor.process(
       { type: 'takeoff', playerUcid: 'pilot-1' },
@@ -100,7 +100,7 @@ describe('EventProcessor', () => {
     const changeSlotEventAfterCrash = { type: 'change_slot', playerUcid: 'pilot-2', slotId: 'slot-c', flyable: true };
     const changeSlotPreparedAfterCrash = { event: { event_type: 'change_slot', event_data: { player_ucid: 'pilot-2', slot_id: 'slot-c', flyable: true } } };
     const changeSlotResult = processor.process(changeSlotEventAfterCrash, changeSlotPreparedAfterCrash);
-    expect(changeSlotResult.event.event_data.flight_uid).toBe('flight-uid-2');
+    expect(changeSlotResult.event.event_data.flight_uid).toBe('flight-uid-3');
 
     const postSlotChangeEvent = { type: 'takeoff', playerUcid: 'pilot-2' };
     const postSlotChangePrepared = { event: { event_type: 'takeoff', event_data: { player_ucid: 'pilot-2' } } };

@@ -4,6 +4,7 @@ const contextMenuTemplate = require('./tray/contextMenuTemplate');
 const { initApp, attachEventPipeline } = require('./appInit');
 const store = require('./config');
 const { showSettingsWindow } = require('./windows/settingsWindow');
+const { DemoController } = require('./demo/demoController');
 
 let tray = null;
 const iconPath = path.join(__dirname, './assets/icon.png');
@@ -11,13 +12,23 @@ const iconPath = path.join(__dirname, './assets/icon.png');
 let udpServer;
 let apiClient;
 let discordClient;
+let demoController;
 
 const openSettingsWindow = () => {
   return showSettingsWindow();
 };
 
 function buildContextMenu() {
-  return Menu.buildFromTemplate(contextMenuTemplate(udpServer, apiClient, openSettingsWindow));
+  return Menu.buildFromTemplate(
+    contextMenuTemplate(udpServer, apiClient, openSettingsWindow, {
+      demoController,
+      onChange: () => {
+        if (tray) {
+          tray.setContextMenu(buildContextMenu());
+        }
+      }
+    })
+  );
 }
 
 function setApplicationMenu() {
@@ -90,6 +101,8 @@ async function bootstrap() {
   apiClient = appInitResult.apiClient;
   discordClient = appInitResult.discordClient;
 
+  demoController = new DemoController();
+
   setApplicationMenu();
 
   const contextMenu = buildContextMenu();
@@ -157,6 +170,12 @@ app.whenReady().then(bootstrap);
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  if (demoController?.isRunning) {
+    demoController.stop();
   }
 });
 

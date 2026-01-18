@@ -1,6 +1,7 @@
 const createTestEvents = require('./testEvents');
+const { createDemoModeMenu } = require('./demoModeMenu');
 
-const contextMenuTemplate = (udpServer, api, openSettings) => [
+const contextMenuTemplate = (udpServer, api, openSettings, options = {}) => [
   {
     label: 'Settings',
     click: openSettings,
@@ -14,6 +15,7 @@ const contextMenuTemplate = (udpServer, api, openSettings) => [
     label: 'Ping server',
     click() { api.ping() }
   },
+  ...createDemoModeMenu(options.demoController, { onChange: options.onChange }),
   ...createTestEvents(udpServer),
   { type: 'separator' },
   {

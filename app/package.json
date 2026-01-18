@@ -21,6 +21,7 @@
       "**/*.js",
       "!node_modules/**",
       "!coverage/**",
+      "!demo/**",
       "!jest.config.js",
       "!babel.config.js",
       "!index.js",

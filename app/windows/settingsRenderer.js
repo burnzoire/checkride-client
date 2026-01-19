@@ -5,6 +5,7 @@
 
   const serverHostInput = getField('server_host');
   const serverPortInput = getField('server_port');
+  const pathPrefixInput = getField('path_prefix');
   const useSslInput = getField('use_ssl');
   const discordWebhookInput = getField('discord_webhook_path');
   const apiTokenInput = getField('api_token');
@@ -16,6 +17,7 @@
 
     if (serverHostInput) serverHostInput.value = config.server_host ?? '';
     if (serverPortInput) serverPortInput.value = config.server_port ?? '';
+    if (pathPrefixInput) pathPrefixInput.value = config.path_prefix ?? '';
     if (useSslInput) useSslInput.checked = Boolean(config.use_ssl);
     if (discordWebhookInput) discordWebhookInput.value = config.discord_webhook_path ?? '';
     if (apiTokenInput) apiTokenInput.value = config.api_token ?? '';
@@ -25,6 +27,7 @@
     return {
       server_host: serverHostInput?.value.trim() ?? '',
       server_port: serverPortInput?.value.trim() ?? '',
+      path_prefix: pathPrefixInput?.value.trim() ?? '',
       use_ssl: Boolean(useSslInput?.checked),
       discord_webhook_path: discordWebhookInput?.value.trim() ?? '',
       api_token: apiTokenInput?.value.trim() ?? '',

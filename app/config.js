@@ -10,6 +10,10 @@ const schema = {
     type: 'string',
     default: '80',
   },
+  path_prefix: {
+    type: 'string',
+    default: '/api',
+  },
   use_ssl: {
     type: 'boolean',
     default: false,

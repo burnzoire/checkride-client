@@ -24,21 +24,25 @@ class APIPingError extends APIClientError {
 }
 
 class APIClient {
-  constructor(useSsl, host, port, apiToken = '') {
+  constructor(useSsl, host, port, apiToken = '', pathPrefix = '') {
     this.useSsl = useSsl
     this.httpModule = this.useSsl ? https : http
     this.host = host
     this.port = port
     this.apiToken = apiToken
+    this.pathPrefix = pathPrefix
   }
 
-  update({ useSsl, host, port, apiToken }) {
+  update({ useSsl, host, port, apiToken, pathPrefix }) {
     this.useSsl = useSsl
     this.httpModule = this.useSsl ? https : http
     this.host = host
     this.port = port
     if (typeof apiToken !== 'undefined') {
       this.apiToken = apiToken
+    }
+    if (typeof pathPrefix !== 'undefined') {
+      this.pathPrefix = pathPrefix
     }
   }
 
@@ -58,7 +62,7 @@ class APIClient {
 
       var options = {
         host: this.host,
-        path: '/events',
+        path: `${this.pathPrefix}/events`,
         port: this.port,
         method: 'POST',
         headers: this.buildHeaders({
@@ -104,7 +108,7 @@ class APIClient {
     return new Promise((resolve, reject) => {
       var options = {
         host: this.host,
-        path: '/ping',
+        path: `${this.pathPrefix}/ping`,
         port: this.port,
         method: 'GET',
         headers: this.buildHeaders()

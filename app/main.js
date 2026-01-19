@@ -124,6 +124,7 @@ ipcMain.handle('settings:load', () => {
   return {
     server_host: store.get('server_host'),
     server_port: store.get('server_port'),
+    path_prefix: store.get('path_prefix'),
     use_ssl: store.get('use_ssl'),
     discord_webhook_path: store.get('discord_webhook_path'),
     api_token: store.get('api_token'),
@@ -134,6 +135,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
   const nextConfig = {
     server_host: payload.server_host?.trim() || '',
     server_port: payload.server_port?.trim() || '',
+    path_prefix: payload.path_prefix?.trim() || '',
     use_ssl: Boolean(payload.use_ssl),
     discord_webhook_path: payload.discord_webhook_path?.trim() || '',
     api_token: payload.api_token?.trim() || '',
@@ -141,6 +143,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
 
   store.set('server_host', nextConfig.server_host);
   store.set('server_port', nextConfig.server_port);
+  store.set('path_prefix', nextConfig.path_prefix);
   store.set('use_ssl', nextConfig.use_ssl);
   store.set('discord_webhook_path', nextConfig.discord_webhook_path);
   store.set('api_token', nextConfig.api_token);
@@ -151,6 +154,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
       host: nextConfig.server_host,
       port: nextConfig.server_port,
       apiToken: nextConfig.api_token,
+      pathPrefix: nextConfig.path_prefix,
     });
   }
 

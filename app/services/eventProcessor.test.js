@@ -82,6 +82,34 @@ describe('EventProcessor', () => {
     expect(landingResult.event.event_data.duration_seconds).toBe(65);
   });
 
+  it('adds duration_seconds to landing for air starts using change_slot occurred_at when no takeoff is observed', () => {
+    const pilotUcid = 'pilot-airstart';
+
+    processor.process(
+      { type: 'change_slot', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'change_slot',
+          occurred_at: '2026-01-21T00:00:00.000Z',
+          event_data: { player_ucid: pilotUcid, flyable: true }
+        }
+      }
+    );
+
+    const landingResult = processor.process(
+      { type: 'landing', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'landing',
+          occurred_at: '2026-01-21T00:03:05.000Z',
+          event_data: { player_ucid: pilotUcid, unit_type: 'F-16' }
+        }
+      }
+    );
+
+    expect(landingResult.event.event_data.duration_seconds).toBe(185);
+  });
+
   it('clears airborne state on crash so a later landing does not get duration_seconds', () => {
     const pilotUcid = 'pilot-2';
 

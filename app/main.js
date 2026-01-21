@@ -12,6 +12,7 @@ const iconPath = path.join(__dirname, './assets/icon.png');
 let udpServer;
 let apiClient;
 let discordClient;
+let eventProcessor;
 let demoController;
 
 const openSettingsWindow = () => {
@@ -100,6 +101,7 @@ async function bootstrap() {
   udpServer = appInitResult.udpServer;
   apiClient = appInitResult.apiClient;
   discordClient = appInitResult.discordClient;
+  eventProcessor = appInitResult.eventProcessor;
 
   demoController = new DemoController();
 
@@ -163,7 +165,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
   }
 
   if (udpServer && apiClient && discordClient) {
-    attachEventPipeline({ udpServer, apiClient, discordClient });
+    attachEventPipeline({ udpServer, apiClient, discordClient, eventProcessor });
   }
 
   return { success: true };

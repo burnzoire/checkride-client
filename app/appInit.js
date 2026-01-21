@@ -10,14 +10,14 @@ const store = require('./config');
 
 const DEFAULT_UDP_PORT = 41234;
 
-function attachEventPipeline({ udpServer, apiClient, discordClient }) {
-  const eventProcessor = new EventProcessor();
+function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcessor }) {
+  const processor = eventProcessor || new EventProcessor();
   udpServer.onEvent = (event) => {
     log.info(`Handling event: ${JSON.stringify(event)}`)
     return EventFactory.create(event)
       .then(gameEvent => {
         const preparedPayload = gameEvent.prepare();
-        const processedPayload = eventProcessor.process(event, preparedPayload);
+        const processedPayload = processor.process(event, preparedPayload);
         return apiClient.saveEvent(processedPayload);
       })
       .then(response => discordClient.send(response.summary, response.publish))
@@ -36,9 +36,11 @@ async function initApp() {
   const discordClient = new DiscordClient(discordWebhookPath)
   const udpServer = new UDPServer(DEFAULT_UDP_PORT)
 
-  attachEventPipeline({ udpServer, apiClient, discordClient })
+  const eventProcessor = new EventProcessor()
 
-  return { udpServer, apiClient, discordClient };
+  attachEventPipeline({ udpServer, apiClient, discordClient, eventProcessor })
+
+  return { udpServer, apiClient, discordClient, eventProcessor };
 }
 
 module.exports = { initApp, attachEventPipeline };

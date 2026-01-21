@@ -1,6 +1,7 @@
 class AirborneTracker {
   constructor() {
     this.takeoffByPilot = new Map();
+    this.slotStartByPilot = new Map();
     this.flyableByPilot = new Map();
   }
 
@@ -23,11 +24,22 @@ class AirborneTracker {
 
     if (eventType === 'change_slot' && pilotUcid) {
       this.flyableByPilot.set(pilotUcid, Boolean(eventData.flyable));
+
+      // Missions can start players airborne (no takeoff event). Use the change_slot time
+      // as a fallback start time if a takeoff is never observed.
+      if (eventData.flyable === true) {
+        const slotAtMs = Date.parse(event.occurred_at);
+        if (Number.isFinite(slotAtMs)) {
+          this.slotStartByPilot.set(pilotUcid, slotAtMs);
+        }
+      }
+
       return;
     }
 
     if (pilotUcid && (eventType === 'crash' || eventType === 'eject' || eventType === 'pilot_death' || eventType === 'disconnect')) {
       this.takeoffByPilot.delete(pilotUcid);
+      this.slotStartByPilot.delete(pilotUcid);
       return;
     }
 
@@ -51,6 +63,7 @@ class AirborneTracker {
       }
 
       this.takeoffByPilot.set(pilotUcid, takeoffAtMs);
+      this.slotStartByPilot.delete(pilotUcid);
       return;
     }
 
@@ -59,18 +72,19 @@ class AirborneTracker {
         return;
       }
 
-      const takeoffAtMs = this.takeoffByPilot.get(pilotUcid);
-      if (!Number.isFinite(takeoffAtMs)) {
+      const startAtMs = this.takeoffByPilot.get(pilotUcid) ?? this.slotStartByPilot.get(pilotUcid);
+      if (!Number.isFinite(startAtMs)) {
         return;
       }
 
       const landingAtMs = Date.parse(event.occurred_at);
       if (!Number.isFinite(landingAtMs)) {
         this.takeoffByPilot.delete(pilotUcid);
+        this.slotStartByPilot.delete(pilotUcid);
         return;
       }
 
-      const durationSeconds = Math.max(0, Math.floor((landingAtMs - takeoffAtMs) / 1000));
+      const durationSeconds = Math.max(0, Math.floor((landingAtMs - startAtMs) / 1000));
 
       if (!event.event_data || typeof event.event_data !== 'object') {
         event.event_data = {};
@@ -78,6 +92,7 @@ class AirborneTracker {
 
       event.event_data.duration_seconds = durationSeconds;
       this.takeoffByPilot.delete(pilotUcid);
+      this.slotStartByPilot.delete(pilotUcid);
     }
   }
 }

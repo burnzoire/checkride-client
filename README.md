@@ -38,15 +38,13 @@ Events pulled from DCS are normalised before being POSTed to the server at `/eve
 Envelope fields:
 
 - event.event_type — required. One of `kill`, `takeoff`, `landing`, `crash`, `eject`, `pilot_death`, `self_kill`, `connect`, `disconnect`, `change_slot`.
-- event.event_uid — required. Deterministic UUIDv5 generated from the enriched event payload (including occurred_at, flight assignments, etc.).
+- event.event_uid — required. Deterministic UUIDv5 generated from the enriched event payload.
 - event.event_data — required. Container for the fields below. Keys omitted when the source value is unavailable.
 
 event_data fields:
 
 - airdrome_name — present for takeoff or landing, airfield name string.
 - flyable — present on change_slot, boolean indicating whether the new slot is flyable.
-- flight_uid — injected when player_ucid has an active assignment, UUIDv4.
-- killer_flight_uid — injected on kill when the killer has an assignment, UUIDv4.
 - killer_name — present on kill, killer callsign string.
 - killer_side — present on kill, integer or enum reflecting allegiance.
 - killer_ucid — present on kill, unique client identifier string.
@@ -58,7 +56,6 @@ event_data fields:
 - reason_code — present on disconnect, disconnect reason string or code.
 - slot_id — present on change_slot, slot identifier string.
 - unit_type — present on takeoff, landing, crash, eject, pilot_death, aircraft type string.
-- victim_flight_uid — injected on kill when the victim has an assignment, UUIDv4.
 - victim_name — present on kill, victim callsign string.
 - victim_side — present on kill, integer or enum reflecting allegiance.
 - victim_ucid — present on kill, victim unique client identifier string.

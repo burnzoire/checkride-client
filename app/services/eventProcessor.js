@@ -1,13 +1,8 @@
 const { v5: uuidv5 } = require('uuid');
-const { FlightTracker } = require('./flightTracker');
 
 const EVENT_UID_NAMESPACE = uuidv5('checkride-client:event', uuidv5.URL);
 
 class EventProcessor {
-  constructor({ flightTracker } = {}) {
-    this.flightTracker = flightTracker || new FlightTracker();
-  }
-
   process(rawEvent, preparedPayload) {
     if (!rawEvent || typeof rawEvent !== 'object') {
       throw new Error('rawEvent must be an object');
@@ -30,8 +25,6 @@ class EventProcessor {
         }
       }
     };
-
-    this.flightTracker.decorate(rawEvent, payload.event.event_data);
 
     payload.event.event_uid = this.buildEventUid(payload.event);
 

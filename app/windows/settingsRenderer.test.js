@@ -4,6 +4,7 @@ describe('settingsRenderer', () => {
   const defaultConfig = {
     server_host: 'example.com',
     server_port: '8080',
+    path_prefix: '/api',
     use_ssl: true,
     discord_webhook_path: '/hook',
     api_token: 'token',
@@ -24,6 +25,7 @@ describe('settingsRenderer', () => {
       '<form id="settings-form">',
       '  <input id="server_host" name="server_host" type="text" />',
       '  <input id="server_port" name="server_port" type="text" />',
+      '  <input id="path_prefix" name="path_prefix" type="text" />',
       '  <input id="use_ssl" name="use_ssl" type="checkbox" />',
       '  <input id="discord_webhook_path" name="discord_webhook_path" type="text" />',
       '  <input id="api_token" name="api_token" type="text" />',
@@ -67,6 +69,7 @@ describe('settingsRenderer', () => {
     expect(loadMock).toHaveBeenCalled();
     expect(document.getElementById('server_host').value).toBe('example.com');
     expect(document.getElementById('server_port').value).toBe('8080');
+    expect(document.getElementById('path_prefix').value).toBe('/api');
     expect(document.getElementById('use_ssl').checked).toBe(true);
     expect(document.getElementById('discord_webhook_path').value).toBe('/hook');
     expect(document.getElementById('api_token').value).toBe('token');
@@ -78,6 +81,7 @@ describe('settingsRenderer', () => {
     const form = document.getElementById('settings-form');
     document.getElementById('server_host').value = '  new.host ';
     document.getElementById('server_port').value = ' 9000 ';
+    document.getElementById('path_prefix').value = ' /new-prefix ';
     document.getElementById('use_ssl').checked = false;
     document.getElementById('discord_webhook_path').value = ' /new ';
     document.getElementById('api_token').value = ' secret ';
@@ -88,6 +92,7 @@ describe('settingsRenderer', () => {
     expect(saveMock).toHaveBeenCalledWith({
       server_host: 'new.host',
       server_port: '9000',
+      path_prefix: '/new-prefix',
       use_ssl: false,
       discord_webhook_path: '/new',
       api_token: 'secret',
@@ -157,6 +162,7 @@ describe('settingsRenderer', () => {
     expect(saveMock).toHaveBeenCalledWith({
       server_host: '',
       server_port: '',
+      path_prefix: '',
       use_ssl: false,
       discord_webhook_path: '',
       api_token: '',

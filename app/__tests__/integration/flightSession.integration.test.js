@@ -25,7 +25,7 @@ describe('Flight session integration', () => {
     attachEventPipeline({ udpServer, apiClient: apiClientMock, discordClient: discordClientMock });
   });
 
-  it('preserves flight ids across landings and clears them on end events', async () => {
+  it('does not include flight_uid in emitted payloads', async () => {
     const changeSlotEvent = {
       type: 'change_slot',
       playerUcid: 'pilot-1',
@@ -102,34 +102,14 @@ describe('Flight session integration', () => {
 
     expect(savedPayloads).toHaveLength(8);
 
-    const firstFlightUid = savedPayloads[0].event.event_data.flight_uid;
-    expect(firstFlightUid).toBeDefined();
-
-    const takeoffFlightUid = savedPayloads[1].event.event_data.flight_uid;
-    expect(takeoffFlightUid).toBe(firstFlightUid);
-
-    const landingFlightUid = savedPayloads[2].event.event_data.flight_uid;
-    expect(landingFlightUid).toBe(firstFlightUid);
-
-    const postLandingFlightUid = savedPayloads[3].event.event_data.flight_uid;
-    expect(postLandingFlightUid).toBe(firstFlightUid);
-
-    const changefirstFlightUid = savedPayloads[4].event.event_data.flight_uid;
-    expect(changefirstFlightUid).not.toBe(firstFlightUid);
-
-    const secondFlightUid = savedPayloads[5].event.event_data.flight_uid;
-    expect(secondFlightUid).toBeDefined();
-    expect(secondFlightUid).toBe(changefirstFlightUid);
-
-    const crashFlightUid = savedPayloads[6].event.event_data.flight_uid;
-    expect(crashFlightUid).toBe(secondFlightUid);
-
-    const postCrashFlightUid = savedPayloads[7].event.event_data.flight_uid;
-    expect(postCrashFlightUid).toBeDefined();
-    expect(postCrashFlightUid).toBe(secondFlightUid);
+    savedPayloads.forEach((payload) => {
+      expect(payload.event.event_data.flight_uid).toBeUndefined();
+      expect(payload.event.event_data.killer_flight_uid).toBeUndefined();
+      expect(payload.event.event_data.victim_flight_uid).toBeUndefined();
+    });
   });
 
-  it('generates new flight ids after pipeline reinitialization', async () => {
+  it('continues emitting payloads after pipeline reinitialization', async () => {
     const changeSlotEvent = {
       type: 'change_slot',
       playerUcid: 'pilot-42',
@@ -158,21 +138,16 @@ describe('Flight session integration', () => {
     await udpServer.onEvent(changeSlotEvent);
     await udpServer.onEvent(takeoffEvent);
 
-    const initialFlightUid = savedPayloads[0].event.event_data.flight_uid;
-    expect(initialFlightUid).toBeDefined();
-
     attachEventPipeline({ udpServer, apiClient: apiClientMock, discordClient: discordClientMock });
 
     await udpServer.onEvent(landingEvent);
 
     expect(savedPayloads).toHaveLength(3);
 
-    const restartedFlightUid = savedPayloads[2].event.event_data.flight_uid;
-    expect(restartedFlightUid).toBeDefined();
-    expect(restartedFlightUid).not.toBe(initialFlightUid);
+    expect(savedPayloads[2].event.event_data.flight_uid).toBeUndefined();
   });
 
-  it('waits for a flyable slot after connect before generating flights', async () => {
+  it('does not include flight_uid for connect or slot events', async () => {
     const connectEvent = {
       type: 'connect',
       playerUcid: 'pilot-7',
@@ -212,16 +187,8 @@ describe('Flight session integration', () => {
 
     expect(savedPayloads).toHaveLength(4);
 
-    const connectPayloadFlight = savedPayloads[0].event.event_data.flight_uid;
-    expect(connectPayloadFlight).toBeUndefined();
-
-    const spectatorPayloadFlight = savedPayloads[1].event.event_data.flight_uid;
-    expect(spectatorPayloadFlight).toBeUndefined();
-
-    const slotPayloadFlight = savedPayloads[2].event.event_data.flight_uid;
-    expect(slotPayloadFlight).toBeDefined();
-
-    const takeoffPayloadFlight = savedPayloads[3].event.event_data.flight_uid;
-    expect(takeoffPayloadFlight).toBe(slotPayloadFlight);
+    savedPayloads.forEach((payload) => {
+      expect(payload.event.event_data.flight_uid).toBeUndefined();
+    });
   });
 });

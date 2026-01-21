@@ -9,6 +9,8 @@ describe('Flight session integration', () => {
   beforeEach(() => {
     savedPayloads = [];
 
+    jest.useRealTimers();
+
     apiClientMock = {
       saveEvent: jest.fn((payload) => {
         savedPayloads.push(payload);
@@ -23,6 +25,10 @@ describe('Flight session integration', () => {
     udpServer = {};
 
     attachEventPipeline({ udpServer, apiClient: apiClientMock, discordClient: discordClientMock });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('does not include flight_uid in emitted payloads', async () => {
@@ -107,6 +113,96 @@ describe('Flight session integration', () => {
       expect(payload.event.event_data.killer_flight_uid).toBeUndefined();
       expect(payload.event.event_data.victim_flight_uid).toBeUndefined();
     });
+  });
+
+  it('adds duration_seconds to landing events client-side', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-01-21T00:00:00.000Z'));
+
+    const changeSlotEvent = {
+      type: 'change_slot',
+      playerUcid: 'pilot-99',
+      playerName: 'Pilot 99',
+      slotId: 'slot-99',
+      prevSide: null,
+      flyable: true
+    };
+
+    const takeoffEvent = {
+      type: 'takeoff',
+      playerUcid: 'pilot-99',
+      playerName: 'Pilot 99',
+      unitType: 'F-16',
+      airdromeName: 'Base A'
+    };
+
+    const landingEvent = {
+      type: 'landing',
+      playerUcid: 'pilot-99',
+      playerName: 'Pilot 99',
+      unitType: 'F-16',
+      airdromeName: 'Base A'
+    };
+
+    await udpServer.onEvent(changeSlotEvent);
+    await udpServer.onEvent(takeoffEvent);
+
+    jest.advanceTimersByTime(65_000);
+
+    await udpServer.onEvent(landingEvent);
+
+    expect(savedPayloads).toHaveLength(3);
+    expect(savedPayloads[2].event.event_type).toBe('landing');
+    expect(savedPayloads[2].event.event_data.duration_seconds).toBe(65);
+  });
+
+  it('clears airborne state on crash so landing does not get duration_seconds', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-01-21T00:00:00.000Z'));
+
+    const changeSlotEvent = {
+      type: 'change_slot',
+      playerUcid: 'pilot-100',
+      playerName: 'Pilot 100',
+      slotId: 'slot-100',
+      prevSide: null,
+      flyable: true
+    };
+
+    const takeoffEvent = {
+      type: 'takeoff',
+      playerUcid: 'pilot-100',
+      playerName: 'Pilot 100',
+      unitType: 'F-16',
+      airdromeName: 'Base A'
+    };
+
+    const crashEvent = {
+      type: 'crash',
+      playerUcid: 'pilot-100',
+      playerName: 'Pilot 100',
+      unitType: 'F-16'
+    };
+
+    const landingEvent = {
+      type: 'landing',
+      playerUcid: 'pilot-100',
+      playerName: 'Pilot 100',
+      unitType: 'F-16',
+      airdromeName: 'Base A'
+    };
+
+    await udpServer.onEvent(changeSlotEvent);
+    await udpServer.onEvent(takeoffEvent);
+    await udpServer.onEvent(crashEvent);
+
+    jest.advanceTimersByTime(65_000);
+
+    await udpServer.onEvent(landingEvent);
+
+    expect(savedPayloads).toHaveLength(4);
+    expect(savedPayloads[3].event.event_type).toBe('landing');
+    expect(savedPayloads[3].event.event_data.duration_seconds).toBeUndefined();
   });
 
   it('continues emitting payloads after pipeline reinitialization', async () => {

@@ -42,4 +42,93 @@ describe('EventProcessor', () => {
     const { event_uid: generatedUid, ...eventWithoutUid } = result.event;
     expect(generatedUid).toBe(actualUuid.v5(stableStringify(eventWithoutUid), EVENT_NAMESPACE));
   });
+
+  it('adds duration_seconds to landing when airborne is tracked', () => {
+    const pilotUcid = 'pilot-1';
+
+    processor.process(
+      { type: 'change_slot', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'change_slot',
+          occurred_at: '2026-01-21T00:00:00.000Z',
+          event_data: { player_ucid: pilotUcid, flyable: true }
+        }
+      }
+    );
+
+    processor.process(
+      { type: 'takeoff', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'takeoff',
+          occurred_at: '2026-01-21T00:01:00.000Z',
+          event_data: { player_ucid: pilotUcid, unit_type: 'F-16' }
+        }
+      }
+    );
+
+    const landingResult = processor.process(
+      { type: 'landing', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'landing',
+          occurred_at: '2026-01-21T00:02:05.000Z',
+          event_data: { player_ucid: pilotUcid, unit_type: 'F-16' }
+        }
+      }
+    );
+
+    expect(landingResult.event.event_data.duration_seconds).toBe(65);
+  });
+
+  it('clears airborne state on crash so a later landing does not get duration_seconds', () => {
+    const pilotUcid = 'pilot-2';
+
+    processor.process(
+      { type: 'change_slot', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'change_slot',
+          occurred_at: '2026-01-21T00:00:00.000Z',
+          event_data: { player_ucid: pilotUcid, flyable: true }
+        }
+      }
+    );
+
+    processor.process(
+      { type: 'takeoff', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'takeoff',
+          occurred_at: '2026-01-21T00:01:00.000Z',
+          event_data: { player_ucid: pilotUcid, unit_type: 'F-16' }
+        }
+      }
+    );
+
+    processor.process(
+      { type: 'crash', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'crash',
+          occurred_at: '2026-01-21T00:01:10.000Z',
+          event_data: { player_ucid: pilotUcid, unit_type: 'F-16' }
+        }
+      }
+    );
+
+    const landingResult = processor.process(
+      { type: 'landing', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'landing',
+          occurred_at: '2026-01-21T00:02:10.000Z',
+          event_data: { player_ucid: pilotUcid, unit_type: 'F-16' }
+        }
+      }
+    );
+
+    expect(landingResult.event.event_data.duration_seconds).toBeUndefined();
+  });
 });

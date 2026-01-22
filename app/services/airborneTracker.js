@@ -72,6 +72,14 @@ class AirborneTracker {
         return;
       }
 
+      // If an upstream source already provided duration_seconds (e.g., demo mode),
+      // keep it and just clear state.
+      if (Number.isFinite(eventData.duration_seconds)) {
+        this.takeoffByPilot.delete(pilotUcid);
+        this.slotStartByPilot.delete(pilotUcid);
+        return;
+      }
+
       const startAtMs = this.takeoffByPilot.get(pilotUcid) ?? this.slotStartByPilot.get(pilotUcid);
       if (!Number.isFinite(startAtMs)) {
         return;

@@ -65,7 +65,7 @@
     "@babel/preset-env": "^7.28.5",
     "@types/jest": "^30.0.0",
     "babel-jest": "^30.2.0",
-    "electron": "^39.2.7",
+    "electron": "^40.0.0",
     "eslint": "^9.39.2",
     "eslint-plugin-jest": "^29.12.1",
     "jest": "^30.2.0",

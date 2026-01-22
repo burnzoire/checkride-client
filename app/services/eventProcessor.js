@@ -1,11 +1,11 @@
 const { v5: uuidv5 } = require('uuid');
-const { FlightTracker } = require('./flightTracker');
+const { AirborneTracker } = require('./airborneTracker');
 
 const EVENT_UID_NAMESPACE = uuidv5('checkride-client:event', uuidv5.URL);
 
 class EventProcessor {
-  constructor({ flightTracker } = {}) {
-    this.flightTracker = flightTracker || new FlightTracker();
+  constructor() {
+    this.airborneTracker = new AirborneTracker();
   }
 
   process(rawEvent, preparedPayload) {
@@ -31,7 +31,7 @@ class EventProcessor {
       }
     };
 
-    this.flightTracker.decorate(rawEvent, payload.event.event_data);
+    this.airborneTracker.apply(payload.event);
 
     payload.event.event_uid = this.buildEventUid(payload.event);
 

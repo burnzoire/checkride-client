@@ -1,6 +1,5 @@
 const dgram = require('dgram');
 const log = require('electron-log');
-const { randomUUID } = require('crypto');
 
 const {
   BLUE_AIRCRAFT,
@@ -14,6 +13,36 @@ const { createSeededRandom } = require('./random');
 
 const DEFAULT_TARGET_HOST = '127.0.0.1';
 const DEFAULT_TARGET_PORT = 41234;
+
+const DEMO_PILOT_NAMES = [
+  'Maverick',
+  'Iceman',
+  'Goose',
+  'Viper',
+  'Jester',
+  'Merlin',
+  'Hollywood',
+  'Wolfman',
+  'Slider',
+  'Stinger',
+  'Cougar',
+  'Charlie',
+  'Sundown',
+  'Chipper',
+  'Mongoose',
+  'Rooster',
+  'Phoenix',
+  'Bob',
+  'Hangman',
+  'Warlock'
+];
+
+function slugifyPilotName(name) {
+  return String(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-+|-+$)/g, '');
+}
 
 class DemoController {
   constructor({
@@ -166,7 +195,8 @@ class DemoController {
 function buildServerSession({ pilotCount, random }) {
   const serverIndex = 0;
 
-  const pilots = Array.from({ length: pilotCount }, (_unused, i) => {
+  const count = Math.min(Number(pilotCount) || 0, DEMO_PILOT_NAMES.length);
+  const pilots = Array.from({ length: count }, (_unused, i) => {
     return createPilot({ index: i + 1, random, serverIndex });
   });
 
@@ -174,8 +204,9 @@ function buildServerSession({ pilotCount, random }) {
 }
 
 function createPilot({ index, random, serverIndex }) {
-  const ucid = `demo-${serverIndex + 1}-${index}-${randomUUID()}`;
-  const name = `Test Pilot ${index}`;
+  const rosterIndex = (index - 1) % DEMO_PILOT_NAMES.length;
+  const name = DEMO_PILOT_NAMES[rosterIndex];
+  const ucid = `demo-pilot-${slugifyPilotName(name)}`;
 
   return {
     ucid,
@@ -187,7 +218,9 @@ function createPilot({ index, random, serverIndex }) {
     unitType: null,
     inAir: false,
     side: random.chance(0.85) ? 'blue' : 'red',
-    pendingDeath: false
+    pendingDeath: false,
+    airborneSinceMs: null,
+    plannedLandingAtMs: null
   };
 }
 
@@ -239,10 +272,14 @@ class ServerSession {
       return [];
     }
 
+    const nowMs = Date.now();
+
     // If pilot died/ejected, follow up with crash sometimes.
     if (pilot.pendingDeath) {
       pilot.pendingDeath = false;
       pilot.inAir = false;
+      pilot.airborneSinceMs = null;
+      pilot.plannedLandingAtMs = null;
 
       if (this.random.chance(0.75) && pilot.unitType) {
         return [buildPilotEvent('crash', pilot)];
@@ -259,6 +296,8 @@ class ServerSession {
       pilot.slotId = null;
       pilot.unitType = null;
       pilot.inAir = false;
+      pilot.airborneSinceMs = null;
+      pilot.plannedLandingAtMs = null;
       return [event];
     }
 
@@ -273,11 +312,15 @@ class ServerSession {
     // Takeoff / Landing
     if (!pilot.inAir && this.random.chance(0.55)) {
       pilot.inAir = true;
+      pilot.airborneSinceMs = nowMs;
+      pilot.plannedLandingAtMs = nowMs + (this.random.int(5 * 60, 90 * 60) * 1000);
       return [buildAirfieldEvent('takeoff', pilot, this.random)];
     }
 
-    if (pilot.inAir && this.random.chance(0.18)) {
+    if (pilot.inAir && Number.isFinite(pilot.plannedLandingAtMs) && nowMs >= pilot.plannedLandingAtMs) {
       pilot.inAir = false;
+      pilot.airborneSinceMs = null;
+      pilot.plannedLandingAtMs = null;
       return [buildAirfieldEvent('landing', pilot, this.random)];
     }
 

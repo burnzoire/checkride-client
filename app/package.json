@@ -1,13 +1,16 @@
 {
   "name": "checkride-client",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "",
   "main": "main.js",
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder",
+    "release": "electron-builder --publish=always",
+    "release:tag": "bash scripts/release.sh"
   },
   "engines": {
     "node": "^20.12.0"
@@ -60,11 +63,51 @@
     "url": "https://github.com/burnzoire/checkride-client/issues"
   },
   "homepage": "https://github.com/burnzoire/checkride-client#readme",
+  "build": {
+    "appId": "com.burnzoire.checkride",
+    "productName": "Checkride Client",
+    "publish": [
+      {
+        "provider": "github"
+      }
+    ],
+    "files": [
+      "**/*",
+      "!**/__tests__/**",
+      "!**/*.test.js",
+      "!**/*.test.js.skip",
+      "!**/*.map",
+      "!coverage/**",
+      "!demo/**"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ]
+    }
+  },
   "devDependencies": {
     "@babel/core": "^7.28.5",
     "@babel/preset-env": "^7.28.5",
     "@types/jest": "^30.0.0",
     "babel-jest": "^30.2.0",
+    "electron-builder": "^24.13.3",
     "electron": "^40.0.0",
     "eslint": "^9.39.2",
     "eslint-plugin-jest": "^29.12.1",

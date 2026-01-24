@@ -1,78 +1,39 @@
 # checkride-client
+by [Burnzoire](http://github.com/burnzoire)
 
 [![Test Suite](https://github.com/burnzoire/checkride-client/actions/workflows/test.yml/badge.svg)](https://github.com/burnzoire/checkride-client/actions/workflows/test.yml)
 
-DCS Qualification Tracker
+DCS Stats and Awards Tracker
 
 ## Installation
 
-### DCS Mod
+1. Download the latest installer from the Github releases page.
+2. Select your DCS saved games folder or accept default.
+3. Select your preferred installation folder.
+4. Launch `Checkride Client`. It will appear in your system tray.
 
-1. Copy `Scripts\Hooks\DCS-Checkride-hook.lua` folder into `Saved Games\DCS\Scripts\Hooks\`
-2. Copy `DSC-Checkride` into `Saved Games\DCS\Mods\`
+## Config
 
-### Checkride App
+1. Right click the tray icon and select `Settings`.
+2. Enter the location of the Server Host (omit `http://`)
+3. Enter the port of the server (default `80`)
+4. Enter the path prefix of the API (default `/api`)
+5. Enter the API Token provided by an Admin
+6. Check Use SSL if the server is securely hosted (under https://)
+7. If desired, enter the path of a Discord webhook. All events will be posted here.
+8. Click Save (Known issue - Saving may cause client to close. Please re-launch if this occurs). 
 
-Once packaged (see below), the app can be distributed by copying `checkride-client-win32-x64` to a location of choice before running the `checkride-client.exe` contained within. As of writing, this app will launch in the system tray and no other UI exists. It's simply run as a daemon that forwards UDP datagrams on port `41234` to the webserver located at `http:localhost:3000`. Be sure to open both of these ports (UDP for the former, obvs, and TCP for the latter)
-
-### Config
-
-Browse to `%APPDATA%/checkride-client` and edit `config.json` to change settings, such as where to find the Checkride server. If this file is deleted, a new one will be created automatically with default values.
-
-## Event Payload
-
-Events pulled from DCS are normalised before being POSTed to the server at `/events`. The request body always has the following envelope:
-
-```
-{
-	"event": {
-		"event_type": "<one of the supported event names>",
-		"event_uid": "<stable UUIDv5 derived from the enriched event payload>",
-		"event_data": {
-			/* keys listed below */
-		}
-	}
-}
-```
-
-Envelope fields:
-
-- event.event_type — required. One of `kill`, `takeoff`, `landing`, `crash`, `eject`, `pilot_death`, `self_kill`, `connect`, `disconnect`, `change_slot`.
-- event.event_uid — required. Deterministic UUIDv5 generated from the enriched event payload.
-- event.event_data — required. Container for the fields below. Keys omitted when the source value is unavailable.
-
-event_data fields:
-
-- airdrome_name — present for takeoff or landing, airfield name string.
-- flyable — present on change_slot, boolean indicating whether the new slot is flyable.
-- killer_name — present on kill, killer callsign string.
-- killer_side — present on kill, integer or enum reflecting allegiance.
-- killer_ucid — present on kill, unique client identifier string.
-- killer_unit_name — present on kill, DCS unit name string.
-- player_name — present on events with player_ucid, player callsign string.
-- player_side — present on disconnect, integer or enum reflecting allegiance.
-- player_ucid — present on connect, disconnect, takeoff, landing, crash, eject, pilot_death, self_kill, change_slot.
-- prev_side — present on change_slot, previous coalition integer or enum.
-- reason_code — present on disconnect, disconnect reason string or code.
-- slot_id — present on change_slot, slot identifier string.
-- unit_type — present on takeoff, landing, crash, eject, pilot_death, aircraft type string.
-- victim_name — present on kill, victim callsign string.
-- victim_side — present on kill, integer or enum reflecting allegiance.
-- victim_ucid — present on kill, victim unique client identifier string.
-- victim_unit_name — present on kill, DCS unit name string.
-- weapon_name — present on kill, weapon identifier string.
-
-All properties omitted in the list above are never part of the payload. Downstream services should treat unspecified keys as absent rather than null.
+Settings are saved to `%APPDATA%/checkride-client/config.json`.
 
 ## Development
 
 ### DCS Mod
 
-It's recommended to create a symbolic link from `DCS-Checkride` to ``Saved Games\DCS\Mods\` to save copying after every edit.
+If making changes to the LUA, tt's recommended to create a symbolic link from `DCS-Checkride` to `Saved Games\DCS\Mods\Services` to save copying after every edit.
 
 ### Checkride App
 
-To launch the checkride app in dev mode, simply run:
+To launch the Checkride Client in dev mode, simply run:
 
 ```
 cd app
@@ -82,7 +43,7 @@ npm start
 
 ### Testing
 
-The project has comprehensive test coverage (92%+) with tests for core functionality. To run tests:
+The project has comprehensive test coverage. To run tests:
 
 ```
 cd app
@@ -92,24 +53,16 @@ npm run test:coverage     # Generate coverage report
 ```
 
 Tests run automatically on push to main branch via GitHub Actions. The test suite includes:
-- Unit tests for event models (100% coverage)
-- Unit tests for factories and services (100% coverage)
-- Unit tests for API and Discord clients (100% coverage)
-- Integration tests for UDP server (100% coverage)
-- App initialization and tray menu tests
 
-Coverage thresholds enforced:
-- Statements: 90%
-- Branches: 80%
-- Functions: 95%
-- Lines: 90%
+## Release
 
-## Packaging
+To create a Release:
 
-Install the electron packager with `npm install electron-packager -g`
+```
+npm run release:tag -- X.Y.Z
+git push && git push origin vX.Y.Z
+```
 
-Package for windows (as it must run alongside DCS) with `electron-packager app --platform=win32 --asar --overwrite`. The `--asar` switch is to protect the source code in the package.
+This will trigger a workflow that will build the app and its installer that can be downloaded directly from this repository's Releases page.
 
-## Coverage
 
-Coverage is tracked locally and displayed in the badge above. Run `npm test -- --coverage` in the app directory to generate a full coverage report.

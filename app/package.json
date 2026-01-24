@@ -100,8 +100,7 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "zip"
+        "nsis"
       ]
     },
     "nsis": {

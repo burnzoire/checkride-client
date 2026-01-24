@@ -82,8 +82,7 @@ describe('initApp', () => {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
     };
     const apiResponse = {
-      summary: 'summary',
-      publish: true,
+      summary: 'summary'
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue(apiResponse),
@@ -105,7 +104,7 @@ describe('initApp', () => {
     expect(gameEvent.prepare).toHaveBeenCalled();
     expect(processMock).toHaveBeenCalledWith(fakeEvent, { event: { event_type: 'event', event_data: { sample: true } } });
     expect(apiClientMock.saveEvent).toHaveBeenCalledWith({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } });
-    expect(discordClientMock.send).toHaveBeenCalledWith(apiResponse.summary, apiResponse.publish);
+    expect(discordClientMock.send).toHaveBeenCalledWith(apiResponse.summary, true);
   });
 
 

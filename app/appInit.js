@@ -20,7 +20,10 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
         const processedPayload = processor.process(event, preparedPayload);
         return apiClient.saveEvent(processedPayload);
       })
-      .then(response => discordClient.send(response.summary, response.publish))
+      .then(response => {
+        const publish = response?.publish !== false;
+        return discordClient.send(response?.summary, publish);
+      })
       .catch(error => log.error(error))
   }
 }

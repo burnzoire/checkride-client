@@ -14,7 +14,7 @@ describe('Flight session integration', () => {
     apiClientMock = {
       saveEvent: jest.fn((payload) => {
         savedPayloads.push(payload);
-        return Promise.resolve({ summary: 'ok', publish: false });
+        return Promise.resolve({ summary: 'ok', publish: true });
       })
     };
 
@@ -286,5 +286,24 @@ describe('Flight session integration', () => {
     savedPayloads.forEach((payload) => {
       expect(payload.event.event_data.flight_uid).toBeUndefined();
     });
+  });
+
+  it('publishes the formatted summary returned by the API', async () => {
+    apiClientMock.saveEvent.mockResolvedValueOnce({
+      summary: 'Pilot 1 (F-16) took off',
+      publish: true
+    });
+
+    const takeoffEvent = {
+      type: 'takeoff',
+      playerUcid: 'pilot-1',
+      playerName: 'Pilot 1',
+      unitType: 'F-16',
+      airdromeName: 'Base A'
+    };
+
+    await udpServer.onEvent(takeoffEvent);
+
+    expect(discordClientMock.send).toHaveBeenCalledWith('Pilot 1 (F-16) took off', true);
   });
 });

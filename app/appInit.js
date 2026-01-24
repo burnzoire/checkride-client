@@ -21,6 +21,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
         return apiClient.saveEvent(processedPayload);
       })
       .then(response => {
+        log.info(`API response: ${JSON.stringify(response)}`);
         const publish = response?.publish !== false;
         return discordClient.send(response?.summary, publish);
       })

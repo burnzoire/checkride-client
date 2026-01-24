@@ -33,11 +33,18 @@ class DiscordClient {
 
   async send(message, publish) {
     if (!this.path) {
+      log.info("Discord webhook path not set, skipping discord notification");
       return;
     }
     if (publish === false) {
       throw new DiscordPublishError("Event not publishable")
     }
+    if (!message) {
+      log.info("Discord message missing, skipping discord notification");
+      return;
+    }
+
+    log.info(`Sending discord webhook to ${this.host}${this.path}`);
 
     const options = {
       host: this.host,
@@ -52,6 +59,7 @@ class DiscordClient {
 
     return new Promise((resolve, reject) => {
       const req = https.request(options, (response) => {
+        log.info(`Discord response status: ${response.statusCode}`);
 
         response.on('end', () => {
           log.info("Sent event to discord successful");

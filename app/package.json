@@ -77,8 +77,17 @@
       "!**/*.test.js",
       "!**/*.test.js.skip",
       "!**/*.map",
-      "!coverage/**",
-      "!demo/**"
+      "!coverage/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../Scripts/Hooks/DCS-Checkride-hook.lua",
+        "to": "dcs/Scripts/Hooks/DCS-Checkride-hook.lua"
+      },
+      {
+        "from": "../DCS-Checkride/Scripts/DCS-CheckrideGameGUI.lua",
+        "to": "dcs/Mods/Services/Checkride/Scripts/DCS-CheckrideGameGUI.lua"
+      }
     ],
     "directories": {
       "output": "dist"
@@ -94,6 +103,11 @@
         "nsis",
         "zip"
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh"
     },
     "linux": {
       "target": [

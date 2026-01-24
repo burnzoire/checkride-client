@@ -1,6 +1,6 @@
 {
   "name": "checkride-client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "",
   "main": "main.js",
   "scripts": {
@@ -77,8 +77,17 @@
       "!**/*.test.js",
       "!**/*.test.js.skip",
       "!**/*.map",
-      "!coverage/**",
-      "!demo/**"
+      "!coverage/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../Scripts/Hooks/DCS-Checkride-hook.lua",
+        "to": "dcs/Scripts/Hooks/DCS-Checkride-hook.lua"
+      },
+      {
+        "from": "../DCS-Checkride/Scripts/DCS-CheckrideGameGUI.lua",
+        "to": "dcs/Mods/Services/Checkride/Scripts/DCS-CheckrideGameGUI.lua"
+      }
     ],
     "directories": {
       "output": "dist"
@@ -91,9 +100,13 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "zip"
+        "nsis"
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh"
     },
     "linux": {
       "target": [

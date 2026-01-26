@@ -26,8 +26,16 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
         await discordClient.send(response?.summary, publish);
 
         const awards = Array.isArray(response?.awards) ? response.awards : [];
+        log.info(`Awards in response: ${awards.length}`);
+        if (awards.length) {
+          log.info(`Award ids: ${awards.map((award) => award?.award_id).filter(Boolean).join(', ')}`);
+        }
         for (const award of awards) {
-          await discordClient.send(award?.message, publish);
+          try {
+            await discordClient.send(award?.message, publish);
+          } catch (error) {
+            log.error(error);
+          }
         }
       })
       .catch(error => log.error(error))

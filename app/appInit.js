@@ -22,21 +22,24 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
       })
       .then(async (response) => {
         log.info(`API response: ${JSON.stringify(response)}`);
-        const publish = response?.publish !== false;
-        const messages = [];
-        if (response?.summary) messages.push(response.summary);
-        const awards = Array.isArray(response?.awards) ? response.awards : [];
-        for (const award of awards) {
-          if (award?.message) messages.push(award.message);
-        }
-        log.info(`Discord messages to send: ${JSON.stringify(messages)}`);
-        for (const msg of messages) {
-          try {
-            await discordClient.send(msg, publish);
-          } catch (error) {
-            log.error(error);
+          const publish = response?.publish !== false;
+          const messages = [];
+          if (response?.summary) messages.push(response.summary);
+          const awards = Array.isArray(response?.awards) ? response.awards : [];
+          for (const award of awards) {
+            if (award?.message) messages.push(award.message);
           }
-        }
+          log.info(`Discord messages to send: ${JSON.stringify(messages)}`);
+
+          let promise = Promise.resolve();
+          messages.forEach((msg, i) => {
+            promise = promise.then(() => {
+              log.info(`About to send Discord message #${i + 1}/${messages.length}: ${msg}`);
+              return discordClient.send(msg, publish)
+                .then(() => log.info(`Successfully sent Discord message #${i + 1}`))
+                .catch((error) => log.error(`Error sending Discord message #${i + 1}:`, error));
+            });
+          });
       })
       .catch(error => log.error(error))
   }

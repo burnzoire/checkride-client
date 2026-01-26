@@ -88,7 +88,7 @@ describe('initApp', () => {
       saveEvent: jest.fn().mockResolvedValue(apiResponse),
     };
     const discordClientMock = {
-      send: jest.fn(),
+      send: jest.fn().mockResolvedValue(),
     };
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
 

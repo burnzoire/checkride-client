@@ -146,5 +146,40 @@ describe('initApp', () => {
     expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
   });
 
+  it('sends award messages when awards are present', async () => {
+    const fakeEvent = { type: 'event' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
+    };
+    const apiResponse = {
+      summary: 'summary',
+      awards: [
+        { message: 'Maverick was awarded F-14 Sidewinder – Silver ★★' },
+        { message: 'Maverick was awarded F-14 Sidewinder – Gold ★★★' }
+      ]
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue(apiResponse),
+    };
+    const discordClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
+
+    processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
+
+    APIClient.mockImplementation(() => apiClientMock);
+    DiscordClient.mockImplementation(() => discordClientMock);
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const { udpServer } = await initApp();
+
+    await udpServer.onEvent(fakeEvent);
+
+    expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
+    expect(discordClientMock.send).toHaveBeenCalledWith('Maverick was awarded F-14 Sidewinder – Silver ★★', true);
+    expect(discordClientMock.send).toHaveBeenCalledWith('Maverick was awarded F-14 Sidewinder – Gold ★★★', true);
+  });
+
 
 });

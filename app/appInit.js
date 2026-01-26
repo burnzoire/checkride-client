@@ -20,10 +20,15 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
         const processedPayload = processor.process(event, preparedPayload);
         return apiClient.saveEvent(processedPayload);
       })
-      .then(response => {
+      .then(async (response) => {
         log.info(`API response: ${JSON.stringify(response)}`);
         const publish = response?.publish !== false;
-        return discordClient.send(response?.summary, publish);
+        await discordClient.send(response?.summary, publish);
+
+        const awards = Array.isArray(response?.awards) ? response.awards : [];
+        for (const award of awards) {
+          await discordClient.send(award?.message, publish);
+        }
       })
       .catch(error => log.error(error))
   }

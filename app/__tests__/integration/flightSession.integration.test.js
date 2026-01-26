@@ -291,7 +291,10 @@ describe('Flight session integration', () => {
   it('publishes the formatted summary returned by the API', async () => {
     apiClientMock.saveEvent.mockResolvedValueOnce({
       summary: 'Pilot 1 (F-16) took off',
-      publish: true
+      publish: true,
+      awards: [
+        { message: 'Pilot 1 was awarded F-16 Gun – Bronze ★' }
+      ]
     });
 
     const takeoffEvent = {
@@ -305,5 +308,6 @@ describe('Flight session integration', () => {
     await udpServer.onEvent(takeoffEvent);
 
     expect(discordClientMock.send).toHaveBeenCalledWith('Pilot 1 (F-16) took off', true);
+    expect(discordClientMock.send).toHaveBeenCalledWith('Pilot 1 was awarded F-16 Gun – Bronze ★', true);
   });
 });

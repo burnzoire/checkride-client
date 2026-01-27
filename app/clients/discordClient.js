@@ -62,6 +62,9 @@ class DiscordClient {
       const req = https.request(options, (response) => {
         log.info(`Discord response status: ${response.statusCode}`);
 
+        response.on('data', () => {});
+        response.resume();
+
         response.on('end', () => {
           log.info("Sent event to discord successful");
           resolve();

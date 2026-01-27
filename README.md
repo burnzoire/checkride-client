@@ -52,7 +52,7 @@ npm run test:watch        # Run tests in watch mode
 npm run test:coverage     # Generate coverage report
 ```
 
-Tests run automatically on push to main branch via GitHub Actions. The test suite includes:
+Tests run automatically on push to main branch via GitHub Actions.
 
 ## Release
 

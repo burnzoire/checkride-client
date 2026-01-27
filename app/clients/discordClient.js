@@ -46,16 +46,17 @@ class DiscordClient {
 
     log.info(`Sending discord webhook to ${this.host}${this.path}`);
 
+    const payload = Buffer.from(JSON.stringify({ content: message }), 'utf8');
+
     const options = {
       host: this.host,
       path: this.path,
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Length': payload.length,
       },
     };
-
-    const payload = new TextEncoder().encode(JSON.stringify({ content: message }));
 
     return new Promise((resolve, reject) => {
       const req = https.request(options, (response) => {

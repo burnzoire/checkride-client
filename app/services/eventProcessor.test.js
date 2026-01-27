@@ -159,4 +159,55 @@ describe('EventProcessor', () => {
 
     expect(landingResult.event.event_data.duration_seconds).toBeUndefined();
   });
+
+  it('preserves provided duration_seconds on landing', () => {
+    const pilotUcid = 'pilot-3';
+
+    processor.process(
+      { type: 'change_slot', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'change_slot',
+          occurred_at: '2026-01-21T00:00:00.000Z',
+          event_data: { player_ucid: pilotUcid, flyable: true }
+        }
+      }
+    );
+
+    processor.process(
+      { type: 'takeoff', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'takeoff',
+          occurred_at: '2026-01-21T00:01:00.000Z',
+          event_data: { player_ucid: pilotUcid, unit_type: 'F-16' }
+        }
+      }
+    );
+
+    const landingResult = processor.process(
+      { type: 'landing', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'landing',
+          occurred_at: '2026-01-21T00:02:05.000Z',
+          event_data: { player_ucid: pilotUcid, unit_type: 'F-16', duration_seconds: 999 }
+        }
+      }
+    );
+
+    expect(landingResult.event.event_data.duration_seconds).toBe(999);
+  });
+
+  it('raises when rawEvent is invalid', () => {
+    expect(() => processor.process(null, { event: {} })).toThrow('rawEvent must be an object');
+  });
+
+  it('raises when preparedPayload is invalid', () => {
+    expect(() => processor.process({ type: 'takeoff' }, null)).toThrow('preparedPayload must be an object');
+  });
+
+  it('raises when preparedPayload.event is invalid', () => {
+    expect(() => processor.process({ type: 'takeoff' }, {})).toThrow('preparedPayload must contain an event object');
+  });
 });

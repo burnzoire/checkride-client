@@ -58,7 +58,7 @@ describe('preload.js', () => {
       if (id === 'chrome-version') return chromeElement;
       return null;
     });
-    
+
     require('../../preload.js');
 
     const domLoadedHandler = window.addEventListener.mock.calls[0][1];
@@ -74,7 +74,7 @@ describe('preload.js', () => {
       if (id === 'node-version') return nodeElement;
       return null;
     });
-    
+
     require('../../preload.js');
 
     const domLoadedHandler = window.addEventListener.mock.calls[0][1];
@@ -90,7 +90,7 @@ describe('preload.js', () => {
       if (id === 'electron-version') return electronElement;
       return null;
     });
-    
+
     require('../../preload.js');
 
     const domLoadedHandler = window.addEventListener.mock.calls[0][1];
@@ -102,11 +102,11 @@ describe('preload.js', () => {
 
   it('should handle missing elements gracefully', () => {
     mockDocument.getElementById = jest.fn(() => null);
-    
+
     require('../../preload.js');
 
     const domLoadedHandler = window.addEventListener.mock.calls[0][1];
-    
+
     // Should not throw
     expect(() => domLoadedHandler()).not.toThrow();
   });
@@ -130,5 +130,27 @@ describe('preload.js', () => {
       'node-version',
       'electron-version'
     ]);
+  });
+
+  it('exposes settings load/save via contextBridge', () => {
+    const { contextBridge, ipcRenderer } = require('electron');
+
+    require('../../preload.js');
+
+    expect(contextBridge.exposeInMainWorld).toHaveBeenCalledWith(
+      'settings',
+      expect.objectContaining({
+        load: expect.any(Function),
+        save: expect.any(Function)
+      })
+    );
+
+    const settingsApi = contextBridge.exposeInMainWorld.mock.calls[0][1];
+
+    settingsApi.load();
+    settingsApi.save({ theme: 'dark' });
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('settings:load');
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('settings:save', { theme: 'dark' });
   });
 });

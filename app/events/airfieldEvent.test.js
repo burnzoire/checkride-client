@@ -36,4 +36,23 @@ describe('AirfieldEvent', () => {
       }
     });
   });
+
+  it('includes duration_seconds when provided', () => {
+    const occurredAt = '2023-01-01T00:00:00.000Z';
+    jest.spyOn(GameEvent, 'generateOccurredAt').mockReturnValue(occurredAt);
+
+    const rawEvent = {
+      type: "landing",
+      playerUcid: "test2",
+      playerName: "Test Pilot 2",
+      unitType: "F-18",
+      airdromeName: "Test Field",
+      durationSeconds: -5.7
+    };
+
+    const event = new AirfieldEvent(rawEvent);
+    const preparedPayload = event.prepare();
+
+    expect(preparedPayload.event.event_data.duration_seconds).toBe(0);
+  });
 });

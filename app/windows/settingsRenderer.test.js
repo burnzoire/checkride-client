@@ -169,4 +169,28 @@ describe('settingsRenderer', () => {
     });
     expect(closeMock).toHaveBeenCalled();
   });
+
+  it('falls back to document.getElementById for inputs outside the form', async () => {
+    document.body.innerHTML = [
+      '<form id="settings-form">',
+      '  <button id="cancel-button" type="button">Cancel</button>',
+      '  <button type="submit">Save</button>',
+      '</form>',
+      '<input id="server_host" type="text" />',
+      '<input id="server_port" type="text" />',
+    ].join('');
+
+    await loadModule();
+
+    document.getElementById('server_host').value = ' fallback.host ';
+    document.getElementById('server_port').value = ' 5555 ';
+
+    document.getElementById('settings-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flushPromises();
+
+    expect(saveMock).toHaveBeenCalledWith(expect.objectContaining({
+      server_host: 'fallback.host',
+      server_port: '5555'
+    }));
+  });
 });

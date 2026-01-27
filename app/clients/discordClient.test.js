@@ -18,6 +18,7 @@ describe('DiscordClient', () => {
     mockResponse = {
       statusCode: 204,
       on: jest.fn(),
+      resume: jest.fn(),
     };
 
     mockRequest = jest.fn((options, callback) => {
@@ -79,7 +80,8 @@ describe('DiscordClient', () => {
           path: webhookPath,
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json; charset=utf-8',
+            'Content-Length': expect.any(Number),
           },
         }),
         expect.any(Function)
@@ -105,6 +107,16 @@ describe('DiscordClient', () => {
       const message = 'Test message';
 
       await expect(client.send(message, true)).resolves.toBeUndefined();
+      expect(mockRequest).not.toHaveBeenCalled();
+    });
+
+    it('should silently skip when message is missing', async () => {
+      const webhookPath = '/api/webhooks/123456/abcdef';
+      const client = new DiscordClient(webhookPath);
+
+      await expect(client.send('', true)).resolves.toBeUndefined();
+      await expect(client.send(null, true)).resolves.toBeUndefined();
+
       expect(mockRequest).not.toHaveBeenCalled();
     });
 

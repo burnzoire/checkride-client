@@ -181,5 +181,97 @@ describe('initApp', () => {
     expect(discordClientMock.send).toHaveBeenCalledWith('Maverick was awarded F-14 Sidewinder – Gold ★★★', true);
   });
 
+  it('does not send discord messages when summary is missing', async () => {
+    const fakeEvent = { type: 'event' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
+    };
+    const apiResponse = {
+      awards: [{ message: 'Award should not be sent' }]
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue(apiResponse),
+    };
+    const discordClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
+
+    processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
+
+    APIClient.mockImplementation(() => apiClientMock);
+    DiscordClient.mockImplementation(() => discordClientMock);
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const { udpServer } = await initApp();
+
+    await udpServer.onEvent(fakeEvent);
+
+    expect(discordClientMock.send).not.toHaveBeenCalled();
+  });
+
+  it('logs errors when discord summary send fails', async () => {
+    const fakeEvent = { type: 'event' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
+    };
+    const apiResponse = {
+      summary: 'summary'
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue(apiResponse),
+    };
+    const discordError = new Error('discord failed');
+    const discordClientMock = {
+      send: jest.fn().mockRejectedValue(discordError),
+    };
+
+    processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
+
+    APIClient.mockImplementation(() => apiClientMock);
+    DiscordClient.mockImplementation(() => discordClientMock);
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const { udpServer } = await initApp();
+
+    await udpServer.onEvent(fakeEvent);
+
+    expect(log.error).toHaveBeenCalledWith('Error sending Discord summary:', discordError);
+  });
+
+  it('logs errors when discord award send fails', async () => {
+    const fakeEvent = { type: 'event' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
+    };
+    const apiResponse = {
+      summary: 'summary',
+      awards: [{ message: 'Award message' }]
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue(apiResponse),
+    };
+    const awardError = new Error('award failed');
+    const discordClientMock = {
+      send: jest.fn()
+        .mockResolvedValueOnce()
+        .mockRejectedValueOnce(awardError),
+    };
+
+    processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
+
+    APIClient.mockImplementation(() => apiClientMock);
+    DiscordClient.mockImplementation(() => discordClientMock);
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const { udpServer } = await initApp();
+
+    await udpServer.onEvent(fakeEvent);
+
+    expect(log.error).toHaveBeenCalledWith('Error sending Discord award #1:', awardError);
+  });
+
 
 });

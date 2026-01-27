@@ -159,4 +159,88 @@ describe('EventProcessor', () => {
 
     expect(landingResult.event.event_data.duration_seconds).toBeUndefined();
   });
+
+  it('preserves provided duration_seconds on landing', () => {
+    const pilotUcid = 'pilot-3';
+
+    processor.process(
+      { type: 'change_slot', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'change_slot',
+          occurred_at: '2026-01-21T00:00:00.000Z',
+          event_data: { player_ucid: pilotUcid, flyable: true }
+        }
+      }
+    );
+
+    processor.process(
+      { type: 'takeoff', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'takeoff',
+          occurred_at: '2026-01-21T00:01:00.000Z',
+          event_data: { player_ucid: pilotUcid, unit_type: 'F-16' }
+        }
+      }
+    );
+
+    const landingResult = processor.process(
+      { type: 'landing', playerUcid: pilotUcid },
+      {
+        event: {
+          event_type: 'landing',
+          occurred_at: '2026-01-21T00:02:05.000Z',
+          event_data: { player_ucid: pilotUcid, unit_type: 'F-16', duration_seconds: 999 }
+        }
+      }
+    );
+
+    expect(landingResult.event.event_data.duration_seconds).toBe(999);
+  });
+
+  it('raises when rawEvent is invalid', () => {
+    expect(() => processor.process(null, { event: {} })).toThrow('rawEvent must be an object');
+  });
+
+  it('raises when preparedPayload is invalid', () => {
+    expect(() => processor.process({ type: 'takeoff' }, null)).toThrow('preparedPayload must be an object');
+  });
+
+  it('raises when preparedPayload.event is invalid', () => {
+    expect(() => processor.process({ type: 'takeoff' }, {})).toThrow('preparedPayload must contain an event object');
+  });
+
+  it('creates event_data when missing in prepared payload', () => {
+    const result = processor.process(
+      { type: 'takeoff', playerUcid: 'pilot-9' },
+      {
+        event: {
+          event_type: 'takeoff',
+          occurred_at: '2026-01-21T00:01:00.000Z'
+        }
+      }
+    );
+
+    expect(result.event.event_data).toEqual({});
+  });
+});
+
+describe('stableStringify', () => {
+  it('handles null and undefined', () => {
+    expect(stableStringify(null)).toBe('null');
+    expect(stableStringify(undefined)).toBe('undefined');
+  });
+
+  it('handles bigint, arrays, and objects with stable key order', () => {
+    expect(stableStringify(42n)).toBe('42');
+    expect(stableStringify([1, 'two', true])).toBe('[1,"two",true]');
+
+    const obj = { b: 2, a: 1 };
+    expect(stableStringify(obj)).toBe('{"a":1,"b":2}');
+  });
+
+  it('returns empty string for unsupported types', () => {
+    expect(stableStringify(() => {})).toBe('');
+  });
 });

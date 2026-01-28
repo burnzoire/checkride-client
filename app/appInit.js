@@ -3,6 +3,7 @@ const UDPServer = require('./services/udpServer');
 const { EventProcessor } = require('./services/eventProcessor');
 const { EventFactory } = require('./factories/eventFactory');
 const { APIClient } = require('./clients/apiClient');
+const { HealthChecker } = require('./services/healthChecker');
 
 
 const log = require('electron-log');
@@ -63,7 +64,11 @@ async function initApp() {
 
   attachEventPipeline({ udpServer, apiClient, discordClient, eventProcessor })
 
-  return { udpServer, apiClient, discordClient, eventProcessor };
+  // Initialize and start health checker
+  const healthChecker = new HealthChecker(apiClient, store)
+  healthChecker.start()
+
+  return { udpServer, apiClient, discordClient, eventProcessor, healthChecker };
 }
 
 module.exports = { initApp, attachEventPipeline };

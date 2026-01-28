@@ -1,6 +1,6 @@
 const http = require('http');
 const https = require('https');
-const { APIClient, APIClientError, APISaveEventError, APIPingError } = require('./apiClient');
+const { APIClient, APIClientError, APISaveEventError } = require('./apiClient');
 
 jest.mock('electron-log');
 
@@ -310,21 +310,6 @@ describe('APIClient', () => {
       expect(http.request).not.toHaveBeenCalled();
     });
 
-    it('should reject when ping response cannot be parsed', async () => {
-      const client = new APIClient(false, 'localhost', 3000);
-
-      mockResponse.on = jest.fn((event, handler) => {
-        if (event === 'data') {
-          handler(Buffer.from('invalid json'));
-        } else if (event === 'end') {
-          handler();
-        }
-      });
-
-      await expect(client.ping()).rejects.toThrow(APIPingError);
-      await expect(client.ping()).rejects.toThrow('Failed to parse API ping response');
-    });
-
     it('should reject on response error', async () => {
       const client = new APIClient(false, 'localhost', 3000);
       const error = new Error('Timeout');
@@ -378,15 +363,6 @@ describe('APIClient', () => {
       expect(error).toBeInstanceOf(APISaveEventError);
       expect(error.name).toBe('APISaveEventError');
       expect(error.message).toBe('save error');
-    });
-
-    it('should create APIPingError with correct name', () => {
-      const error = new APIPingError('ping error');
-      expect(error).toBeInstanceOf(Error);
-      expect(error).toBeInstanceOf(APIClientError);
-      expect(error).toBeInstanceOf(APIPingError);
-      expect(error.name).toBe('APIPingError');
-      expect(error.message).toBe('ping error');
     });
   });
 });

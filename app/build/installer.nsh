@@ -33,8 +33,8 @@ FunctionEnd
 
 !macro customInstall
   CreateDirectory "$DcsPath\Scripts\Hooks"
-  CreateDirectory "$DcsPath\Mods\Services\Checkride\Scripts"
+  CreateDirectory "$DcsPath\Mods\Services\DCS-Checkride\Scripts"
 
   CopyFiles /SILENT "$INSTDIR\resources\dcs\Scripts\Hooks\DCS-Checkride-hook.lua" "$DcsPath\Scripts\Hooks"
-  CopyFiles /SILENT "$INSTDIR\resources\dcs\Mods\Services\Checkride\Scripts\DCS-CheckrideGameGUI.lua" "$DcsPath\Mods\Services\Checkride\Scripts"
+  CopyFiles /SILENT "$INSTDIR\resources\dcs\Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideGameGUI.lua" "$DcsPath\Mods\Services\DCS-Checkride\Scripts"
 !macroend

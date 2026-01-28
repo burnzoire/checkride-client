@@ -86,7 +86,7 @@
       },
       {
         "from": "../DCS-Checkride/Scripts/DCS-CheckrideGameGUI.lua",
-        "to": "dcs/Mods/Services/Checkride/Scripts/DCS-CheckrideGameGUI.lua"
+        "to": "dcs/Mods/Services/DCS-Checkride/Scripts/DCS-CheckrideGameGUI.lua"
       }
     ],
     "directories": {

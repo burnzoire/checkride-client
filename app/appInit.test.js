@@ -5,6 +5,7 @@ jest.mock('./factories/eventFactory');
 jest.mock('./config');
 jest.mock('electron-log');
 jest.mock('./services/eventProcessor');
+jest.mock('./services/healthChecker');
 
 const { APIClient } = require('./clients/apiClient');
 const { DiscordClient } = require('./clients/discordClient');
@@ -14,6 +15,7 @@ const store = require('./config');
 const { initApp, attachEventPipeline } = require('./appInit');
 const log = require('electron-log');
 const { EventProcessor } = require('./services/eventProcessor');
+const { HealthChecker } = require('./services/healthChecker');
 
 describe('initApp', () => {
   let fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, fakeDiscordWebhookPath, udpServerMock, processMock;
@@ -34,6 +36,12 @@ describe('initApp', () => {
 
     processMock = jest.fn((_, payload) => payload);
     EventProcessor.mockImplementation(() => ({ process: processMock }));
+    HealthChecker.mockImplementation(() => ({
+      start: jest.fn(),
+      setOnStatusChange: jest.fn(),
+      checkHealth: jest.fn(),
+      stop: jest.fn(),
+    }));
 
     store.get.mockImplementation((key, defaultValue) => {
       switch (key) {

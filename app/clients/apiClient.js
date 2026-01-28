@@ -113,20 +113,11 @@ class APIClient {
         })
 
         response.on('end', () => {
-          if (response.statusCode < 200 || response.statusCode >= 300) {
+          if (response.statusCode !== 200) {
             reject(new APIClientError(`Healthcheck failed with status ${response.statusCode}`))
-          }
-          const rawBody = Buffer.concat(body).toString()
-          if (!rawBody) {
-            resolve({ status: 'ok' })
             return
           }
-          try {
-            body = JSON.parse(rawBody)
-            resolve(body)
-          } catch (e) {
-            resolve({ status: 'ok', raw: rawBody })
-          }
+          resolve({ status: 'ok' })
         })
 
         response.on('error', error => {

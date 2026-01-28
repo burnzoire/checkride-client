@@ -245,27 +245,8 @@ describe('APIClient', () => {
       jest.clearAllMocks();
 
       const client = new APIClient(true, 'example.com', 443);
-      const responseBody = { status: 'ok' };
 
       mockResponse.statusCode = 200;
-      mockResponse.on = jest.fn((event, handler) => {
-        if (event === 'data') {
-          handler(Buffer.from(JSON.stringify(responseBody)));
-        } else if (event === 'end') {
-          handler();
-        }
-      });
-
-      await client.healthcheck();
-
-      expect(https.request).toHaveBeenCalled();
-      expect(http.request).not.toHaveBeenCalled();
-    });
-
-    it('should resolve when response is empty', async () => {
-      const client = new APIClient(false, 'localhost', 3000);
-
-      mockResponse.statusCode = 204;
       mockResponse.on = jest.fn((event, handler) => {
         if (event === 'end') {
           handler();
@@ -273,22 +254,22 @@ describe('APIClient', () => {
       });
 
       await expect(client.healthcheck()).resolves.toEqual({ status: 'ok' });
+
+      expect(https.request).toHaveBeenCalled();
+      expect(http.request).not.toHaveBeenCalled();
     });
 
-    it('should resolve when response is non-json', async () => {
+    it('should resolve when status code is 200', async () => {
       const client = new APIClient(false, 'localhost', 3000);
-      const body = 'ok';
 
       mockResponse.statusCode = 200;
       mockResponse.on = jest.fn((event, handler) => {
-        if (event === 'data') {
-          handler(Buffer.from(body));
-        } else if (event === 'end') {
+        if (event === 'end') {
           handler();
         }
       });
 
-      await expect(client.healthcheck()).resolves.toEqual({ status: 'ok', raw: body });
+      await expect(client.healthcheck()).resolves.toEqual({ status: 'ok' });
     });
 
     it('should reject when status code is not ok', async () => {

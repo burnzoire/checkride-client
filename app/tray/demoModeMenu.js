@@ -1,4 +1,4 @@
-function createDemoModeMenu(demoController, { onChange } = {}) {
+function createDemoModeMenu(demoController, { onChange, enabled = true } = {}) {
   if (!demoController) {
     return [];
   }
@@ -8,6 +8,7 @@ function createDemoModeMenu(demoController, { onChange } = {}) {
   return [
     {
       label: running ? 'Stop Demo Mode' : 'Start Demo Mode',
+      enabled,
       click() {
         if (demoController.isRunning) {
           demoController.stop();

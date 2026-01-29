@@ -1,6 +1,7 @@
-const createTestEvents = (udpServer) => [
+const createTestEvents = (udpServer, { enabled = true } = {}) => [
   {
     label: 'Send test kill event',
+    enabled,
     click() {
       udpServer.send({
         type: "kill",
@@ -18,6 +19,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send test takeoff event (F-14A)',
+    enabled,
     click() {
       udpServer.send({
         type: "takeoff",
@@ -30,6 +32,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send test takeoff event (F-14B)',
+    enabled,
     click() {
       udpServer.send({
         type: "takeoff",
@@ -42,6 +45,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send test landing event (F-14A)',
+    enabled,
     click() {
       udpServer.send({
         type: "landing",
@@ -54,6 +58,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send test landing event (F-14B)',
+    enabled,
     click() {
       udpServer.send({
         type: "landing",
@@ -66,6 +71,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send test change slot event',
+    enabled,
     click() {
       udpServer.send({
         type: "change_slot",
@@ -79,6 +85,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send test disconnect event',
+    enabled,
     click() {
       udpServer.send({
         type: "disconnect",
@@ -91,6 +98,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send test connect event',
+    enabled,
     click() {
       udpServer.send({
         type: "connect",
@@ -101,6 +109,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send crash event',
+    enabled,
     click() {
       udpServer.send({
         type: "crash",
@@ -112,6 +121,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send eject event',
+    enabled,
     click() {
       udpServer.send({
         type: "eject",
@@ -123,6 +133,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send pilot death event',
+    enabled,
     click() {
       udpServer.send({
         type: "pilot_death",
@@ -134,6 +145,7 @@ const createTestEvents = (udpServer) => [
   },
   {
     label: 'Send self kill event',
+    enabled,
     click() {
       udpServer.send({
         type: "self_kill",

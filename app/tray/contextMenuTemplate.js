@@ -11,12 +11,8 @@ const contextMenuTemplate = (udpServer, api, openSettings, options = {}) => [
     label: 'About Checkride',
     role: 'about',
   },
-  {
-    label: 'Ping server',
-    click() { api.ping() }
-  },
-  ...createDemoModeMenu(options.demoController, { onChange: options.onChange }),
-  ...createTestEvents(udpServer),
+  ...createDemoModeMenu(options.demoController, { onChange: options.onChange, enabled: options.isHealthy !== false }),
+  ...createTestEvents(udpServer, { enabled: options.isHealthy !== false }),
   { type: 'separator' },
   {
     label: 'Quit Checkride',

@@ -16,13 +16,6 @@ class APISaveEventError extends APIClientError {
   }
 }
 
-class APIPingError extends APIClientError {
-  constructor(message) {
-    super(message);
-    this.name = 'APIPingError';
-  }
-}
-
 class APIClient {
   constructor(useSsl, host, port, apiToken = '', pathPrefix = '') {
     this.useSsl = useSsl
@@ -104,16 +97,15 @@ class APIClient {
     })
   }
 
-  ping() {
+  healthcheck() {
     return new Promise((resolve, reject) => {
       var options = {
         host: this.host,
-        path: `${this.pathPrefix}/ping`,
+        path: `${this.pathPrefix}/up`,
         port: this.port,
         method: 'GET',
         headers: this.buildHeaders()
       }
-      log.info(`pinging ${this.useSsl ? "https" : "http"}://${options.host} on port ${options.port}`)
       const req = this.httpModule.request(options, (response) => {
         let body = []
         response.on('data', (chunk) => {
@@ -121,17 +113,15 @@ class APIClient {
         })
 
         response.on('end', () => {
-          try {
-            body = JSON.parse(Buffer.concat(body).toString())
-          } catch (e) {
-            reject(new APIPingError('Failed to parse API ping response'))
+          if (response.statusCode !== 200) {
+            reject(new APIClientError(`Healthcheck failed with status ${response.statusCode}`))
+            return
           }
-          log.info(body.message)
-          resolve(body)
+          resolve({ status: 'ok' })
         })
 
         response.on('error', error => {
-          reject(new APIClientError(`Failed to ping API: ${error}`))
+          reject(new APIClientError(`Healthcheck request failed: ${error}`))
         })
       })
 
@@ -148,5 +138,4 @@ module.exports = {
   APIClient,
   APIClientError,
   APISaveEventError,
-  APIPingError
 };

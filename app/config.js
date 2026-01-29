@@ -26,6 +26,10 @@ const schema = {
     type: 'string',
     default: '',
   },
+  api_healthy: {
+    type: 'boolean',
+    default: true,
+  },
 };
 
 const store = new Store({ schema });

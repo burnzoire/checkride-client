@@ -46,22 +46,6 @@ describe('contextMenuTemplate', () => {
     expect(aboutItem.role).toBe('about');
   });
 
-  it('should include Ping server menu item', () => {
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
-    const pingItem = menu.find(item => item.label === 'Ping server');
-
-    expect(pingItem).toBeDefined();
-    expect(typeof pingItem.click).toBe('function');
-  });
-
-  it('should call api.ping when Ping server is clicked', () => {
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
-    const pingItem = menu.find(item => item.label === 'Ping server');
-
-    pingItem.click();
-    expect(mockApi.ping).toHaveBeenCalled();
-  });
-
   it('should include test events from createTestEvents', () => {
     const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
 

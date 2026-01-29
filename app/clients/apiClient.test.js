@@ -1,6 +1,6 @@
 const http = require('http');
 const https = require('https');
-const { APIClient, APIClientError, APISaveEventError, APIPingError } = require('./apiClient');
+const { APIClient, APIClientError, APISaveEventError } = require('./apiClient');
 
 jest.mock('electron-log');
 
@@ -240,89 +240,50 @@ describe('APIClient', () => {
     });
   });
 
-  describe('ping', () => {
-    it('should successfully ping the server', async () => {
-      const client = new APIClient(false, 'localhost', 3000);
-      const responseBody = { message: 'pong' };
-
-      mockResponse.statusCode = 200;
-      mockResponse.on = jest.fn((event, handler) => {
-        if (event === 'data') {
-          handler(Buffer.from(JSON.stringify(responseBody)));
-        } else if (event === 'end') {
-          handler();
-        }
-      });
-
-      const result = await client.ping();
-
-      expect(result).toEqual(responseBody);
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.objectContaining({
-          host: 'localhost',
-          path: '/ping',
-          port: 3000,
-          method: 'GET',
-        }),
-        expect.any(Function)
-      );
-      expect(mockReq.end).toHaveBeenCalled();
-    });
-
-    it('should include bearer token on ping when provided', async () => {
-      jest.clearAllMocks();
-
-      const client = new APIClient(false, 'localhost', 3000, 'ping-token');
-      const responseBody = { message: 'pong' };
-
-      mockResponse.on = jest.fn((event, handler) => {
-        if (event === 'data') {
-          handler(Buffer.from(JSON.stringify(responseBody)));
-        } else if (event === 'end') {
-          handler();
-        }
-      });
-
-      await client.ping();
-
-      const options = mockRequest.mock.calls[0][0];
-      expect(options.headers['Authorization']).toBe('Bearer ping-token');
-    });
-
+  describe('healthcheck', () => {
     it('should use https when useSsl is true', async () => {
-      // Clear previous mock calls
       jest.clearAllMocks();
 
       const client = new APIClient(true, 'example.com', 443);
-      const responseBody = { message: 'pong' };
 
+      mockResponse.statusCode = 200;
       mockResponse.on = jest.fn((event, handler) => {
-        if (event === 'data') {
-          handler(Buffer.from(JSON.stringify(responseBody)));
-        } else if (event === 'end') {
+        if (event === 'end') {
           handler();
         }
       });
 
-      await client.ping();
+      await expect(client.healthcheck()).resolves.toEqual({ status: 'ok' });
 
       expect(https.request).toHaveBeenCalled();
       expect(http.request).not.toHaveBeenCalled();
     });
 
-    it('should reject when ping response cannot be parsed', async () => {
+    it('should resolve when status code is 200', async () => {
       const client = new APIClient(false, 'localhost', 3000);
 
+      mockResponse.statusCode = 200;
       mockResponse.on = jest.fn((event, handler) => {
-        if (event === 'data') {
-          handler(Buffer.from('invalid json'));
-        } else if (event === 'end') {
+        if (event === 'end') {
           handler();
         }
       });
 
-      await expect(client.ping()).rejects.toThrow(APIPingError);
-      await expect(client.ping()).rejects.toThrow('Failed to parse API ping response');
+      await expect(client.healthcheck()).resolves.toEqual({ status: 'ok' });
+    });
+
+    it('should reject when status code is not ok', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 500;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'end') {
+          handler();
+        }
+      });
+
+      await expect(client.healthcheck()).rejects.toThrow(APIClientError);
+      await expect(client.healthcheck()).rejects.toThrow('Healthcheck failed with status 500');
     });
 
     it('should reject on response error', async () => {
@@ -335,8 +296,8 @@ describe('APIClient', () => {
         }
       });
 
-      await expect(client.ping()).rejects.toThrow(APIClientError);
-      await expect(client.ping()).rejects.toThrow(`Failed to ping API: ${error}`);
+      await expect(client.healthcheck()).rejects.toThrow(APIClientError);
+      await expect(client.healthcheck()).rejects.toThrow(`Healthcheck request failed: ${error}`);
     });
 
     it('should reject on request error', async () => {
@@ -357,8 +318,8 @@ describe('APIClient', () => {
         return mockReq;
       });
 
-      await expect(client.ping()).rejects.toThrow(APIClientError);
-      await expect(client.ping()).rejects.toThrow(`API request failed: ${error}`);
+      await expect(client.healthcheck()).rejects.toThrow(APIClientError);
+      await expect(client.healthcheck()).rejects.toThrow(`API request failed: ${error}`);
     });
   });
 
@@ -378,15 +339,6 @@ describe('APIClient', () => {
       expect(error).toBeInstanceOf(APISaveEventError);
       expect(error.name).toBe('APISaveEventError');
       expect(error.message).toBe('save error');
-    });
-
-    it('should create APIPingError with correct name', () => {
-      const error = new APIPingError('ping error');
-      expect(error).toBeInstanceOf(Error);
-      expect(error).toBeInstanceOf(APIClientError);
-      expect(error).toBeInstanceOf(APIPingError);
-      expect(error.name).toBe('APIPingError');
-      expect(error.message).toBe('ping error');
     });
   });
 });

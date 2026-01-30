@@ -10,6 +10,25 @@ const log = require('electron-log');
 const store = require('./config');
 
 const DEFAULT_UDP_PORT = 41234;
+// Emoji enrichment utility for Discord summaries
+const EVENT_EMOJIS = {
+  kill: ':dart: ',
+  takeoff: ':airplane_departure: ',
+  landing: ':airplane_arriving: ',
+  connect: ':link: ',
+  disconnect: ':broken_chain: ',
+  change_slot: ':repeat: ',
+  crash: ':skull: ',
+  eject: ':parachute: ',
+  self_kill: ':eight_pointed_black_star: ',
+  pilot_kill: ':headstone: ',
+  award: ':military_medal: ',
+};
+
+function enrichWithEmojis(summary, eventType) {
+  const emoji = EVENT_EMOJIS[eventType];
+  return emoji ? emoji + summary : summary;
+}
 
 function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcessor }) {
   const processor = eventProcessor || new EventProcessor();
@@ -19,15 +38,17 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
       .then(gameEvent => {
         const preparedPayload = gameEvent.prepare();
         const processedPayload = processor.process(event, preparedPayload);
-        return apiClient.saveEvent(processedPayload);
+        return apiClient.saveEvent(processedPayload).then(response => ({ response, event }));
       })
-      .then((response) => {
+      .then(({ response, event }) => {
         log.info(`API response: ${JSON.stringify(response)}`);
         const publish = response?.publish !== false;
         const awards = Array.isArray(response?.awards) ? response.awards : [];
         if (!response?.summary) return;
-        log.info(`About to send Discord summary: ${response.summary}`);
-        let last = discordClient.send(response.summary, publish)
+        // Use event.type, fallback to event.eventType if needed
+        const enrichedSummary = enrichWithEmojis(response.summary, event.type || event.eventType);
+        log.info(`About to send Discord summary: ${enrichedSummary}`);
+        let last = discordClient.send(enrichedSummary, publish)
           .then(() => {
             log.info('Successfully sent Discord summary');
           })
@@ -36,8 +57,9 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
         awards.forEach((award, i) => {
           if (award?.message) {
             last = last.then(() => {
-              log.info(`About to send Discord award #${i + 1}: ${award.message}`);
-              return discordClient.send(award.message, publish)
+              const awardMsg = enrichWithEmojis(award.message, 'award');
+              log.info(`About to send Discord award #${i + 1}: ${awardMsg}`);
+              return discordClient.send(awardMsg, publish)
                 .then(() => log.info(`Successfully sent Discord award #${i + 1}`))
                 .catch((error) => log.error(`Error sending Discord award #${i + 1}:`, error));
             });

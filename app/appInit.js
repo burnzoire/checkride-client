@@ -22,7 +22,7 @@ const EVENT_EMOJIS = {
   eject: ':parachute: ',
   self_kill: ':eight_pointed_black_star: ',
   pilot_kill: ':headstone: ',
-  check_item: ':military_medal: ',
+  check_item: ':white_check_mark: ',
 };
 
 function enrichWithEmojis(summary, eventType) {

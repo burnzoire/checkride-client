@@ -45,8 +45,9 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
         const publish = response?.publish !== false;
         const checkItems = Array.isArray(response?.check_items) ? response.check_items : [];
         if (!response?.summary) return;
-        log.info(`About to send Discord summary: ${response.summary}`);
-        let last = discordClient.send(response.summary, publish)
+        const summaryMsg = enrichWithEmojis(response.summary, response.event_type);
+        log.info(`About to send Discord summary: ${summaryMsg}`);
+        let last = discordClient.send(summaryMsg, publish)
           .then(() => {
             log.info('Successfully sent Discord summary');
           })

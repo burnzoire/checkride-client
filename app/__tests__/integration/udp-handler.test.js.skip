@@ -183,7 +183,7 @@ describe('socket.js - Integration Tests', () => {
 
         const serverResponse = {
           summary: 'Test Pilot crashed',
-          awards: [],
+          check_items: [],
           publish: true
         };
 
@@ -207,7 +207,7 @@ describe('socket.js - Integration Tests', () => {
 
         const serverResponse = {
           summary: 'Test Pilot ejected',
-          awards: [],
+          check_items: [],
           publish: false
         };
 
@@ -231,7 +231,7 @@ describe('socket.js - Integration Tests', () => {
 
         const serverResponse = {
           summary: 'Test Pilot disconnected',
-          awards: [],
+          check_items: [],
           publish: false
         };
 
@@ -255,7 +255,7 @@ describe('socket.js - Integration Tests', () => {
 
         const serverResponse = {
           summary: 'Test Pilot changed slot',
-          awards: [],
+          check_items: [],
           publish: false
         };
 

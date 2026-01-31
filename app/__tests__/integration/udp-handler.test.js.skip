@@ -27,7 +27,7 @@ describe('socket.js - Integration Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     mockStore = createMockStore({
       server_host: 'localhost',
       server_port: '3000',
@@ -37,7 +37,7 @@ describe('socket.js - Integration Tests', () => {
 
     mockHttpResponse = createMockHttpResponse();
     mockHttpRequest = createMockHttpRequest();
-    
+
     http.request = jest.fn((options, callback) => {
       callback(mockHttpResponse);
       return mockHttpRequest;
@@ -49,7 +49,7 @@ describe('socket.js - Integration Tests', () => {
       // Need to dynamically require to get fresh instance with mocked dependencies
       jest.isolateModules(() => {
         const { handleUdpMessage } = require('../../socket');
-        
+
         const msg = Buffer.from(JSON.stringify(eventFixtures.killEvent));
         const rinfo = { address: '127.0.0.1', port: 12345 };
 
@@ -58,7 +58,7 @@ describe('socket.js - Integration Tests', () => {
         // Simulate server response
         const serverResponse = {
           summary: 'Top Gun destroyed Enemy Pilot',
-          awards: [],
+          check_items: [],
           publish: true
         };
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
@@ -77,13 +77,13 @@ describe('socket.js - Integration Tests', () => {
       });
     });
 
-    it('should handle takeoff event with awards', async () => {
+    it('should handle takeoff event with check items', async () => {
       jest.isolateModules(() => {
         const { handleUdpMessage } = require('../../socket');
-        
+
         const mockDiscordResponse = createMockHttpResponse();
         const mockDiscordRequest = createMockHttpRequest();
-        
+
         const discordStore = createMockStore({
           server_host: 'localhost',
           server_port: '3000',
@@ -98,16 +98,16 @@ describe('socket.js - Integration Tests', () => {
 
         const handlePromise = handleUdpMessage(msg, rinfo);
 
-        // Simulate server response with award
+        // Simulate server response with check item
         const serverResponse = {
           summary: 'Test Pilot took off',
-          awards: [{
+          check_items: [{
             pilot: 'Test Pilot',
             badge: { title: 'First Flight' }
           }],
           publish: true
         };
-        
+
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
         mockHttpResponse._triggerEnd();
 
@@ -125,9 +125,9 @@ describe('socket.js - Integration Tests', () => {
     it('should handle landing event and send to Discord', async () => {
       jest.isolateModules(() => {
         const { handleUdpMessage } = require('../../socket');
-        
+
         const mockDiscordRequest = createMockHttpRequest();
-        
+
         const discordStore = createMockStore({
           server_host: 'localhost',
           server_port: '3000',
@@ -144,10 +144,10 @@ describe('socket.js - Integration Tests', () => {
 
         const serverResponse = {
           summary: 'Test Pilot landed safely',
-          awards: [],
+          check_items: [],
           publish: true
         };
-        
+
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
         mockHttpResponse._triggerEnd();
 
@@ -158,7 +158,7 @@ describe('socket.js - Integration Tests', () => {
     it('should handle error when server is unreachable', async () => {
       return jest.isolateModules(async () => {
         const { handleUdpMessage } = require('../../socket');
-        
+
         http.request = jest.fn(() => {
           const req = createMockHttpRequest();
           setTimeout(() => req._triggerEvent('error', new Error('ECONNREFUSED')), 0);
@@ -175,7 +175,7 @@ describe('socket.js - Integration Tests', () => {
     it('should handle crash event', async () => {
       jest.isolateModules(() => {
         const { handleUdpMessage } = require('../../socket');
-        
+
         const msg = Buffer.from(JSON.stringify(eventFixtures.crashEvent));
         const rinfo = { address: '127.0.0.1', port: 12345 };
 
@@ -186,7 +186,7 @@ describe('socket.js - Integration Tests', () => {
           awards: [],
           publish: true
         };
-        
+
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
         mockHttpResponse._triggerEnd();
 
@@ -199,7 +199,7 @@ describe('socket.js - Integration Tests', () => {
     it('should handle eject event', async () => {
       jest.isolateModules(() => {
         const { handleUdpMessage } = require('../../socket');
-        
+
         const msg = Buffer.from(JSON.stringify(eventFixtures.ejectEvent));
         const rinfo = { address: '127.0.0.1', port: 12345 };
 
@@ -210,7 +210,7 @@ describe('socket.js - Integration Tests', () => {
           awards: [],
           publish: false
         };
-        
+
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
         mockHttpResponse._triggerEnd();
 
@@ -223,7 +223,7 @@ describe('socket.js - Integration Tests', () => {
     it('should handle disconnect event', async () => {
       jest.isolateModules(() => {
         const { handleUdpMessage } = require('../../socket');
-        
+
         const msg = Buffer.from(JSON.stringify(eventFixtures.disconnectEvent));
         const rinfo = { address: '127.0.0.1', port: 12345 };
 
@@ -234,7 +234,7 @@ describe('socket.js - Integration Tests', () => {
           awards: [],
           publish: false
         };
-        
+
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
         mockHttpResponse._triggerEnd();
 
@@ -247,7 +247,7 @@ describe('socket.js - Integration Tests', () => {
     it('should handle change slot event', async () => {
       jest.isolateModules(() => {
         const { handleUdpMessage } = require('../../socket');
-        
+
         const msg = Buffer.from(JSON.stringify(eventFixtures.changeSlotEvent));
         const rinfo = { address: '127.0.0.1', port: 12345 };
 
@@ -258,7 +258,7 @@ describe('socket.js - Integration Tests', () => {
           awards: [],
           publish: false
         };
-        
+
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
         mockHttpResponse._triggerEnd();
 

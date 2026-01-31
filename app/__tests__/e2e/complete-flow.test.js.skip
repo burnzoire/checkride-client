@@ -29,7 +29,7 @@ describe.skip('End-to-End Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     mockStore = createMockStore({
       server_host: 'localhost',
       server_port: '3000',
@@ -42,7 +42,7 @@ describe.skip('End-to-End Tests', () => {
 
     mockHttpResponse = createMockHttpResponse();
     mockHttpRequest = createMockHttpRequest();
-    
+
     http.request = jest.fn((options, callback) => {
       setTimeout(() => callback(mockHttpResponse), 0);
       return mockHttpRequest;
@@ -59,9 +59,9 @@ describe.skip('End-to-End Tests', () => {
     it('should process kill event from UDP to server to Discord', async () => {
       return jest.isolateModules(async () => {
         const { createUdpServer, handleUdpMessage } = require('../../socket');
-        
+
         const server = createUdpServer();
-        
+
         // Verify server setup
         expect(dgram.createSocket).toHaveBeenCalledWith('udp4');
         expect(mockServer.on).toHaveBeenCalledWith('message', expect.any(Function));
@@ -72,16 +72,16 @@ describe.skip('End-to-End Tests', () => {
 
         const handlePromise = handleUdpMessage(msg, rinfo, server);
 
-        // Simulate server response with award
+        // Simulate server response with check item
         const serverResponse = {
           summary: 'Top Gun destroyed Enemy Pilot with AIM-9M',
-          awards: [{
+          check_items: [{
             pilot: 'Top Gun',
             badge: { title: 'First Kill' }
           }],
           publish: true
         };
-        
+
         await delay(5);
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
         mockHttpResponse._triggerEnd();
@@ -106,9 +106,9 @@ describe.skip('End-to-End Tests', () => {
         expect(decodedPayload.event.killer_name).toBe('Top Gun');
         expect(decodedPayload.event.victim_name).toBe('Enemy Pilot');
 
-        // Verify Discord notifications were sent (summary + award)
+        // Verify Discord notifications were sent (summary + check item)
         expect(https.request).toHaveBeenCalledTimes(2);
-        
+
         expect(result).toEqual(serverResponse);
       });
     });
@@ -122,11 +122,11 @@ describe.skip('End-to-End Tests', () => {
         const rinfo = { address: '192.168.1.100', port: 54321 };
 
         const handle1Promise = handleUdpMessage(connectMsg, rinfo);
-        
+
         await delay(5);
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify({
           summary: 'Player connected',
-          awards: [],
+          check_items: [],
           publish: false
         })));
         mockHttpResponse._triggerEnd();
@@ -144,13 +144,13 @@ describe.skip('End-to-End Tests', () => {
 
         // Event 2: Takeoff
         const takeoffMsg = Buffer.from(JSON.stringify(eventFixtures.takeoffEvent));
-        
+
         const handle2Promise = handleUdpMessage(takeoffMsg, rinfo);
 
         await delay(5);
         newHttpResponse._triggerData(Buffer.from(JSON.stringify({
           summary: 'Player took off',
-          awards: [],
+          check_items: [],
           publish: true
         })));
         newHttpResponse._triggerEnd();
@@ -162,7 +162,7 @@ describe.skip('End-to-End Tests', () => {
       });
     });
 
-    it('should handle event with multiple awards', async () => {
+    it('should handle event with multiple check items', async () => {
       return jest.isolateModules(async () => {
         const { handleUdpMessage } = require('../../socket');
 
@@ -173,21 +173,21 @@ describe.skip('End-to-End Tests', () => {
 
         const serverResponse = {
           summary: 'Perfect landing!',
-          awards: [
+          check_items: [
             { pilot: 'Test Pilot', badge: { title: 'First Landing' } },
             { pilot: 'Test Pilot', badge: { title: 'Carrier Landing' } },
             { pilot: 'Test Pilot', badge: { title: 'Night Landing' } }
           ],
           publish: true
         };
-        
+
         await delay(5);
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
         mockHttpResponse._triggerEnd();
 
         await handlePromise;
 
-        // Should have sent summary + 3 award messages
+        // Should have sent summary + 3 check item messages
         expect(https.request).toHaveBeenCalledTimes(4);
       });
     });
@@ -210,10 +210,10 @@ describe.skip('End-to-End Tests', () => {
 
         const serverResponse = {
           summary: 'Takeoff recorded',
-          awards: [],
+            check_items: [],
           publish: true
         };
-        
+
         await delay(5);
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
         mockHttpResponse._triggerEnd();
@@ -233,7 +233,7 @@ describe.skip('End-to-End Tests', () => {
   describe('Server health check', () => {
     it('should successfully ping server with correct configuration', async () => {
       const { ping } = require('../../socket');
-      
+
       mockStore.get = jest.fn((key) => {
         const config = {
           'server_host': 'localhost',
@@ -258,7 +258,7 @@ describe.skip('End-to-End Tests', () => {
       });
 
       const { sendEventToServer } = require('../../socket');
-      
+
       // Verify function exists and store has correct values
       expect(sendEventToServer).toBeDefined();
       expect(sslStore.get('use_ssl')).toBe(true);
@@ -274,9 +274,9 @@ describe.skip('End-to-End Tests', () => {
       });
 
       const { sendToDiscord } = require('../../socket');
-      
+
       const result = await sendToDiscord('test message', true, noWebhookStore);
-      
+
       expect(result).toBeUndefined();
     });
   });

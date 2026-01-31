@@ -10,6 +10,25 @@ const log = require('electron-log');
 const store = require('./config');
 
 const DEFAULT_UDP_PORT = 41234;
+// Emoji enrichment utility for Discord summaries
+const EVENT_EMOJIS = {
+  kill: ':dart: ',
+  takeoff: ':airplane_departure: ',
+  landing: ':airplane_arriving: ',
+  connect: ':link: ',
+  disconnect: ':broken_chain: ',
+  change_slot: ':repeat: ',
+  crash: ':skull: ',
+  eject: ':parachute: ',
+  self_kill: ':eight_pointed_black_star: ',
+  pilot_kill: ':headstone: ',
+  check_item: ':military_medal: ',
+};
+
+function enrichWithEmojis(summary, eventType) {
+  const emoji = EVENT_EMOJIS[eventType];
+  return emoji ? emoji + summary : summary;
+}
 
 function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcessor }) {
   const processor = eventProcessor || new EventProcessor();
@@ -24,7 +43,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
       .then((response) => {
         log.info(`API response: ${JSON.stringify(response)}`);
         const publish = response?.publish !== false;
-        const awards = Array.isArray(response?.awards) ? response.awards : [];
+        const checkItems = Array.isArray(response?.check_items) ? response.check_items : [];
         if (!response?.summary) return;
         log.info(`About to send Discord summary: ${response.summary}`);
         let last = discordClient.send(response.summary, publish)
@@ -33,13 +52,14 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
           })
           .catch((error) => log.error('Error sending Discord summary:', error));
 
-        awards.forEach((award, i) => {
-          if (award?.message) {
+        checkItems.forEach((checkItem, i) => {
+          if (checkItem?.message) {
             last = last.then(() => {
-              log.info(`About to send Discord award #${i + 1}: ${award.message}`);
-              return discordClient.send(award.message, publish)
-                .then(() => log.info(`Successfully sent Discord award #${i + 1}`))
-                .catch((error) => log.error(`Error sending Discord award #${i + 1}:`, error));
+              const checkItemMsg = enrichWithEmojis(checkItem.message, 'check_item');
+              log.info(`About to send Discord check item #${i + 1}: ${checkItemMsg}`);
+              return discordClient.send(checkItemMsg, publish)
+                .then(() => log.info(`Successfully sent Discord check item #${i + 1}`))
+                .catch((error) => log.error(`Error sending Discord check item #${i + 1}:`, error));
             });
           }
         });

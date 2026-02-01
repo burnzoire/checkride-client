@@ -21,7 +21,7 @@ const EVENT_EMOJIS = {
   crash: ':skull: ',
   eject: ':parachute: ',
   self_kill: ':eight_pointed_black_star: ',
-  pilot_kill: ':headstone: ',
+  pilot_death: ':headstone: ',
   achievement: ':white_check_mark: ',
 };
 

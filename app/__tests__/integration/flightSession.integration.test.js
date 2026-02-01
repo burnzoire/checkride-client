@@ -292,8 +292,8 @@ describe('Flight session integration', () => {
     apiClientMock.saveEvent.mockResolvedValueOnce({
       summary: 'Pilot 1 (F-16) took off',
       publish: true,
-      awards: [
-        { message: 'Pilot 1 was awarded F-16 Gun – Bronze ★' }
+      achievements: [
+        { message: 'Pilot 1 achieved F-16 Gun Basic Proficiency' }
       ]
     });
 
@@ -308,6 +308,6 @@ describe('Flight session integration', () => {
     await udpServer.onEvent(takeoffEvent);
 
     expect(discordClientMock.send).toHaveBeenCalledWith('Pilot 1 (F-16) took off', true);
-    expect(discordClientMock.send).toHaveBeenCalledWith('Pilot 1 was awarded F-16 Gun – Bronze ★', true);
+    expect(discordClientMock.send).toHaveBeenCalledWith(':white_check_mark: Pilot 1 achieved F-16 Gun Basic Proficiency', true);
   });
 });

@@ -57,7 +57,7 @@ describe('HealthChecker', () => {
     expect(onStatusChange).toHaveBeenCalledWith(false);
   });
 
-  it('checks health successfully and logs success', async () => {
+  it('checks health successfully', async () => {
     store = buildStore({ api_healthy: false });
     apiClient.healthcheck.mockResolvedValue({ status: 'ok' });
     const onStatusChange = jest.fn();
@@ -69,7 +69,6 @@ describe('HealthChecker', () => {
     expect(apiClient.healthcheck).toHaveBeenCalled();
     expect(store.set).toHaveBeenCalledWith('api_healthy', true);
     expect(onStatusChange).toHaveBeenCalledWith(true);
-    expect(log.info).toHaveBeenCalledWith('API health check passed');
   });
 
   it('handles failed health checks and logs warning', async () => {

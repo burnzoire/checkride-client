@@ -10,6 +10,25 @@ const log = require('electron-log');
 const store = require('./config');
 
 const DEFAULT_UDP_PORT = 41234;
+// Emoji enrichment utility for Discord summaries
+const EVENT_EMOJIS = {
+  kill: ':dart: ',
+  takeoff: ':airplane_departure: ',
+  landing: ':airplane_arriving: ',
+  connect: ':link: ',
+  disconnect: ':broken_chain: ',
+  change_slot: ':repeat: ',
+  crash: ':skull: ',
+  eject: ':parachute: ',
+  self_kill: ':eight_pointed_black_star: ',
+  pilot_death: ':headstone: ',
+  achievement: ':white_check_mark: ',
+};
+
+function enrichWithEmojis(summary, eventType) {
+  const emoji = EVENT_EMOJIS[eventType];
+  return emoji ? emoji + summary : summary;
+}
 
 function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcessor }) {
   const processor = eventProcessor || new EventProcessor();
@@ -24,22 +43,24 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
       .then((response) => {
         log.info(`API response: ${JSON.stringify(response)}`);
         const publish = response?.publish !== false;
-        const awards = Array.isArray(response?.awards) ? response.awards : [];
+        const achievements = Array.isArray(response?.achievements) ? response.achievements : [];
         if (!response?.summary) return;
-        log.info(`About to send Discord summary: ${response.summary}`);
-        let last = discordClient.send(response.summary, publish)
+        const summaryMsg = enrichWithEmojis(response.summary, response.event_type);
+        log.info(`About to send Discord summary: ${summaryMsg}`);
+        let last = discordClient.send(summaryMsg, publish)
           .then(() => {
             log.info('Successfully sent Discord summary');
           })
           .catch((error) => log.error('Error sending Discord summary:', error));
 
-        awards.forEach((award, i) => {
-          if (award?.message) {
+        achievements.forEach((achievement, i) => {
+          if (achievement?.message) {
             last = last.then(() => {
-              log.info(`About to send Discord award #${i + 1}: ${award.message}`);
-              return discordClient.send(award.message, publish)
-                .then(() => log.info(`Successfully sent Discord award #${i + 1}`))
-                .catch((error) => log.error(`Error sending Discord award #${i + 1}:`, error));
+              const achievementMsg = enrichWithEmojis(achievement.message, 'achievement');
+              log.info(`About to send Discord achievement #${i + 1}: ${achievementMsg}`);
+              return discordClient.send(achievementMsg, publish)
+                .then(() => log.info(`Successfully sent Discord achievement #${i + 1}`))
+                .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));
             });
           }
         });

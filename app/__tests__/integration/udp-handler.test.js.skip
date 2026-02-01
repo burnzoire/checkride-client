@@ -58,7 +58,7 @@ describe('socket.js - Integration Tests', () => {
         // Simulate server response
         const serverResponse = {
           summary: 'Top Gun destroyed Enemy Pilot',
-          check_items: [],
+          achievements: [],
           publish: true
         };
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify(serverResponse)));
@@ -77,7 +77,7 @@ describe('socket.js - Integration Tests', () => {
       });
     });
 
-    it('should handle takeoff event with check items', async () => {
+    it('should handle takeoff event with achievements', async () => {
       jest.isolateModules(() => {
         const { handleUdpMessage } = require('../../socket');
 
@@ -98,10 +98,10 @@ describe('socket.js - Integration Tests', () => {
 
         const handlePromise = handleUdpMessage(msg, rinfo);
 
-        // Simulate server response with check item
+        // Simulate server response with achievement
         const serverResponse = {
           summary: 'Test Pilot took off',
-          check_items: [{
+          achievements: [{
             pilot: 'Test Pilot',
             badge: { title: 'First Flight' }
           }],
@@ -144,7 +144,7 @@ describe('socket.js - Integration Tests', () => {
 
         const serverResponse = {
           summary: 'Test Pilot landed safely',
-          check_items: [],
+          achievements: [],
           publish: true
         };
 
@@ -183,7 +183,7 @@ describe('socket.js - Integration Tests', () => {
 
         const serverResponse = {
           summary: 'Test Pilot crashed',
-          check_items: [],
+          achievements: [],
           publish: true
         };
 
@@ -207,7 +207,7 @@ describe('socket.js - Integration Tests', () => {
 
         const serverResponse = {
           summary: 'Test Pilot ejected',
-          check_items: [],
+          achievements: [],
           publish: false
         };
 
@@ -231,7 +231,7 @@ describe('socket.js - Integration Tests', () => {
 
         const serverResponse = {
           summary: 'Test Pilot disconnected',
-          check_items: [],
+          achievements: [],
           publish: false
         };
 
@@ -255,7 +255,7 @@ describe('socket.js - Integration Tests', () => {
 
         const serverResponse = {
           summary: 'Test Pilot changed slot',
-          check_items: [],
+          achievements: [],
           publish: false
         };
 

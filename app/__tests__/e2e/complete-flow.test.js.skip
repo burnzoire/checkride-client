@@ -72,10 +72,10 @@ describe.skip('End-to-End Tests', () => {
 
         const handlePromise = handleUdpMessage(msg, rinfo, server);
 
-        // Simulate server response with check item
+        // Simulate server response with achievement
         const serverResponse = {
           summary: 'Top Gun destroyed Enemy Pilot with AIM-9M',
-          check_items: [{
+          achievements: [{
             pilot: 'Top Gun',
             badge: { title: 'First Kill' }
           }],
@@ -106,7 +106,7 @@ describe.skip('End-to-End Tests', () => {
         expect(decodedPayload.event.killer_name).toBe('Top Gun');
         expect(decodedPayload.event.victim_name).toBe('Enemy Pilot');
 
-        // Verify Discord notifications were sent (summary + check item)
+        // Verify Discord notifications were sent (summary + achievement)
         expect(https.request).toHaveBeenCalledTimes(2);
 
         expect(result).toEqual(serverResponse);
@@ -126,7 +126,7 @@ describe.skip('End-to-End Tests', () => {
         await delay(5);
         mockHttpResponse._triggerData(Buffer.from(JSON.stringify({
           summary: 'Player connected',
-          check_items: [],
+          achievements: [],
           publish: false
         })));
         mockHttpResponse._triggerEnd();
@@ -150,7 +150,7 @@ describe.skip('End-to-End Tests', () => {
         await delay(5);
         newHttpResponse._triggerData(Buffer.from(JSON.stringify({
           summary: 'Player took off',
-          check_items: [],
+          achievements: [],
           publish: true
         })));
         newHttpResponse._triggerEnd();
@@ -162,7 +162,7 @@ describe.skip('End-to-End Tests', () => {
       });
     });
 
-    it('should handle event with multiple check items', async () => {
+    it('should handle event with multiple achievements', async () => {
       return jest.isolateModules(async () => {
         const { handleUdpMessage } = require('../../socket');
 
@@ -173,7 +173,7 @@ describe.skip('End-to-End Tests', () => {
 
         const serverResponse = {
           summary: 'Perfect landing!',
-          check_items: [
+          achievements: [
             { pilot: 'Test Pilot', badge: { title: 'First Landing' } },
             { pilot: 'Test Pilot', badge: { title: 'Carrier Landing' } },
             { pilot: 'Test Pilot', badge: { title: 'Night Landing' } }
@@ -187,7 +187,7 @@ describe.skip('End-to-End Tests', () => {
 
         await handlePromise;
 
-        // Should have sent summary + 3 check item messages
+        // Should have sent summary + 3 achievement messages
         expect(https.request).toHaveBeenCalledTimes(4);
       });
     });
@@ -210,7 +210,7 @@ describe.skip('End-to-End Tests', () => {
 
         const serverResponse = {
           summary: 'Takeoff recorded',
-            check_items: [],
+            achievements: [],
           publish: true
         };
 

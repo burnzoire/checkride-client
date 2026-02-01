@@ -30,7 +30,6 @@ class HealthChecker {
     try {
       await this.apiClient.healthcheck();
       this.updateStatus(true);
-      log.info('API health check passed');
     } catch (error) {
       this.updateStatus(false);
       log.warn('API health check failed:', error.message);

@@ -22,7 +22,7 @@ const EVENT_EMOJIS = {
   eject: ':parachute: ',
   self_kill: ':eight_pointed_black_star: ',
   pilot_kill: ':headstone: ',
-  check_item: ':white_check_mark: ',
+  achievement: ':white_check_mark: ',
 };
 
 function enrichWithEmojis(summary, eventType) {
@@ -43,7 +43,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
       .then((response) => {
         log.info(`API response: ${JSON.stringify(response)}`);
         const publish = response?.publish !== false;
-        const checkItems = Array.isArray(response?.check_items) ? response.check_items : [];
+        const achievements = Array.isArray(response?.achievements) ? response.achievements : [];
         if (!response?.summary) return;
         const summaryMsg = enrichWithEmojis(response.summary, response.event_type);
         log.info(`About to send Discord summary: ${summaryMsg}`);
@@ -53,14 +53,14 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
           })
           .catch((error) => log.error('Error sending Discord summary:', error));
 
-        checkItems.forEach((checkItem, i) => {
-          if (checkItem?.message) {
+        achievements.forEach((achievement, i) => {
+          if (achievement?.message) {
             last = last.then(() => {
-              const checkItemMsg = enrichWithEmojis(checkItem.message, 'check_item');
-              log.info(`About to send Discord check item #${i + 1}: ${checkItemMsg}`);
-              return discordClient.send(checkItemMsg, publish)
-                .then(() => log.info(`Successfully sent Discord check item #${i + 1}`))
-                .catch((error) => log.error(`Error sending Discord check item #${i + 1}:`, error));
+              const achievementMsg = enrichWithEmojis(achievement.message, 'achievement');
+              log.info(`About to send Discord achievement #${i + 1}: ${achievementMsg}`);
+              return discordClient.send(achievementMsg, publish)
+                .then(() => log.info(`Successfully sent Discord achievement #${i + 1}`))
+                .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));
             });
           }
         });

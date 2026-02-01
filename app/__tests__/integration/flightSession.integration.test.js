@@ -292,8 +292,8 @@ describe('Flight session integration', () => {
     apiClientMock.saveEvent.mockResolvedValueOnce({
       summary: 'Pilot 1 (F-16) took off',
       publish: true,
-      check_items: [
-        { message: 'Pilot 1 completed F-16 Gun I – Familiarization' }
+      achievements: [
+        { message: 'Pilot 1 achieved F-16 Gun Basic Proficiency' }
       ]
     });
 
@@ -308,6 +308,6 @@ describe('Flight session integration', () => {
     await udpServer.onEvent(takeoffEvent);
 
     expect(discordClientMock.send).toHaveBeenCalledWith('Pilot 1 (F-16) took off', true);
-    expect(discordClientMock.send).toHaveBeenCalledWith('Pilot 1 completed F-16 Gun I – Familiarization', true);
+    expect(discordClientMock.send).toHaveBeenCalledWith('Pilot 1 achieved F-16 Gun Basic Proficiency', true);
   });
 });

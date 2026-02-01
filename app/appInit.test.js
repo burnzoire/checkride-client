@@ -154,16 +154,16 @@ describe('initApp', () => {
     expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
   });
 
-  it('sends check item messages when check items are present', async () => {
+  it('sends achievement messages when achievements are present', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
     };
     const apiResponse = {
       summary: 'summary',
-      check_items: [
-        { message: 'Maverick completed F-14 Sidewinder I – Familiarization' },
-        { message: 'Maverick completed F-14 Sidewinder II – Operational' }
+      achievements: [
+        { message: 'Maverick achieved F-14 Sidewinder Basic Proficiency' },
+        { message: 'Maverick achieved F-14 Sidewinder Advanced Proficiency' }
       ]
     };
     const apiClientMock = {
@@ -185,8 +185,8 @@ describe('initApp', () => {
     await udpServer.onEvent(fakeEvent);
 
     expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
-    expect(discordClientMock.send).toHaveBeenCalledWith('Maverick completed F-14 Sidewinder I – Familiarization', true);
-    expect(discordClientMock.send).toHaveBeenCalledWith('Maverick completed F-14 Sidewinder II – Operational', true);
+    expect(discordClientMock.send).toHaveBeenCalledWith('Maverick achieved F-14 Sidewinder Basic Proficiency', true);
+    expect(discordClientMock.send).toHaveBeenCalledWith('Maverick achieved F-14 Sidewinder Advanced Proficiency', true);
   });
 
   it('does not send discord messages when summary is missing', async () => {
@@ -195,7 +195,7 @@ describe('initApp', () => {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
     };
     const apiResponse = {
-      check_items: [{ message: 'Check item should not be sent' }]
+      achievements: [{ message: 'Achievement should not be sent' }]
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue(apiResponse),
@@ -248,23 +248,23 @@ describe('initApp', () => {
     expect(log.error).toHaveBeenCalledWith('Error sending Discord summary:', discordError);
   });
 
-  it('logs errors when discord check item send fails', async () => {
+  it('logs errors when discord achievement send fails', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
     };
     const apiResponse = {
       summary: 'summary',
-      check_items: [{ message: 'Check item message' }]
+      achievements: [{ message: 'Achievement message' }]
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue(apiResponse),
     };
-    const checkItemError = new Error('check item failed');
+    const achievementError = new Error('achievement failed');
     const discordClientMock = {
       send: jest.fn()
         .mockResolvedValueOnce()
-        .mockRejectedValueOnce(checkItemError),
+        .mockRejectedValueOnce(achievementError),
     };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
@@ -278,7 +278,7 @@ describe('initApp', () => {
 
     await udpServer.onEvent(fakeEvent);
 
-    expect(log.error).toHaveBeenCalledWith('Error sending Discord check item #1:', checkItemError);
+    expect(log.error).toHaveBeenCalledWith('Error sending Discord achievement #1:', achievementError);
   });
 
 

@@ -49,12 +49,11 @@ end
 
 function Checkride.sendChatToAll(message)
     if not message or message == "" then
-        net.send_chat_to_all(message)
         return
     end
 
     if net and net.send_chat then
-        net.send_chat(message)
+        net.send_chat(message, true)
         return
     end
 
@@ -67,10 +66,12 @@ function Checkride.pollChatSocket()
     end
 
     while true do
-        local payload = Checkride.UDPReceiveSocket:receivefrom()
+        local payload, remoteIp, remotePort = Checkride.UDPReceiveSocket:receivefrom()
         if not payload then
             break
         end
+
+        Checkride.log("Received UDP chat payload from " .. tostring(remoteIp) .. ":" .. tostring(remotePort))
 
         local trimmed = string.gsub(payload, "^%s*(.-)%s*$", "%1")
         local message = trimmed

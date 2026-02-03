@@ -17,6 +17,7 @@ let discordClient;
 let eventProcessor;
 let demoController;
 let healthChecker;
+let isQuitting = false;
 
 const openSettingsWindow = () => {
   return showSettingsWindow();
@@ -231,13 +232,14 @@ ipcMain.handle('api:health', () => {
 
 app.whenReady().then(bootstrap);
 
-app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') {
-    app.quit();
+app.on('window-all-closed', (event) => {
+  if (!isQuitting) {
+    event.preventDefault();
   }
 });
 
 app.on('before-quit', () => {
+  isQuitting = true;
   if (demoController?.isRunning) {
     demoController.stop();
   }

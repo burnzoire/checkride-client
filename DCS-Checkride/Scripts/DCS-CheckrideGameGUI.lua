@@ -28,7 +28,7 @@ package.cpath = package.cpath .. ";.\\LuaSocket\\?.dll;"
 local JSON = loadfile("Scripts\\JSON.lua")()
 local socket = require("socket")
 
-Checkride.ChatPollInterval = 0.5
+Checkride.ChatPollInterval = 0.2
 Checkride.LastChatPollAt = 0
 
 Checkride.UPDHost = "127.0.0.1"
@@ -36,7 +36,7 @@ Checkride.UDPPort = 41234
 Checkride.UDPSendSocket = socket.udp()
 Checkride.UDPSendSocket:settimeout(0)
 
-Checkride.UDPChatHost = "127.0.0.1"
+Checkride.UDPChatHost = "0.0.0.0"
 Checkride.UDPChatPort = 41235
 Checkride.UDPReceiveSocket = socket.udp()
 Checkride.UDPReceiveSocket:settimeout(0)

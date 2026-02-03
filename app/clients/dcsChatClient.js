@@ -27,6 +27,8 @@ class DCSChatClient {
       source: 'checkride',
     });
 
+    log.info(`Sending DCS chat payload: ${payload}`);
+
     return new Promise((resolve) => {
       this.socket.send(payload, this.port, this.host, (error) => {
         if (error) {

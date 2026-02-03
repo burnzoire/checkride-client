@@ -1,4 +1,4 @@
-const createTestEvents = (udpServer, { enabled = true } = {}) => [
+const createTestEvents = (udpServer, { enabled = true, dcsChatClient } = {}) => [
   {
     label: 'Send test kill event',
     enabled,
@@ -152,6 +152,16 @@ const createTestEvents = (udpServer, { enabled = true } = {}) => [
         playerUcid: "test1",
         playerName: "Test Pilot",
       });
+    }
+  },
+  {
+    label: 'Send test chat message',
+    enabled: enabled && Boolean(dcsChatClient?.send),
+    click() {
+      if (!dcsChatClient?.send) {
+        return;
+      }
+      dcsChatClient.send('Checkride test chat message', true, { kind: 'test' });
     }
   },
 

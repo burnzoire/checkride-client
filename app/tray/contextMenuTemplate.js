@@ -12,7 +12,7 @@ const contextMenuTemplate = (udpServer, api, openSettings, options = {}) => [
     role: 'about',
   },
   ...createDemoModeMenu(options.demoController, { onChange: options.onChange, enabled: options.isHealthy !== false }),
-  ...createTestEvents(udpServer, { enabled: options.isHealthy !== false }),
+  ...createTestEvents(udpServer, { enabled: options.isHealthy !== false, dcsChatClient: options.dcsChatClient }),
   { type: 'separator' },
   {
     label: 'Quit Checkride',

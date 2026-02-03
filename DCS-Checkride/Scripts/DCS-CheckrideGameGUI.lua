@@ -28,15 +28,79 @@ package.cpath = package.cpath .. ";.\\LuaSocket\\?.dll;"
 local JSON = loadfile("Scripts\\JSON.lua")()
 local socket = require("socket")
 
+Checkride.ChatPollInterval = 0.5
+Checkride.LastChatPollAt = 0
+
 Checkride.UPDHost = "127.0.0.1"
 Checkride.UDPPort = 41234
 Checkride.UDPSendSocket = socket.udp()
 Checkride.UDPSendSocket:settimeout(0)
 
+Checkride.UDPChatHost = "127.0.0.1"
+Checkride.UDPChatPort = 41235
+Checkride.UDPReceiveSocket = socket.udp()
+Checkride.UDPReceiveSocket:settimeout(0)
+local listen_ok, listen_err = Checkride.UDPReceiveSocket:setsockname(Checkride.UDPChatHost, Checkride.UDPChatPort)
+if not listen_ok then
+    Checkride.log("Failed to bind UDP chat listener: " .. tostring(listen_err))
+else
+    Checkride.log("Listening for chat messages on " .. Checkride.UDPChatHost .. ":" .. Checkride.UDPChatPort)
+end
+
 
 function Checkride.sendEvent(message)
     Checkride.log("send event: " .. message.type)
     socket.try(Checkride.UDPSendSocket:sendto(JSON:encode(message) .. " \n", Checkride.UPDHost, Checkride.UDPPort))
+end
+
+function Checkride.sendChatToAll(message)
+    if not message or message == "" then
+        return
+    end
+
+    if net and net.send_chat_to_all then
+        net.send_chat_to_all(message)
+        return
+    end
+
+    if net and net.send_chat then
+        net.send_chat(message)
+        return
+    end
+
+    Checkride.log("Chat send API not available")
+end
+
+function Checkride.pollChatSocket()
+    if not Checkride.UDPReceiveSocket then
+        return
+    end
+
+    while true do
+        local payload = Checkride.UDPReceiveSocket:receivefrom()
+        if not payload then
+            break
+        end
+
+        local trimmed = string.gsub(payload, "^%s*(.-)%s*$", "%1")
+        local message = trimmed
+        local ok, decoded = pcall(function()
+            return JSON:decode(trimmed)
+        end)
+
+        if ok and type(decoded) == "table" then
+            if decoded.message and decoded.message ~= "" then
+                message = decoded.message
+            elseif decoded.text and decoded.text ~= "" then
+                message = decoded.text
+            end
+        end
+
+        if message and message ~= "" then
+            Checkride.log("Received chat message: " .. message)
+            Checkride.sendChatToAll(message)
+        end
+    end
 end
 
 -- ============================================================================
@@ -387,6 +451,20 @@ end
 function Checkride.onChatMessage(message, from)
     local name = net.get_player_info(from, "name")
     Checkride.log("Message: [" .. from .. "] " .. name .. " - " .. message)
+end
+
+function Checkride.onSimulationFrame()
+    local now = DCS.getRealTime()
+    if not now then
+        return
+    end
+
+    if (now - Checkride.LastChatPollAt) < Checkride.ChatPollInterval then
+        return
+    end
+
+    Checkride.LastChatPollAt = now
+    Checkride.pollChatSocket()
 end
 
 -- ============================================================================

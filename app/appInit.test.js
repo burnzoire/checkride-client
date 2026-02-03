@@ -1,5 +1,6 @@
 jest.mock('./clients/apiClient');
 jest.mock('./clients/discordClient');
+jest.mock('./clients/dcsChatClient');
 jest.mock('./services/udpServer');
 jest.mock('./factories/eventFactory');
 jest.mock('./config');
@@ -9,6 +10,7 @@ jest.mock('./services/healthChecker');
 
 const { APIClient } = require('./clients/apiClient');
 const { DiscordClient } = require('./clients/discordClient');
+const { DCSChatClient } = require('./clients/dcsChatClient');
 const UDPServer = require('./services/udpServer');
 const { EventFactory } = require('./factories/eventFactory');
 const store = require('./config');
@@ -18,7 +20,7 @@ const { EventProcessor } = require('./services/eventProcessor');
 const { HealthChecker } = require('./services/healthChecker');
 
 describe('initApp', () => {
-  let fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, fakeDiscordWebhookPath, udpServerMock, processMock;
+  let fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, fakeDiscordWebhookPath, udpServerMock, dcsChatClientMock, processMock;
 
   beforeEach(() => {
     fakeUseSsl = true;
@@ -32,7 +34,12 @@ describe('initApp', () => {
       onEvent: jest.fn()
     };
 
+    dcsChatClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
+
     UDPServer.mockImplementation(() => udpServerMock);
+    DCSChatClient.mockImplementation(() => dcsChatClientMock);
 
     processMock = jest.fn((_, payload) => payload);
     EventProcessor.mockImplementation(() => ({ process: processMock }));
@@ -71,11 +78,12 @@ describe('initApp', () => {
   });
 
   it('initializes application with correct configurations and sets up udp server', async () => {
-    const { udpServer, apiClient, discordClient } = await initApp();
+    const { udpServer, apiClient, discordClient, dcsChatClient } = await initApp();
 
     expect(udpServer).toBe(udpServerMock);
     expect(apiClient).toBeInstanceOf(APIClient);
     expect(discordClient).toBeInstanceOf(DiscordClient);
+    expect(dcsChatClient).toBeInstanceOf(DCSChatClient);
 
     expect(UDPServer).toHaveBeenCalledWith(41234);
     expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix);

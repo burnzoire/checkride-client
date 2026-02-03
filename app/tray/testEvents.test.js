@@ -2,9 +2,13 @@ const createTestEvents = require('./testEvents');
 
 describe('testEvents', () => {
   let mockUdpServer;
+  let mockDcsChatClient;
 
   beforeEach(() => {
     mockUdpServer = {
+      send: jest.fn(),
+    };
+    mockDcsChatClient = {
       send: jest.fn(),
     };
   });
@@ -284,12 +288,29 @@ describe('testEvents', () => {
   });
 
   it('should have all menu items with click functions', () => {
-    const events = createTestEvents(mockUdpServer);
+    const events = createTestEvents(mockUdpServer, { dcsChatClient: mockDcsChatClient });
 
     events.forEach(event => {
       expect(event).toHaveProperty('label');
       expect(event).toHaveProperty('click');
       expect(typeof event.click).toBe('function');
     });
+  });
+
+  it('should include test chat message', () => {
+    const events = createTestEvents(mockUdpServer, { dcsChatClient: mockDcsChatClient });
+    const chatEvent = events.find(item => item.label === 'Send test chat message');
+
+    expect(chatEvent).toBeDefined();
+    expect(chatEvent.enabled).toBe(true);
+  });
+
+  it('should send chat message when clicked', () => {
+    const events = createTestEvents(mockUdpServer, { dcsChatClient: mockDcsChatClient });
+    const chatEvent = events.find(item => item.label === 'Send test chat message');
+
+    chatEvent.click();
+
+    expect(mockDcsChatClient.send).toHaveBeenCalledWith('Checkride test chat message', true, { kind: 'test' });
   });
 });

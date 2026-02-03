@@ -33,7 +33,7 @@ Checkride.UDPSendSocket:settimeout(0)
 Checkride.UDPChatHost = "0.0.0.0"
 Checkride.UDPChatPort = 41235
 Checkride.UDPReceiveSocket = socket.udp()
-Checkride.UDPReceiveSocket:settimeout(0)
+Checkride.UDPReceiveSocket:settimeout(1)
 local listen_ok, listen_err = Checkride.UDPReceiveSocket:setsockname(Checkride.UDPChatHost, Checkride.UDPChatPort)
 if not listen_ok then
     Checkride.log("Failed to bind UDP chat listener: " .. tostring(listen_err))

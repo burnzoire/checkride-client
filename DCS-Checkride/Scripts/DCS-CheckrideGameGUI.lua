@@ -18,18 +18,12 @@ function Checkride.log(str)
         Checkride.logFile:flush()
     end
 end
-
--- ============================================================================
--- UDP Setup
 -- ============================================================================
 package.path  = package.path .. ";.\\LuaSocket\\?.lua;"
 package.cpath = package.cpath .. ";.\\LuaSocket\\?.dll;"
 
 local JSON = loadfile("Scripts\\JSON.lua")()
 local socket = require("socket")
-
-Checkride.ChatPollInterval = 0.2
-Checkride.LastChatPollAt = 0
 
 Checkride.UPDHost = "127.0.0.1"
 Checkride.UDPPort = 41234
@@ -55,10 +49,6 @@ end
 
 function Checkride.sendChatToAll(message)
     if not message or message == "" then
-        return
-    end
-
-    if net and net.send_chat_to_all then
         net.send_chat_to_all(message)
         return
     end
@@ -101,6 +91,19 @@ function Checkride.pollChatSocket()
             Checkride.sendChatToAll(message)
         end
     end
+end
+
+function Checkride.startChatPoller()
+    if timer and timer.scheduleFunction and timer.getTime then
+        timer.scheduleFunction(function(_, time)
+            Checkride.pollChatSocket()
+            return time + 0.2
+        end, nil, timer.getTime() + 0.2)
+        Checkride.log("Chat poller scheduled via timer")
+        return
+    end
+
+    Checkride.log("Chat poller could not be scheduled (timer API unavailable)")
 end
 
 -- ============================================================================
@@ -453,23 +456,7 @@ function Checkride.onChatMessage(message, from)
     Checkride.log("Message: [" .. from .. "] " .. name .. " - " .. message)
 end
 
-function Checkride.onSimulationFrame()
-    local now = DCS.getRealTime()
-    if not now then
-        return
-    end
-
-    if (now - Checkride.LastChatPollAt) < Checkride.ChatPollInterval then
-        return
-    end
-
-    Checkride.LastChatPollAt = now
-    Checkride.pollChatSocket()
-end
-
--- ============================================================================
--- Initialize
--- ============================================================================
+Checkride.startChatPoller()
 DCS.setUserCallbacks(Checkride)
 net.log("Loaded - DCS-Checkride GameGUI")
 Checkride.log("Checkride loaded v" .. Checkride.version)

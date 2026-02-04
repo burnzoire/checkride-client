@@ -1,4 +1,5 @@
 const { DiscordClient } = require('./clients/discordClient');
+const { DCSChatClient, DEFAULT_DCS_CHAT_HOST } = require('./clients/dcsChatClient');
 const UDPServer = require('./services/udpServer');
 const { EventProcessor } = require('./services/eventProcessor');
 const { EventFactory } = require('./factories/eventFactory');
@@ -10,6 +11,7 @@ const log = require('electron-log');
 const store = require('./config');
 
 const DEFAULT_UDP_PORT = 41234;
+const DEFAULT_DCS_CHAT_UDP_PORT = 41235;
 // Emoji enrichment utility for Discord summaries
 const EVENT_EMOJIS = {
   kill: ':dart: ',
@@ -30,7 +32,7 @@ function enrichWithEmojis(summary, eventType) {
   return emoji ? emoji + summary : summary;
 }
 
-function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcessor }) {
+function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, eventProcessor }) {
   const processor = eventProcessor || new EventProcessor();
   udpServer.onEvent = (event) => {
     log.info(`Handling event: ${JSON.stringify(event)}`)
@@ -58,6 +60,10 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, eventProcess
             last = last.then(() => {
               const achievementMsg = enrichWithEmojis(achievement.message, 'achievement');
               log.info(`About to send Discord achievement #${i + 1}: ${achievementMsg}`);
+              if (dcsChatClient?.send) {
+                dcsChatClient.send(achievement.message, publish, { kind: 'achievement' })
+                  .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
+              }
               return discordClient.send(achievementMsg, publish)
                 .then(() => log.info(`Successfully sent Discord achievement #${i + 1}`))
                 .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));
@@ -79,17 +85,21 @@ async function initApp() {
   const discordWebhookPath = store.get("discord_webhook_path")
   const apiClient = new APIClient(useSsl, apiHost, apiPort, apiToken, pathPrefix)
   const discordClient = new DiscordClient(discordWebhookPath)
+  const dcsChatClient = new DCSChatClient({
+    host: DEFAULT_DCS_CHAT_HOST,
+    port: DEFAULT_DCS_CHAT_UDP_PORT,
+  })
   const udpServer = new UDPServer(DEFAULT_UDP_PORT)
 
   const eventProcessor = new EventProcessor()
 
-  attachEventPipeline({ udpServer, apiClient, discordClient, eventProcessor })
+  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, eventProcessor })
 
   // Initialize and start health checker
   const healthChecker = new HealthChecker(apiClient, store)
   healthChecker.start()
 
-  return { udpServer, apiClient, discordClient, eventProcessor, healthChecker };
+  return { udpServer, apiClient, discordClient, dcsChatClient, eventProcessor, healthChecker };
 }
 
 module.exports = { initApp, attachEventPipeline };

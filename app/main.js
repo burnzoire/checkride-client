@@ -14,6 +14,7 @@ let iconImageGray;
 let udpServer;
 let apiClient;
 let discordClient;
+let dcsChatClient;
 let eventProcessor;
 let demoController;
 let healthChecker;
@@ -61,6 +62,7 @@ function buildContextMenu() {
     contextMenuTemplate(udpServer, apiClient, openSettingsWindow, {
       isHealthy,
       demoController,
+      dcsChatClient,
       onChange: () => {
         if (tray) {
           tray.setContextMenu(buildContextMenu());
@@ -139,6 +141,7 @@ async function bootstrap() {
   udpServer = appInitResult.udpServer;
   apiClient = appInitResult.apiClient;
   discordClient = appInitResult.discordClient;
+  dcsChatClient = appInitResult.dcsChatClient;
   eventProcessor = appInitResult.eventProcessor;
   healthChecker = appInitResult.healthChecker;
 

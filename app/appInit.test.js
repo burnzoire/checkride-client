@@ -1,5 +1,6 @@
 jest.mock('./clients/apiClient');
 jest.mock('./clients/discordClient');
+jest.mock('./clients/dcsChatClient');
 jest.mock('./services/udpServer');
 jest.mock('./factories/eventFactory');
 jest.mock('./config');
@@ -9,6 +10,7 @@ jest.mock('./services/healthChecker');
 
 const { APIClient } = require('./clients/apiClient');
 const { DiscordClient } = require('./clients/discordClient');
+const { DCSChatClient } = require('./clients/dcsChatClient');
 const UDPServer = require('./services/udpServer');
 const { EventFactory } = require('./factories/eventFactory');
 const store = require('./config');
@@ -18,7 +20,7 @@ const { EventProcessor } = require('./services/eventProcessor');
 const { HealthChecker } = require('./services/healthChecker');
 
 describe('initApp', () => {
-  let fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, fakeDiscordWebhookPath, udpServerMock, processMock;
+  let fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, fakeDiscordWebhookPath, udpServerMock, dcsChatClientMock, processMock;
 
   beforeEach(() => {
     fakeUseSsl = true;
@@ -32,7 +34,12 @@ describe('initApp', () => {
       onEvent: jest.fn()
     };
 
+    dcsChatClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
+
     UDPServer.mockImplementation(() => udpServerMock);
+    DCSChatClient.mockImplementation(() => dcsChatClientMock);
 
     processMock = jest.fn((_, payload) => payload);
     EventProcessor.mockImplementation(() => ({ process: processMock }));
@@ -71,15 +78,17 @@ describe('initApp', () => {
   });
 
   it('initializes application with correct configurations and sets up udp server', async () => {
-    const { udpServer, apiClient, discordClient } = await initApp();
+    const { udpServer, apiClient, discordClient, dcsChatClient } = await initApp();
 
     expect(udpServer).toBe(udpServerMock);
     expect(apiClient).toBeInstanceOf(APIClient);
     expect(discordClient).toBeInstanceOf(DiscordClient);
+    expect(dcsChatClient).toBe(dcsChatClientMock);
 
     expect(UDPServer).toHaveBeenCalledWith(41234);
     expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix);
     expect(DiscordClient).toHaveBeenCalledWith(fakeDiscordWebhookPath);
+    expect(DCSChatClient).toHaveBeenCalled();
 
     expect(udpServer.onEvent).toBeDefined();
   });
@@ -139,13 +148,16 @@ describe('initApp', () => {
     const discordClientMock = {
       send: jest.fn().mockResolvedValue(),
     };
+    const dcsChatClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
     const udpServer = {};
 
     processMock.mockImplementation((_, payload) => ({ ...payload, event: { ...payload.event, event_uid: 'uid' } }));
 
     EventFactory.create.mockResolvedValue(gameEvent);
 
-    attachEventPipeline({ udpServer, apiClient: apiClientMock, discordClient: discordClientMock });
+    attachEventPipeline({ udpServer, apiClient: apiClientMock, discordClient: discordClientMock, dcsChatClient: dcsChatClientMock });
 
     await udpServer.onEvent({ type: 'event' });
 
@@ -172,11 +184,15 @@ describe('initApp', () => {
     const discordClientMock = {
       send: jest.fn().mockResolvedValue(),
     };
+    const dcsChatClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
 
     APIClient.mockImplementation(() => apiClientMock);
     DiscordClient.mockImplementation(() => discordClientMock);
+    DCSChatClient.mockImplementation(() => dcsChatClientMock);
 
     EventFactory.create.mockResolvedValue(gameEvent);
 
@@ -187,6 +203,8 @@ describe('initApp', () => {
     expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
     expect(discordClientMock.send).toHaveBeenCalledWith(':white_check_mark: Maverick achieved F-14 Sidewinder Basic Proficiency', true);
     expect(discordClientMock.send).toHaveBeenCalledWith(':white_check_mark: Maverick achieved F-14 Sidewinder Advanced Proficiency', true);
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Maverick achieved F-14 Sidewinder Basic Proficiency', true, { kind: 'achievement' });
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Maverick achieved F-14 Sidewinder Advanced Proficiency', true, { kind: 'achievement' });
   });
 
   it('does not send discord messages when summary is missing', async () => {
@@ -203,11 +221,15 @@ describe('initApp', () => {
     const discordClientMock = {
       send: jest.fn().mockResolvedValue(),
     };
+    const dcsChatClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
 
     APIClient.mockImplementation(() => apiClientMock);
     DiscordClient.mockImplementation(() => discordClientMock);
+    DCSChatClient.mockImplementation(() => dcsChatClientMock);
 
     EventFactory.create.mockResolvedValue(gameEvent);
 
@@ -216,6 +238,7 @@ describe('initApp', () => {
     await udpServer.onEvent(fakeEvent);
 
     expect(discordClientMock.send).not.toHaveBeenCalled();
+    expect(dcsChatClientMock.send).not.toHaveBeenCalled();
   });
 
   it('logs errors when discord summary send fails', async () => {

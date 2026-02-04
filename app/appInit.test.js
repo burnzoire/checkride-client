@@ -83,11 +83,12 @@ describe('initApp', () => {
     expect(udpServer).toBe(udpServerMock);
     expect(apiClient).toBeInstanceOf(APIClient);
     expect(discordClient).toBeInstanceOf(DiscordClient);
-    expect(dcsChatClient).toBeInstanceOf(DCSChatClient);
+    expect(dcsChatClient).toBe(dcsChatClientMock);
 
     expect(UDPServer).toHaveBeenCalledWith(41234);
     expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix);
     expect(DiscordClient).toHaveBeenCalledWith(fakeDiscordWebhookPath);
+    expect(DCSChatClient).toHaveBeenCalled();
 
     expect(udpServer.onEvent).toBeDefined();
   });

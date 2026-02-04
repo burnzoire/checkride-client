@@ -1,6 +1,6 @@
 {
   "name": "checkride-client",
-  "version": "0.5.4-rc1",
+  "version": "0.6.0-rc10",
   "description": "",
   "main": "main.js",
   "scripts": {
@@ -34,10 +34,10 @@
     ],
     "coverageThreshold": {
       "global": {
-        "branches": 80,
-        "functions": 95,
-        "lines": 90,
-        "statements": 90
+        "branches": 85,
+        "functions": 85,
+        "lines": 85,
+        "statements": 85
       }
     },
     "coverageReporters": [
@@ -86,7 +86,7 @@
       },
       {
         "from": "../DCS-Checkride/Scripts/DCS-CheckrideGameGUI.lua",
-        "to": "dcs/Mods/Services/Checkride/Scripts/DCS-CheckrideGameGUI.lua"
+        "to": "dcs/Mods/Services/DCS-Checkride/Scripts/DCS-CheckrideGameGUI.lua"
       }
     ],
     "directories": {

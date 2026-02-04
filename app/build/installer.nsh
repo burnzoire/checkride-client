@@ -36,9 +36,10 @@ FunctionEnd
   CreateDirectory "$DcsPath\Mods\Services\DCS-Checkride\Scripts"
 
   SetOverwrite on
-  Delete "$DcsPath\Scripts\Hooks\DCS-Checkride-hook.lua"
-  Delete "$DcsPath\Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideGameGUI.lua"
 
-  CopyFiles /SILENT "$INSTDIR\resources\dcs\Scripts\Hooks\DCS-Checkride-hook.lua" "$DcsPath\Scripts\Hooks"
-  CopyFiles /SILENT "$INSTDIR\resources\dcs\Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideGameGUI.lua" "$DcsPath\Mods\Services\DCS-Checkride\Scripts"
+  SetOutPath "$DcsPath\Scripts\Hooks"
+  File "/oname=DCS-Checkride-hook.lua" "$INSTDIR\resources\dcs\Scripts\Hooks\DCS-Checkride-hook.lua"
+
+  SetOutPath "$DcsPath\Mods\Services\DCS-Checkride\Scripts"
+  File "/oname=DCS-CheckrideGameGUI.lua" "$INSTDIR\resources\dcs\Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideGameGUI.lua"
 !macroend

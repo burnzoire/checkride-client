@@ -3,7 +3,7 @@ by [Burnzoire](http://github.com/burnzoire)
 
 [![Test Suite](https://github.com/burnzoire/checkride-client/actions/workflows/test.yml/badge.svg)](https://github.com/burnzoire/checkride-client/actions/workflows/test.yml)
 
-DCS Stats and Awards Tracker
+DCS Achievement and Stats Tracker
 
 ## Installation
 

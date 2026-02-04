@@ -1,6 +1,6 @@
 {
   "name": "checkride-client",
-  "version": "0.6.0-rc5",
+  "version": "0.6.0-rc6",
   "description": "",
   "main": "main.js",
   "scripts": {

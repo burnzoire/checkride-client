@@ -21,7 +21,7 @@ DCS Stats and Awards Tracker
 5. Enter the API Token provided by an Admin
 6. Check Use SSL if the server is securely hosted (under https://)
 7. If desired, enter the path of a Discord webhook. All events will be posted here.
-8. Click Save (Known issue - Saving may cause client to close. Please re-launch if this occurs). 
+8. Click Save.
 
 Settings are saved to `%APPDATA%/checkride-client/config.json`.
 

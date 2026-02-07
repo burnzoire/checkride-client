@@ -456,7 +456,8 @@ end
 
 function Checkride.onChatMessage(message, from)
     local name = net.get_player_info(from, "name")
-    Checkride.log("Message: [" .. from .. "] " .. name .. " - " .. message)
+    local nameLabel = (name and name ~= "") and (" " .. name .. " - ") or ""
+    Checkride.log("Message: [" .. tostring(from) .. "]" .. nameLabel .. tostring(message))
 end
 
 DCS.setUserCallbacks(Checkride)

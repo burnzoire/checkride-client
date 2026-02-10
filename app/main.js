@@ -1,4 +1,4 @@
-const { Menu, Tray, app, globalShortcut, ipcMain, nativeImage } = require('electron');
+const { Menu, Tray, app, globalShortcut, ipcMain, nativeImage, dialog } = require('electron');
 const path = require('path');
 const contextMenuTemplate = require('./tray/contextMenuTemplate');
 const { initApp, attachEventPipeline } = require('./appInit');
@@ -19,9 +19,20 @@ let eventProcessor;
 let demoController;
 let healthChecker;
 let isQuitting = false;
+const isDevMode = process.argv.includes('--dev');
+const isMac = process.platform === 'darwin';
 
 const openSettingsWindow = () => {
   return showSettingsWindow();
+};
+
+const openAboutPanel = () => {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'About Checkride',
+    message: `${app.getName()} ${app.getVersion()}`,
+    detail: 'Checkride client'
+  });
 };
 
 function createGrayscaleIcon(image) {
@@ -64,6 +75,8 @@ function buildContextMenu() {
       isHealthy,
       demoController,
       dcsChatClient,
+      showDevMenu: isDevMode,
+      openAbout: openAboutPanel,
       onChange: () => {
         if (tray) {
           tray.setContextMenu(buildContextMenu());
@@ -74,8 +87,6 @@ function buildContextMenu() {
 }
 
 function setApplicationMenu() {
-  const isMac = process.platform === 'darwin';
-
   const settingsMenu = {
     label: 'Settings',
     submenu: [
@@ -138,6 +149,12 @@ function setApplicationMenu() {
 }
 
 async function bootstrap() {
+  app.setAboutPanelOptions({
+    applicationName: app.getName(),
+    applicationVersion: app.getVersion(),
+    copyright: 'Checkride',
+  });
+
   const appInitResult = await initApp();
   udpServer = appInitResult.udpServer;
   apiClient = appInitResult.apiClient;

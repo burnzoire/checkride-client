@@ -9,10 +9,15 @@ const contextMenuTemplate = (udpServer, api, openSettings, options = {}) => [
   { type: 'separator' },
   {
     label: 'About Checkride',
-    role: 'about',
+    click: options.openAbout,
+    role: options.openAbout ? undefined : 'about',
   },
-  ...createDemoModeMenu(options.demoController, { onChange: options.onChange, enabled: options.isHealthy !== false }),
-  ...createTestEvents(udpServer, { enabled: options.isHealthy !== false, dcsChatClient: options.dcsChatClient }),
+  ...(options.showDevMenu
+    ? createDemoModeMenu(options.demoController, { onChange: options.onChange, enabled: options.isHealthy !== false })
+    : []),
+  ...(options.showDevMenu
+    ? createTestEvents(udpServer, { enabled: options.isHealthy !== false, dcsChatClient: options.dcsChatClient })
+    : []),
   { type: 'separator' },
   {
     label: 'Quit Checkride',

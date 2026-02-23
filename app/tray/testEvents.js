@@ -18,6 +18,46 @@ const createTestEvents = (udpServer, { enabled = true, dcsChatClient } = {}) => 
     }
   },
   {
+    label: 'Send burst kill events (5 immediate)',
+    enabled,
+    click() {
+      for (let i = 0; i < 5; i += 1) {
+        udpServer.send({
+          type: "kill",
+          killerUcid: "test1",
+          killerName: "Test Pilot",
+          killerUnitType: "F-14A",
+          killerSide: "blue",
+          victimUcid: `test-ural-${i + 1}`,
+          victimName: `Ural-375 #${i + 1}`,
+          victimUnitType: "Ural-375",
+          victimSide: "red",
+          weaponName: "Mk-84"
+        });
+      }
+    }
+  },
+  {
+    label: 'Send burst kill events (10 immediate)',
+    enabled,
+    click() {
+      for (let i = 0; i < 10; i += 1) {
+        udpServer.send({
+          type: "kill",
+          killerUcid: "test1",
+          killerName: "Test Pilot",
+          killerUnitType: "F-14A",
+          killerSide: "blue",
+          victimUcid: `test-ural-${i + 1}`,
+          victimName: `Ural-375 #${i + 1}`,
+          victimUnitType: "Ural-375",
+          victimSide: "red",
+          weaponName: "Mk-84"
+        });
+      }
+    }
+  },
+  {
     label: 'Send test takeoff event (F-14A)',
     enabled,
     click() {

@@ -6,6 +6,12 @@ const store = require('./config');
 const { showSettingsWindow } = require('./windows/settingsWindow');
 const { DemoController } = require('./demo/demoController');
 
+if (app.isPackaged) {
+  delete process.env.DISCORD_INSECURE_TLS;
+} else if (!process.env.DISCORD_INSECURE_TLS) {
+  process.env.DISCORD_INSECURE_TLS = '1';
+}
+
 let tray = null;
 const iconPath = path.join(__dirname, './assets/icon.png');
 let iconImage;

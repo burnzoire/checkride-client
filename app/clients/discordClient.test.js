@@ -5,8 +5,8 @@ jest.mock('electron-log');
 
 describe('DiscordClient', () => {
   let mockRequest;
-  let mockResponse;
   let mockReq;
+  let responses;
 
   beforeEach(() => {
     mockReq = {
@@ -15,11 +15,7 @@ describe('DiscordClient', () => {
       on: jest.fn(),
     };
 
-    mockResponse = {
-      statusCode: 204,
-      on: jest.fn(),
-      resume: jest.fn(),
-    };
+    responses = [];
 
     mockRequest = jest.fn((options, callback) => {
       const handlers = {};
@@ -29,9 +25,18 @@ describe('DiscordClient', () => {
         return mockReq;
       });
 
-      // Call the callback immediately with the mock response
+      const response = responses.shift() || {
+        statusCode: 204,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      };
+
       process.nextTick(() => {
-        callback(mockResponse);
+        callback(response);
       });
 
       return mockReq;
@@ -66,10 +71,14 @@ describe('DiscordClient', () => {
       const client = new DiscordClient(webhookPath);
       const message = 'Test message';
 
-      mockResponse.on = jest.fn((event, handler) => {
-        if (event === 'end') {
-          handler();
-        }
+      responses.push({
+        statusCode: 204,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
       });
 
       await expect(client.send(message, true)).resolves.toBeUndefined();
@@ -126,14 +135,20 @@ describe('DiscordClient', () => {
       const message = 'Test message';
       const error = new Error('Connection reset');
 
-      mockResponse.on = jest.fn((event, handler) => {
-        if (event === 'error') {
-          handler(error);
-        }
+      responses.push({
+        statusCode: 500,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'error') {
+            handler(error);
+          }
+        }),
       });
 
-      await expect(client.send(message, true)).rejects.toThrow(DiscordPublishError);
-      await expect(client.send(message, true)).rejects.toThrow(`Error while sending event to discord: ${error}`);
+      const sendPromise = client.send(message, true);
+
+      await expect(sendPromise).rejects.toThrow(DiscordPublishError);
+      await expect(sendPromise).rejects.toThrow(`Error while sending event to discord: ${error}`);
     });
 
     it('should reject on request error', async () => {
@@ -165,10 +180,14 @@ describe('DiscordClient', () => {
       const client = new DiscordClient(webhookPath);
       const message = 'Test with emoji 🎮 and special chars: <@123>';
 
-      mockResponse.on = jest.fn((event, handler) => {
-        if (event === 'end') {
-          handler();
-        }
+      responses.push({
+        statusCode: 204,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
       });
 
       await expect(client.send(message, true)).resolves.toBeUndefined();
@@ -176,6 +195,109 @@ describe('DiscordClient', () => {
       const writtenData = mockReq.write.mock.calls[0][0];
       const payload = JSON.parse(new TextDecoder().decode(writtenData));
       expect(payload.content).toBe(message);
+    });
+
+    it('retries on rate limiting with Retry-After header', async () => {
+      const webhookPath = '/api/webhooks/123456/abcdef';
+      const client = new DiscordClient(webhookPath);
+      const message = 'Test message';
+
+      responses.push({
+        statusCode: 429,
+        headers: { 'retry-after': '0' },
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      responses.push({
+        statusCode: 204,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      await expect(client.send(message, true)).resolves.toBeUndefined();
+
+      expect(mockRequest).toHaveBeenCalledTimes(2);
+    });
+
+    it('waits for rate limit reset-after when remaining is zero', async () => {
+      const webhookPath = '/api/webhooks/123456/abcdef';
+      const client = new DiscordClient(webhookPath);
+      const message = 'Test message';
+
+      jest.spyOn(client, 'sleep').mockResolvedValue();
+
+      responses.push({
+        statusCode: 204,
+        headers: {
+          'x-ratelimit-remaining': '0',
+          'x-ratelimit-reset-after': '1.5',
+        },
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      responses.push({
+        statusCode: 204,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      await expect(client.send(message, true)).resolves.toBeUndefined();
+      await expect(client.send(message, true)).resolves.toBeUndefined();
+
+      expect(client.sleep).toHaveBeenCalledWith(1500);
+    });
+
+    it('waits for rate limit reset time when remaining is zero', async () => {
+      const webhookPath = '/api/webhooks/123456/abcdef';
+      const client = new DiscordClient(webhookPath);
+      const message = 'Test message';
+      const futureSeconds = Math.ceil((Date.now() + 2000) / 1000);
+
+      jest.spyOn(client, 'sleep').mockResolvedValue();
+
+      responses.push({
+        statusCode: 204,
+        headers: {
+          'x-ratelimit-remaining': '0',
+          'x-ratelimit-reset': String(futureSeconds),
+        },
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      responses.push({
+        statusCode: 204,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      await expect(client.send(message, true)).resolves.toBeUndefined();
+      await expect(client.send(message, true)).resolves.toBeUndefined();
+
+      expect(client.sleep).toHaveBeenCalled();
     });
   });
 

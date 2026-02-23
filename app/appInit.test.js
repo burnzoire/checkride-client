@@ -304,5 +304,43 @@ describe('initApp', () => {
     expect(log.error).toHaveBeenCalledWith('Error sending Discord achievement #1:', achievementError);
   });
 
+  it('sends DCS chat even when discord achievement send fails', async () => {
+    const fakeEvent = { type: 'event' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
+    };
+    const apiResponse = {
+      summary: 'summary',
+      achievements: [{ message: 'Achievement message' }]
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue(apiResponse),
+    };
+    const achievementError = new Error('achievement failed');
+    const discordClientMock = {
+      send: jest.fn()
+        .mockResolvedValueOnce()
+        .mockRejectedValueOnce(achievementError),
+    };
+    const dcsChatClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
+
+    processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
+
+    APIClient.mockImplementation(() => apiClientMock);
+    DiscordClient.mockImplementation(() => discordClientMock);
+    DCSChatClient.mockImplementation(() => dcsChatClientMock);
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const { udpServer } = await initApp();
+
+    await udpServer.onEvent(fakeEvent);
+
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Achievement message', true, { kind: 'achievement' });
+    expect(log.error).toHaveBeenCalledWith('Error sending Discord achievement #1:', achievementError);
+  });
+
 
 });

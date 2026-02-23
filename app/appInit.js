@@ -57,13 +57,14 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
         achievements.forEach((achievement, i) => {
           if (achievement?.message) {
+            if (dcsChatClient?.send) {
+              dcsChatClient.send(achievement.message, publish, { kind: 'achievement' })
+                .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
+            }
+
             last = last.then(() => {
               const achievementMsg = enrichWithEmojis(achievement.message, 'achievement');
               log.info(`About to send Discord achievement #${i + 1}: ${achievementMsg}`);
-              if (dcsChatClient?.send) {
-                dcsChatClient.send(achievement.message, publish, { kind: 'achievement' })
-                  .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
-              }
               return discordClient.send(achievementMsg, publish)
                 .then(() => log.info(`Successfully sent Discord achievement #${i + 1}`))
                 .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));

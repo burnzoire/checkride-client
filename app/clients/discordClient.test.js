@@ -13,6 +13,8 @@ describe('DiscordClient', () => {
       write: jest.fn(),
       end: jest.fn(),
       on: jest.fn(),
+      setTimeout: jest.fn(),
+      destroy: jest.fn(),
     };
 
     responses = [];
@@ -395,6 +397,8 @@ describe('DiscordClient', () => {
       const webhookPath = '/api/webhooks/123456/abcdef';
       const client = new DiscordClient(webhookPath);
       const message = 'Test message';
+
+      client.minSendIntervalMs = 0;
 
       jest.spyOn(client, 'sleep').mockResolvedValue();
 

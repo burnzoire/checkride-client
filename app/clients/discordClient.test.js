@@ -197,6 +197,30 @@ describe('DiscordClient', () => {
       expect(payload.content).toBe(message);
     });
 
+    it('includes response body in publish error for non-2xx', async () => {
+      const webhookPath = '/api/webhooks/123456/abcdef';
+      const client = new DiscordClient(webhookPath);
+      const message = 'Test message';
+
+      responses.push({
+        statusCode: 400,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'data') {
+            handler(Buffer.from('bad request'));
+          }
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      const sendPromise = client.send(message, true);
+
+      await expect(sendPromise).rejects.toThrow(DiscordPublishError);
+      await expect(sendPromise).rejects.toThrow('Discord responded with status 400: bad request');
+    });
+
     it('retries on rate limiting with Retry-After header', async () => {
       const webhookPath = '/api/webhooks/123456/abcdef';
       const client = new DiscordClient(webhookPath);
@@ -224,6 +248,73 @@ describe('DiscordClient', () => {
 
       await expect(client.send(message, true)).resolves.toBeUndefined();
 
+      expect(mockRequest).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries on rate limiting with reset-after header', async () => {
+      const webhookPath = '/api/webhooks/123456/abcdef';
+      const client = new DiscordClient(webhookPath);
+      const message = 'Test message';
+
+      jest.spyOn(client, 'sleep').mockResolvedValue();
+
+      responses.push({
+        statusCode: 429,
+        headers: { 'x-ratelimit-reset-after': '0.25' },
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      responses.push({
+        statusCode: 204,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      await expect(client.send(message, true)).resolves.toBeUndefined();
+
+      expect(client.sleep).toHaveBeenCalledWith(250);
+      expect(mockRequest).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries on rate limiting with reset epoch header', async () => {
+      const webhookPath = '/api/webhooks/123456/abcdef';
+      const client = new DiscordClient(webhookPath);
+      const message = 'Test message';
+      const futureSeconds = Math.ceil((Date.now() + 300) / 1000);
+
+      jest.spyOn(client, 'sleep').mockResolvedValue();
+
+      responses.push({
+        statusCode: 429,
+        headers: { 'x-ratelimit-reset': String(futureSeconds) },
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      responses.push({
+        statusCode: 204,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      await expect(client.send(message, true)).resolves.toBeUndefined();
+
+      expect(client.sleep).toHaveBeenCalled();
       expect(mockRequest).toHaveBeenCalledTimes(2);
     });
 
@@ -298,6 +389,42 @@ describe('DiscordClient', () => {
       await expect(client.send(message, true)).resolves.toBeUndefined();
 
       expect(client.sleep).toHaveBeenCalled();
+    });
+
+    it('does not wait when rate limit remaining is positive', async () => {
+      const webhookPath = '/api/webhooks/123456/abcdef';
+      const client = new DiscordClient(webhookPath);
+      const message = 'Test message';
+
+      jest.spyOn(client, 'sleep').mockResolvedValue();
+
+      responses.push({
+        statusCode: 204,
+        headers: {
+          'x-ratelimit-remaining': '1',
+          'x-ratelimit-reset-after': '5',
+        },
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      responses.push({
+        statusCode: 204,
+        headers: {},
+        on: jest.fn((event, handler) => {
+          if (event === 'end') {
+            handler();
+          }
+        }),
+      });
+
+      await expect(client.send(message, true)).resolves.toBeUndefined();
+      await expect(client.send(message, true)).resolves.toBeUndefined();
+
+      expect(client.sleep).not.toHaveBeenCalled();
     });
   });
 

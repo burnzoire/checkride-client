@@ -1,6 +1,5 @@
 const https = require('https');
 const log = require('electron-log');
-
 class DiscordClientError extends Error {
   constructor(message) {
     super(message);
@@ -27,12 +26,21 @@ class DiscordClient {
     this.path = webhookPath
     this.maxRetries = 3
     this.queue = Promise.resolve()
+    this.allowInsecureTls = String(process.env.DISCORD_INSECURE_TLS || '').toLowerCase() === '1'
+      || String(process.env.DISCORD_INSECURE_TLS || '').toLowerCase() === 'true';
+    if (this.allowInsecureTls) {
+      log.warn('Discord client is running with DISCORD_INSECURE_TLS enabled; TLS verification is disabled for webhooks.');
+    }
     this.rateLimit = {
       remaining: null,
       resetAfterMs: null,
       resetAtMs: null,
       bucket: null
     }
+    const minIntervalRaw = Number(process.env.DISCORD_MIN_SEND_INTERVAL_MS);
+    this.minSendIntervalMs = Number.isFinite(minIntervalRaw) ? minIntervalRaw : 20
+    this.lastSendAtMs = null
+    this.requestTimeoutMs = 30000
   }
 
   updateWebhookPath(webhookPath) {
@@ -64,6 +72,15 @@ class DiscordClient {
   async sendWithRateLimit(message, publish) {
     await this.waitForRateLimitSlot()
 
+    if (Number.isFinite(this.minSendIntervalMs) && this.minSendIntervalMs > 0) {
+      const now = Date.now();
+      const lastAt = this.lastSendAtMs || 0;
+      const waitMs = this.minSendIntervalMs - (now - lastAt);
+      if (waitMs > 0) {
+        await this.sleep(waitMs);
+      }
+    }
+
     let attempt = 0;
 
     while (attempt < this.maxRetries) {
@@ -76,6 +93,8 @@ class DiscordClient {
         host: this.host,
         path: this.path,
         method: 'POST',
+        // Local-only bypass for Discord TLS verification.
+        rejectUnauthorized: !this.allowInsecureTls,
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'Content-Length': payload.length,
@@ -83,6 +102,14 @@ class DiscordClient {
       };
 
       const response = await this.sendOnce(options, payload);
+      this.lastSendAtMs = Date.now();
+      log.debug('Discord rate limit headers', {
+        remaining: response.headers?.['x-ratelimit-remaining'] || response.headers?.['X-RateLimit-Remaining'],
+        resetAfter: response.headers?.['x-ratelimit-reset-after'] || response.headers?.['X-RateLimit-Reset-After'],
+        resetAt: response.headers?.['x-ratelimit-reset'] || response.headers?.['X-RateLimit-Reset'],
+        bucket: response.headers?.['x-ratelimit-bucket'] || response.headers?.['X-RateLimit-Bucket'],
+        retryAfter: response.headers?.['retry-after'] || response.headers?.['Retry-After']
+      });
       this.updateRateLimitFromHeaders(response.headers);
       const status = response.statusCode || 0;
 
@@ -169,6 +196,10 @@ class DiscordClient {
         response.on('error', error => {
           reject(new DiscordPublishError(`Error while sending event to discord: ${error}`));
         });
+      });
+
+      req.setTimeout(this.requestTimeoutMs, () => {
+        req.destroy(new Error('Discord request timed out'));
       });
 
       req.on('error', error => {

@@ -46,6 +46,43 @@ describe('testEvents', () => {
     );
   });
 
+  it('should send 5 kill events immediately when burst event is clicked', () => {
+    const events = createTestEvents(mockUdpServer);
+    const burstEvent = events.find(item => item.label === 'Send burst kill events (5 immediate)');
+
+    burstEvent.click();
+
+    expect(mockUdpServer.send).toHaveBeenCalledTimes(5);
+    expect(mockUdpServer.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'kill',
+        killerUnitType: 'F-14A',
+        victimUnitType: 'Ural-375',
+        weaponName: 'Mk-84'
+      })
+    );
+
+  });
+
+  it('should send 10 kill events immediately for immediate burst option', () => {
+    const events = createTestEvents(mockUdpServer);
+    const burstEvent = events.find(item => item.label === 'Send burst kill events (10 immediate)');
+
+    burstEvent.click();
+
+    expect(mockUdpServer.send).toHaveBeenCalledTimes(10);
+    expect(mockUdpServer.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'kill',
+        killerUnitType: 'F-14A',
+        victimUnitType: 'Ural-375',
+        weaponName: 'Mk-84'
+      })
+    );
+
+    jest.useRealTimers();
+  });
+
   it('should include test takeoff event for F-14A', () => {
     const events = createTestEvents(mockUdpServer);
     const takeoffEvent = events.find(item => item.label === 'Send test takeoff event (F-14A)');

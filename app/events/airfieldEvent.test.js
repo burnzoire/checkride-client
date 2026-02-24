@@ -89,6 +89,43 @@ describe('AirfieldEvent', () => {
     expect(preparedPayload.event.event_data).not.toHaveProperty('airdrome_category');
   });
 
+  it('includes fuel_state_internal when provided on landing', () => {
+    const occurredAt = '2023-01-01T00:00:00.000Z';
+    jest.spyOn(GameEvent, 'generateOccurredAt').mockReturnValue(occurredAt);
+
+    const rawEvent = {
+      type: "landing",
+      playerUcid: "test1",
+      playerName: "Test Pilot",
+      unitType: "FA-18C_hornet",
+      airdromeName: "CVN-71 Theodore Roosevelt",
+      fuelStateInternal: 4.2
+    };
+
+    const event = new AirfieldEvent(rawEvent);
+    const preparedPayload = event.prepare();
+
+    expect(preparedPayload.event.event_data.fuel_state_internal).toBe(4.2);
+  });
+
+  it('omits fuel_state_internal when not provided', () => {
+    const occurredAt = '2023-01-01T00:00:00.000Z';
+    jest.spyOn(GameEvent, 'generateOccurredAt').mockReturnValue(occurredAt);
+
+    const rawEvent = {
+      type: "landing",
+      playerUcid: "test1",
+      playerName: "Test Pilot",
+      unitType: "F-14A",
+      airdromeName: "Test Field"
+    };
+
+    const event = new AirfieldEvent(rawEvent);
+    const preparedPayload = event.prepare();
+
+    expect(preparedPayload.event.event_data).not.toHaveProperty('fuel_state_internal');
+  });
+
   it('includes duration_seconds when provided', () => {
     const occurredAt = '2023-01-01T00:00:00.000Z';
     jest.spyOn(GameEvent, 'generateOccurredAt').mockReturnValue(occurredAt);

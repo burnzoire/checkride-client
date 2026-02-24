@@ -9,6 +9,7 @@ class AirfieldEvent extends GameEvent {
     this.airdromeName = rawEvent.airdromeName;
     this.airdromeTypeName = rawEvent.airdromeTypeName;
     this.airdromeCategory = rawEvent.airdromeCategory;
+    this.fuelStateInternal = rawEvent.fuelStateInternal;
     this.durationSeconds = rawEvent.durationSeconds;
   }
 
@@ -28,6 +29,10 @@ class AirfieldEvent extends GameEvent {
 
     if (this.airdromeCategory != null) {
       eventData.airdrome_category = this.airdromeCategory;
+    }
+
+    if (this.fuelStateInternal != null) {
+      eventData.fuel_state_internal = this.fuelStateInternal;
     }
 
     if (durationSeconds !== null) {

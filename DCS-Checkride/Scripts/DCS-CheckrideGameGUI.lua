@@ -233,6 +233,38 @@ local function getPlayerOrAI(playerID)
     return Checkride.clients[playerID] or { name = "AI", ucid = "" }
 end
 
+function Checkride.getUnitFuelState(unit_missionID)
+    if not net or not net.dostring_in then
+        return nil
+    end
+
+    local unitName = DCS.getUnitProperty(unit_missionID, DCS.UNIT_NAME)
+    if not unitName or unitName == "" then
+        return nil
+    end
+
+    local code = string.format([[
+        local ok, result = pcall(function()
+            local u = Unit.getByName(%q)
+            if not u then return "" end
+            local frac = u:getFuel()
+            local desc = u:getDesc()
+            if not desc or not desc.fuelMassMax then return "" end
+            local fuelKg = frac * desc.fuelMassMax
+            local fuelKlbs = (fuelKg * 2.20462) / 1000
+            return string.format("%%.1f", fuelKlbs)
+        end)
+        if ok then return result else return "" end
+    ]], unitName)
+
+    local ok, raw = pcall(net.dostring_in, "server", code)
+    if not ok or not raw or raw == "" then
+        return nil
+    end
+
+    return tonumber(raw)
+end
+
 function Checkride.getUnitAttributes(unitType)
     if not unitType or unitType == "" then
         return {}
@@ -439,6 +471,11 @@ function Checkride.onLanding(time, playerID, unit_missionID, airdromeName)
     if unitType then
         event.unitType = unitType
         event.unitAttributes = Checkride.getUnitAttributes(unitType)
+    end
+
+    local fuelState = Checkride.getUnitFuelState(unit_missionID)
+    if fuelState then
+        event.fuelStateInternal = fuelState
     end
 
     Checkride.sendEvent(event)

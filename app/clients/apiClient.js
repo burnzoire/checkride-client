@@ -1,6 +1,7 @@
 const log = require('electron-log');
 const http = require('http');
 const https = require('https');
+const { version: CLIENT_VERSION } = require('../package.json');
 
 class APIClientError extends Error {
   constructor(message) {
@@ -40,7 +41,10 @@ class APIClient {
   }
 
   buildHeaders(additionalHeaders = {}) {
-    const headers = { ...additionalHeaders }
+    const headers = {
+      'X-Checkride-Client-Version': CLIENT_VERSION,
+      ...additionalHeaders
+    }
 
     if (this.apiToken) {
       headers['Authorization'] = `Bearer ${this.apiToken}`

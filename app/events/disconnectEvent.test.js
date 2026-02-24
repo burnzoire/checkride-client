@@ -26,6 +26,7 @@ describe('DisconnectEvent', () => {
       event: {
         event_type: 'disconnect',
         occurred_at: occurredAt,
+        mission_scripting_available: false,
         event_data: {
           player_ucid: "test1",
           player_name: "Test Pilot",

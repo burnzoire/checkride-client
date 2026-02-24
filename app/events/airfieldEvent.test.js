@@ -27,6 +27,7 @@ describe('AirfieldEvent', () => {
       event: {
         event_type: 'takeoff',
         occurred_at: occurredAt,
+        mission_scripting_available: false,
         event_data: {
           player_ucid: "test1",
           player_name: "Test Pilot",
@@ -58,6 +59,7 @@ describe('AirfieldEvent', () => {
       event: {
         event_type: 'takeoff',
         occurred_at: occurredAt,
+        mission_scripting_available: false,
         event_data: {
           player_ucid: "test1",
           player_name: "Test Pilot",

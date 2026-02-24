@@ -112,6 +112,24 @@ end
 function Checkride.onMissionLoadEnd()
     Checkride.log("Mission loaded — resetting airbase cache")
     Checkride.airbaseCache = nil
+    Checkride.probeMissionScripting()
+end
+
+-- ============================================================================
+-- Mission Scripting Probe
+-- ============================================================================
+Checkride.missionScriptingAvailable = false
+
+function Checkride.probeMissionScripting()
+    if not net or not net.dostring_in then
+        Checkride.missionScriptingAvailable = false
+        Checkride.log("net.dostring_in unavailable — mission scripting disabled")
+        return
+    end
+
+    local ok, result = pcall(net.dostring_in, "server", "return 'ok'")
+    Checkride.missionScriptingAvailable = (ok and result == "ok")
+    Checkride.log("Mission scripting probe: " .. tostring(Checkride.missionScriptingAvailable))
 end
 
 -- ============================================================================
@@ -225,7 +243,8 @@ end
 local function buildEvent(eventType, time)
     return {
         time = time,
-        type = eventType
+        type = eventType,
+        missionScriptingAvailable = Checkride.missionScriptingAvailable
     }
 end
 

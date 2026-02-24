@@ -8,16 +8,10 @@ class SelfKillEvent extends GameEvent {
   }
 
   prepare() {
-    return {
-      event: {
-        event_type: this.eventType,
-        occurred_at: this.occurredAt,
-        event_data: {
-          player_ucid: this.playerUcid,
-          player_name: this.playerName
-        }
-      }
-    };
+    return this.buildEventEnvelope({
+      player_ucid: this.playerUcid,
+      player_name: this.playerName
+    });
   }
 }
 

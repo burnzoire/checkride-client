@@ -31,6 +31,7 @@ describe('KillEvent', () => {
       event: {
         event_type: 'kill',
         occurred_at: occurredAt,
+        mission_scripting_available: false,
         event_data: {
           killer_ucid: 'test1',
           killer_name: 'Test Pilot',

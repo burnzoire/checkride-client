@@ -39,13 +39,7 @@ class AirfieldEvent extends GameEvent {
       eventData.duration_seconds = durationSeconds;
     }
 
-    return {
-      event: {
-        event_type: this.eventType,
-        occurred_at: this.occurredAt,
-        event_data: eventData
-      }
-    };
+    return this.buildEventEnvelope(eventData);
   }
 }
 

@@ -94,6 +94,7 @@ describe('APIClient', () => {
       const headers = client.buildHeaders({ 'Content-Type': 'application/json' });
 
       expect(headers).toEqual({
+        'X-Checkride-Client-Version': expect.any(String),
         'Content-Type': 'application/json',
         'Authorization': 'Bearer secret',
       });
@@ -105,7 +106,10 @@ describe('APIClient', () => {
 
       const headers = client.buildHeaders(input);
 
-      expect(headers).toEqual(input);
+      expect(headers).toEqual({
+        'X-Checkride-Client-Version': expect.any(String),
+        ...input
+      });
       expect(headers).not.toBe(input);
     });
   });

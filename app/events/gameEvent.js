@@ -2,10 +2,22 @@ class GameEvent {
   constructor(rawEvent) {
     this.eventType = rawEvent.type;
     this.occurredAt = GameEvent.extractOccurredAt(rawEvent) || GameEvent.generateOccurredAt();
+    this.missionScriptingAvailable = rawEvent.missionScriptingAvailable === true;
   }
 
   prepare() {
     throw new Error('You have to implement the method toGameEvent!');
+  }
+
+  buildEventEnvelope(eventData) {
+    return {
+      event: {
+        event_type: this.eventType,
+        occurred_at: this.occurredAt,
+        mission_scripting_available: this.missionScriptingAvailable,
+        event_data: eventData
+      }
+    };
   }
 
   static generateOccurredAt() {

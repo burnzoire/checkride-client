@@ -109,6 +109,76 @@ function Checkride.onSimulationFrame()
     Checkride.pollChatSocket()
 end
 
+function Checkride.onMissionLoadEnd()
+    Checkride.log("Mission loaded — resetting airbase cache")
+    Checkride.airbaseCache = nil
+end
+
+-- ============================================================================
+-- Airbase Metadata (optional, requires mission scripting environment)
+-- ============================================================================
+Checkride.airbaseCache = nil -- nil = not yet queried
+
+function Checkride.refreshAirbaseCache()
+    if not net or not net.dostring_in then
+        Checkride.log("net.dostring_in unavailable — airbase metadata disabled")
+        Checkride.airbaseCache = {}
+        return
+    end
+
+    local code = [[
+        local ok, result = pcall(function()
+            local abs = world.getAirbases()
+            if not abs then return "" end
+            local lines = {}
+            for i, ab in ipairs(abs) do
+                local nameOk, name = pcall(function() return ab:getName() end)
+                local descOk, desc = pcall(function() return ab:getDesc() end)
+                if nameOk and descOk and name and desc then
+                    local tn = desc.typeName or ""
+                    local cat = tostring(desc.category or -1)
+                    lines[#lines + 1] = name .. "\t" .. tn .. "\t" .. cat
+                end
+            end
+            return table.concat(lines, "\n")
+        end)
+        if ok then return result else return "" end
+    ]]
+
+    local ok, raw = pcall(net.dostring_in, "server", code)
+    if not ok or not raw or raw == "" then
+        Checkride.log("Airbase metadata query returned empty (mission may not be running)")
+        Checkride.airbaseCache = {}
+        return
+    end
+
+    local cache = {}
+    local count = 0
+    for line in raw:gmatch("[^\n]+") do
+        local name, typeName, cat = line:match("^(.-)\t(.-)\t(.-)$")
+        if name and name ~= "" then
+            cache[name] = {
+                typeName = (typeName ~= "") and typeName or nil,
+                category = tonumber(cat)
+            }
+            count = count + 1
+        end
+    end
+
+    Checkride.airbaseCache = cache
+    Checkride.log("Cached airbase metadata: " .. count .. " entries")
+end
+
+function Checkride.getAirbaseMetadata(airdromeName)
+    if not airdromeName or airdromeName == "" then
+        return nil
+    end
+    if Checkride.airbaseCache == nil then
+        Checkride.refreshAirbaseCache()
+    end
+    return Checkride.airbaseCache[airdromeName]
+end
+
 -- ============================================================================
 -- Player Management
 -- ============================================================================
@@ -332,6 +402,12 @@ function Checkride.onTakeoff(time, playerID, unit_missionID, airdromeName)
     event.playerName = player.name
     event.airdromeName = airdromeName
 
+    local abMeta = Checkride.getAirbaseMetadata(airdromeName)
+    if abMeta then
+        event.airdromeTypeName = abMeta.typeName
+        event.airdromeCategory = abMeta.category
+    end
+
     local unitType = DCS.getUnitType(unit_missionID)
     if unitType then
         event.unitType = unitType
@@ -352,6 +428,12 @@ function Checkride.onLanding(time, playerID, unit_missionID, airdromeName)
     event.playerUcid = player.ucid
     event.playerName = player.name
     event.airdromeName = airdromeName
+
+    local abMeta = Checkride.getAirbaseMetadata(airdromeName)
+    if abMeta then
+        event.airdromeTypeName = abMeta.typeName
+        event.airdromeCategory = abMeta.category
+    end
 
     local unitType = DCS.getUnitType(unit_missionID)
     if unitType then

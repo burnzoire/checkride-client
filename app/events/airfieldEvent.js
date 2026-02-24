@@ -7,6 +7,8 @@ class AirfieldEvent extends GameEvent {
     this.playerName = rawEvent.playerName;
     this.unitType = rawEvent.unitType;
     this.airdromeName = rawEvent.airdromeName;
+    this.airdromeTypeName = rawEvent.airdromeTypeName;
+    this.airdromeCategory = rawEvent.airdromeCategory;
     this.durationSeconds = rawEvent.durationSeconds;
   }
 
@@ -19,6 +21,14 @@ class AirfieldEvent extends GameEvent {
       unit_type: this.unitType,
       airdrome_name: this.airdromeName
     };
+
+    if (this.airdromeTypeName != null) {
+      eventData.airdrome_type_name = this.airdromeTypeName;
+    }
+
+    if (this.airdromeCategory != null) {
+      eventData.airdrome_category = this.airdromeCategory;
+    }
 
     if (durationSeconds !== null) {
       eventData.duration_seconds = durationSeconds;

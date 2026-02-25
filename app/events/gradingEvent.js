@@ -3,6 +3,7 @@ const GameEvent = require('./gameEvent');
 class GradingEvent extends GameEvent {
   constructor(rawEvent) {
     super(rawEvent);
+    this.playerUcid = rawEvent.playerUcid;
     this.playerName = rawEvent.playerName;
     this.unitType = rawEvent.unitType;
     this.lsoGrade = rawEvent.lsoGrade;
@@ -15,6 +16,7 @@ class GradingEvent extends GameEvent {
 
   prepare() {
     const eventData = {
+      player_ucid: this.playerUcid,
       player_name: this.playerName,
       unit_type: this.unitType,
       lso_grade: this.lsoGrade,

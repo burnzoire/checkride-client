@@ -14,6 +14,7 @@ describe('GradingEvent', () => {
 
     const rawEvent = {
       type: 'grading',
+      playerUcid: 'abc123',
       playerName: 'Maverick',
       unitType: 'FA-18C_hornet',
       lsoGrade: '_OK_',
@@ -33,6 +34,7 @@ describe('GradingEvent', () => {
         occurred_at: occurredAt,
         source: 'mission',
         event_data: {
+          player_ucid: 'abc123',
           player_name: 'Maverick',
           unit_type: 'FA-18C_hornet',
           lso_grade: '_OK_',

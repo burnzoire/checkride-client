@@ -96,24 +96,27 @@ function CheckrideMission.parseComment(comment)
 end
 
 -- ============================================================================
--- Player UCID Resolution
--- In the mission scripting environment we don't have direct access to
--- net.get_player_info. We use the unit's player name and resolve what we can.
--- The daemon will match by player name if UCID is unavailable.
+-- Player Info Resolution
+-- Uses the CheckrideLookupUCID function injected by the hook to resolve
+-- player UCIDs from the GameGUI environment.
 -- ============================================================================
 function CheckrideMission.getPlayerInfo(initiator)
     if not initiator then
-        return nil, nil, nil
+        return nil, nil
     end
 
     local playerName = initiator:getPlayerName()
     if not playerName or playerName == "" then
-        return nil, nil, nil -- AI unit, skip
+        return nil, nil -- AI unit, skip
     end
 
     local unitType = initiator:getTypeName()
+    local ucid = nil
+    if CheckrideLookupUCID then
+        ucid = CheckrideLookupUCID(playerName)
+    end
 
-    return playerName, unitType
+    return playerName, unitType, ucid
 end
 
 -- ============================================================================
@@ -167,7 +170,7 @@ function CheckrideMission.onLandingQualityMark(event)
         return
     end
 
-    local playerName, unitType = CheckrideMission.getPlayerInfo(initiator)
+    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
     if not playerName then
         CheckrideMission.log("grading event for AI unit, skipping")
         return
@@ -185,6 +188,7 @@ function CheckrideMission.onLandingQualityMark(event)
     local message = {
         type = "grading",
         source = "mission",
+        playerUcid = ucid,
         playerName = playerName,
         unitType = unitType,
         lsoGrade = grade,

@@ -25,12 +25,19 @@ function CheckrideMissionLoader.onMissionLoadEnd()
         -- Seed with any players already connected
         CheckrideMissionLoader.syncAllPlayers()
 
-        local code = string.format('dofile(%q)', scriptPath)
-        local result, loadErr = net.dostring_in('mission', code)
-        if not result then
-            net.log('[DCS-Checkride] Mission script not loaded (MissionScripting may be sanitized): ' .. tostring(loadErr))
-        else
+        local code = string.format([[
+            local ok, err = pcall(dofile, %q)
+            if ok then
+                return 'OK'
+            else
+                return 'FAIL:' .. tostring(err)
+            end
+        ]], scriptPath)
+        local result = net.dostring_in('mission', code)
+        if result and result:sub(1, 2) == 'OK' then
             net.log('[DCS-Checkride] Mission script injected')
+        else
+            net.log('[DCS-Checkride] Mission script failed to load: ' .. tostring(result))
         end
     end)
     if not ok then

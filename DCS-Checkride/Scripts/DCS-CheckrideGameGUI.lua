@@ -255,6 +255,8 @@ function Checkride.onDisconnect(time, playerID, name, playerSide, reason_code)
     event.playerSide = playerSide
     event.reasonCode = reason_code
     Checkride.sendEvent(event)
+
+    Checkride.removePlayer(playerID)
 end
 
 local function isFlyableSlot(side, slotID)
@@ -469,11 +471,6 @@ function Checkride.onChatMessage(message, from)
     Checkride.log("Message: [" .. tostring(from) .. "]" .. nameLabel .. tostring(message))
 end
 
-if not _G.__DCS_CHECKRIDE_HOOK_MANAGED then
-    DCS.setUserCallbacks(Checkride)
-    net.log("Loaded - DCS-Checkride GameGUI (standalone callbacks)")
-else
-    net.log("Loaded - DCS-Checkride GameGUI (hook-managed callbacks)")
-end
+net.log("Loaded - DCS-Checkride GameGUI")
 
 Checkride.log("Checkride loaded v" .. Checkride.version)

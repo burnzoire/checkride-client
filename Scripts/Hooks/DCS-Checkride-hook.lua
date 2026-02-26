@@ -11,7 +11,6 @@ end
 local CHECKRIDE_HOOK_BUILD = '2026-02-26-server-only'
 checkrideLogInfo('Hook build: ' .. CHECKRIDE_HOOK_BUILD)
 
-_G.__DCS_CHECKRIDE_HOOK_MANAGED = true
 local status, result = pcall(function() local dcsSr=require('lfs');dofile(dcsSr.writedir()..[[Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideGameGUI.lua]]); end,nil)
 
 if not status then
@@ -21,7 +20,7 @@ else
 end
 
 -- Inject mission script on mission load
-local CheckrideMissionLoader = {}
+local CheckrideCallbackRouter = {}
 local CHECKRIDE_MISSION_STATE = 'server'
 
 local function forwardToCheckride(callbackName, ...)
@@ -35,7 +34,7 @@ local function forwardToCheckride(callbackName, ...)
     end
 end
 
-function CheckrideMissionLoader.pollMissionEventBridge()
+function CheckrideCallbackRouter.pollMissionEventBridge()
     local canForwardEncoded = Checkride and Checkride.sendEncodedEvent
     local canForwardDecoded = Checkride and Checkride.JSON and Checkride.JSON.decode and Checkride.sendEvent
     if not canForwardEncoded and not canForwardDecoded then
@@ -80,7 +79,7 @@ function CheckrideMissionLoader.pollMissionEventBridge()
     end
 end
 
-function CheckrideMissionLoader.onMissionLoadEnd()
+function CheckrideCallbackRouter.onMissionLoadEnd()
     local ok, err = pcall(function()
         local dcsSr = require('lfs')
         local scriptPath = dcsSr.writedir() .. [[Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideMission.lua]]
@@ -114,7 +113,7 @@ function CheckrideMissionLoader.onMissionLoadEnd()
         ]])
 
         -- Seed with any players already connected
-        CheckrideMissionLoader.syncAllPlayers()
+        CheckrideCallbackRouter.syncAllPlayers()
 
         local code = string.format([[local __checkride_src = %q
 local __checkride_loader = loadstring or load
@@ -153,65 +152,100 @@ return '__CHECKRIDE_MISSION_OK__:' .. tostring(CheckrideMission.version or 'unkn
     end
 end
 
-function CheckrideMissionLoader.syncAllPlayers()
+function CheckrideCallbackRouter.syncAllPlayers()
     local players = net.get_player_list()
     if not players then return end
 
-    local entries = {}
+    local statements = {
+        'CheckridePlayers = CheckridePlayers or {}',
+        'for key, _ in pairs(CheckridePlayers) do CheckridePlayers[key] = nil end'
+    }
+
+    local syncedCount = 0
     for _, id in ipairs(players) do
         local name = net.get_player_info(id, 'name')
         local ucid = net.get_player_info(id, 'ucid')
         if name and ucid and name ~= '' and ucid ~= '' then
-            table.insert(entries, string.format('[%q]=%q', name, ucid))
+            table.insert(statements, string.format('CheckridePlayers[%q]=%q', name, ucid))
+            syncedCount = syncedCount + 1
         end
     end
 
-    if #entries > 0 then
-        net.dostring_in(CHECKRIDE_MISSION_STATE, 'CheckridePlayers={' .. table.concat(entries, ',') .. '}')
+    local _, syncOk = net.dostring_in(CHECKRIDE_MISSION_STATE, table.concat(statements, ';'))
+    if not syncOk then
+        checkrideLogError('syncAllPlayers failed to update mission UCID map')
+    else
+        checkrideLogInfo('syncAllPlayers refreshed mission UCID map entries=' .. tostring(syncedCount))
     end
 end
 
-function CheckrideMissionLoader.onPlayerConnect(id)
+function CheckrideCallbackRouter.onPlayerConnect(id)
     local name = net.get_player_info(id, 'name')
     local ucid = net.get_player_info(id, 'ucid')
     if name and ucid and name ~= '' and ucid ~= '' then
-        net.dostring_in(CHECKRIDE_MISSION_STATE, string.format('CheckridePlayers[%q]=%q', name, ucid))
+        net.dostring_in(CHECKRIDE_MISSION_STATE, string.format('CheckridePlayers = CheckridePlayers or {}; CheckridePlayers[%q]=%q', name, ucid))
     end
 
     forwardToCheckride('onPlayerConnect', id)
 end
 
-function CheckrideMissionLoader.onPlayerDisconnect(id)
+function CheckrideCallbackRouter.onPlayerDisconnect(id)
     local name = net.get_player_info(id, 'name')
     if name and name ~= '' then
-        net.dostring_in(CHECKRIDE_MISSION_STATE, string.format('CheckridePlayers[%q]=nil', name))
+        net.dostring_in(CHECKRIDE_MISSION_STATE, string.format('CheckridePlayers = CheckridePlayers or {}; CheckridePlayers[%q]=nil', name))
     end
 
     forwardToCheckride('onPlayerDisconnect', id)
 end
 
-CheckrideMissionLoader.MissionBridgePollInterval = 0.5
-CheckrideMissionLoader._lastBridgePoll = 0
+CheckrideCallbackRouter.MissionBridgePollInterval = 0.5
+CheckrideCallbackRouter._lastBridgePoll = 0
 
-function CheckrideMissionLoader.onSimulationFrame()
+function CheckrideCallbackRouter.onSimulationFrame()
     local now = DCS.getRealTime()
-    if (now - CheckrideMissionLoader._lastBridgePoll) >= CheckrideMissionLoader.MissionBridgePollInterval then
-        CheckrideMissionLoader._lastBridgePoll = now
-        CheckrideMissionLoader.pollMissionEventBridge()
+    if (now - CheckrideCallbackRouter._lastBridgePoll) >= CheckrideCallbackRouter.MissionBridgePollInterval then
+        CheckrideCallbackRouter._lastBridgePoll = now
+        CheckrideCallbackRouter.pollMissionEventBridge()
     end
     forwardToCheckride('onSimulationFrame')
 end
 
-function CheckrideMissionLoader.onGameEvent(eventName, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+function CheckrideCallbackRouter.onGameEvent(eventName, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
     forwardToCheckride('onGameEvent', eventName, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
 end
 
-function CheckrideMissionLoader.onNetConnect(localPlayerID)
+function CheckrideCallbackRouter.onNetConnect(localPlayerID)
     forwardToCheckride('onNetConnect', localPlayerID)
 end
 
-function CheckrideMissionLoader.onChatMessage(message, from)
+function CheckrideCallbackRouter.onChatMessage(message, from)
     forwardToCheckride('onChatMessage', message, from)
 end
 
-DCS.setUserCallbacks(CheckrideMissionLoader)
+local function logCallbackWiringStatus()
+    local hasCheckride = type(Checkride) == 'table'
+    local hasOnGameEvent = hasCheckride and type(Checkride.onGameEvent) == 'function'
+    local hasOnPlayerConnect = hasCheckride and type(Checkride.onPlayerConnect) == 'function'
+    local hasOnPlayerDisconnect = hasCheckride and type(Checkride.onPlayerDisconnect) == 'function'
+    local hasOnSimulationFrame = hasCheckride and type(Checkride.onSimulationFrame) == 'function'
+    local hasSendEncodedEvent = hasCheckride and type(Checkride.sendEncodedEvent) == 'function'
+    local hasJsonDecodeForwardPath = hasCheckride and Checkride.JSON and type(Checkride.JSON.decode) == 'function' and type(Checkride.sendEvent) == 'function'
+
+    checkrideLogInfo(
+        'Callback wiring: owner=hook gamegui=' .. tostring(hasCheckride) ..
+        ' onGameEvent=' .. tostring(hasOnGameEvent) ..
+        ' onPlayerConnect=' .. tostring(hasOnPlayerConnect) ..
+        ' onPlayerDisconnect=' .. tostring(hasOnPlayerDisconnect) ..
+        ' onSimulationFrame=' .. tostring(hasOnSimulationFrame) ..
+        ' missionBridgeEncoded=' .. tostring(hasSendEncodedEvent) ..
+        ' missionBridgeDecoded=' .. tostring(hasJsonDecodeForwardPath) ..
+        ' missionState=' .. tostring(CHECKRIDE_MISSION_STATE)
+    )
+end
+
+logCallbackWiringStatus()
+
+-- DCS uses one active user-callback table at a time (last set wins).
+-- Keep this hook as the single owner, then forward into Checkride/GameGUI
+-- callbacks and poll mission-only events so behavior stays deterministic.
+DCS.setUserCallbacks(CheckrideCallbackRouter)

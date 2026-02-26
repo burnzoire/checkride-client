@@ -278,6 +278,9 @@ CheckrideMission.EventHandler = {}
 CheckrideMission.WorldHandlerRegistered = false
 CheckrideMission.LandingQualityEventId = nil
 
+_G.__CHECKRIDE_WORLD_HANDLER_ACTIVE = _G.__CHECKRIDE_WORLD_HANDLER_ACTIVE or false
+_G.__CHECKRIDE_WORLD_HANDLER_WORLD_ID = _G.__CHECKRIDE_WORLD_HANDLER_WORLD_ID or nil
+
 function CheckrideMission.getCapabilityStatus()
     local hasWorld = world ~= nil
     local hasWorldEventTable = hasWorld and world.event ~= nil
@@ -293,7 +296,14 @@ function CheckrideMission.getCapabilityStatus()
 end
 
 function CheckrideMission.ensureWorldHandler()
-    if CheckrideMission.WorldHandlerRegistered then
+    local worldIdentity = tostring(world)
+    if _G.__CHECKRIDE_WORLD_HANDLER_WORLD_ID ~= worldIdentity then
+        _G.__CHECKRIDE_WORLD_HANDLER_ACTIVE = false
+        _G.__CHECKRIDE_WORLD_HANDLER_WORLD_ID = worldIdentity
+    end
+
+    if CheckrideMission.WorldHandlerRegistered or _G.__CHECKRIDE_WORLD_HANDLER_ACTIVE then
+        CheckrideMission.WorldHandlerRegistered = true
         return '__CHECKRIDE_WORLD_READY__'
     end
 
@@ -325,6 +335,8 @@ function CheckrideMission.ensureWorldHandler()
     end
 
     CheckrideMission.WorldHandlerRegistered = true
+    _G.__CHECKRIDE_WORLD_HANDLER_ACTIVE = true
+    _G.__CHECKRIDE_WORLD_HANDLER_WORLD_ID = worldIdentity
     CheckrideMission.log('world event handler registered')
     return '__CHECKRIDE_WORLD_READY__'
 end
@@ -392,12 +404,4 @@ end
 -- ============================================================================
 local worldInitStatus = CheckrideMission.ensureWorldHandler()
 CheckrideMission.log('world init status: ' .. tostring(worldInitStatus))
-
-CheckrideMission.sendEvent({
-    type = "mission_heartbeat",
-    source = "mission",
-    version = CheckrideMission.version,
-    missionTime = timer and timer.getTime and timer.getTime() or nil,
-})
-CheckrideMission.log("mission startup heartbeat sent")
 checkrideMissionInfo("Loaded - DCS-Checkride Mission Script v" .. CheckrideMission.version)

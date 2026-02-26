@@ -84,6 +84,18 @@ function CheckrideCallbackRouter.onMissionLoadEnd()
         local dcsSr = require('lfs')
         local scriptPath = dcsSr.writedir() .. [[Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideMission.lua]]
 
+        local existingMissionStatus, existingMissionOk = net.dostring_in(CHECKRIDE_MISSION_STATE, [[
+            if CheckrideMission and CheckrideMission.version then
+                return '__CHECKRIDE_MISSION_PRESENT__:' .. tostring(CheckrideMission.version)
+            end
+            return ''
+        ]])
+
+        if existingMissionOk and string.find(tostring(existingMissionStatus), '__CHECKRIDE_MISSION_PRESENT__', 1, true) then
+            checkrideLogInfo('Mission script already loaded, skipping reinjection: ' .. tostring(existingMissionStatus))
+            return
+        end
+
         checkrideLogInfo('Attempting mission script injection from: ' .. scriptPath)
 
         local scriptFile = io.open(scriptPath, 'r')

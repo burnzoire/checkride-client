@@ -110,6 +110,42 @@ const createTestEvents = (udpServer, { enabled = true, dcsChatClient } = {}) => 
     }
   },
   {
+    label: 'Send test trap grading event (_OK_, wire 3)',
+    enabled,
+    click() {
+      udpServer.send({
+        type: "grading",
+        source: "mission",
+        playerUcid: "test1",
+        playerName: "Test Pilot",
+        unitType: "F-14B",
+        lsoGrade: "_OK_",
+        wire: 3,
+        night: false,
+        gradingRaw: "LSO: GRADE:_OK_ : WIRE# 3",
+        carrierName: "CVN-71 Theodore Roosevelt"
+      });
+    }
+  },
+  {
+    label: 'Send test trap grading event ((OK), wire 1 night)',
+    enabled,
+    click() {
+      udpServer.send({
+        type: "grading",
+        source: "mission",
+        playerUcid: "test1",
+        playerName: "Test Pilot",
+        unitType: "F-14A",
+        lsoGrade: "(OK)",
+        wire: 1,
+        night: true,
+        gradingRaw: "LSO: GRADE:(OK) : WIRE# 1",
+        carrierName: "CVN-74 John C. Stennis"
+      });
+    }
+  },
+  {
     label: 'Send test change slot event',
     enabled,
     click() {

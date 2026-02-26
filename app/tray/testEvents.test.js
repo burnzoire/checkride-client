@@ -170,6 +170,60 @@ describe('testEvents', () => {
     );
   });
 
+  it('should include trap grading event for _OK_ wire 3', () => {
+    const events = createTestEvents(mockUdpServer);
+    const trapEvent = events.find(item => item.label === 'Send test trap grading event (_OK_, wire 3)');
+
+    expect(trapEvent).toBeDefined();
+  });
+
+  it('should send trap grading payload for _OK_ wire 3', () => {
+    const events = createTestEvents(mockUdpServer);
+    const trapEvent = events.find(item => item.label === 'Send test trap grading event (_OK_, wire 3)');
+
+    trapEvent.click();
+
+    expect(mockUdpServer.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'grading',
+        source: 'mission',
+        playerUcid: 'test1',
+        unitType: 'F-14B',
+        lsoGrade: '_OK_',
+        wire: 3,
+        night: false,
+        carrierName: 'CVN-71 Theodore Roosevelt',
+      })
+    );
+  });
+
+  it('should include trap grading event for (OK) wire 1 at night', () => {
+    const events = createTestEvents(mockUdpServer);
+    const trapEvent = events.find(item => item.label === 'Send test trap grading event ((OK), wire 1 night)');
+
+    expect(trapEvent).toBeDefined();
+  });
+
+  it('should send trap grading payload for (OK) wire 1 at night', () => {
+    const events = createTestEvents(mockUdpServer);
+    const trapEvent = events.find(item => item.label === 'Send test trap grading event ((OK), wire 1 night)');
+
+    trapEvent.click();
+
+    expect(mockUdpServer.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'grading',
+        source: 'mission',
+        playerUcid: 'test1',
+        unitType: 'F-14A',
+        lsoGrade: '(OK)',
+        wire: 1,
+        night: true,
+        carrierName: 'CVN-74 John C. Stennis',
+      })
+    );
+  });
+
   it('should include test change slot event', () => {
     const events = createTestEvents(mockUdpServer);
     const changeSlotEvent = events.find(item => item.label === 'Send test change slot event');

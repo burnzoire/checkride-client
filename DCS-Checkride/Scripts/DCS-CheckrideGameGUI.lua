@@ -24,6 +24,7 @@ package.cpath = package.cpath .. ";.\\LuaSocket\\?.dll;"
 
 local JSON = loadfile("Scripts\\JSON.lua")()
 local socket = require("socket")
+Checkride.JSON = JSON
 
 Checkride.ChatPollInterval = 0.2
 Checkride.LastChatPollAt = 0
@@ -48,6 +49,14 @@ end
 function Checkride.sendEvent(message)
     Checkride.log("send event: " .. message.type)
     socket.try(Checkride.UDPSendSocket:sendto(JSON:encode(message) .. " \n", Checkride.UPDHost, Checkride.UDPPort))
+end
+
+function Checkride.sendEncodedEvent(encodedMessage)
+    if not encodedMessage or encodedMessage == "" then
+        return
+    end
+
+    socket.try(Checkride.UDPSendSocket:sendto(tostring(encodedMessage) .. " \n", Checkride.UPDHost, Checkride.UDPPort))
 end
 
 function Checkride.sendChatToAll(message)
@@ -460,6 +469,11 @@ function Checkride.onChatMessage(message, from)
     Checkride.log("Message: [" .. tostring(from) .. "]" .. nameLabel .. tostring(message))
 end
 
-DCS.setUserCallbacks(Checkride)
-net.log("Loaded - DCS-Checkride GameGUI")
+if not _G.__DCS_CHECKRIDE_HOOK_MANAGED then
+    DCS.setUserCallbacks(Checkride)
+    net.log("Loaded - DCS-Checkride GameGUI (standalone callbacks)")
+else
+    net.log("Loaded - DCS-Checkride GameGUI (hook-managed callbacks)")
+end
+
 Checkride.log("Checkride loaded v" .. Checkride.version)

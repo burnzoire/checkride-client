@@ -3,45 +3,139 @@
 -- Captures mission-level events not available in the GameGUI environment.
 -- Must be loaded via a mission trigger (DO SCRIPT FILE) or autoload.
 --
--- Sends JSON over UDP to the Checkride daemon on port 41236.
+-- Queues encoded events for retrieval via net.dostring_in from GameGUI/hook.
 -- ============================================================================
 CheckrideMission = {}
 CheckrideMission.version = "0.1.0"
+CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 
-env.info("Loading - DCS-Checkride Mission Script v" .. CheckrideMission.version)
+local function checkrideMissionInfo(message)
+    if log and log.write then
+        log.write('DCS-Checkride-Mission', log.INFO, tostring(message))
+    end
+end
 
--- ============================================================================
--- UDP Setup
--- ============================================================================
-package.path  = package.path .. ";.\\LuaSocket\\?.lua;"
-package.cpath = package.cpath .. ";.\\LuaSocket\\?.dll;"
-
-local JSON = loadfile("Scripts\\JSON.lua")()
-local socket = require("socket")
-
-CheckrideMission.UDPHost = "127.0.0.1"
-CheckrideMission.UDPPort = 41236
-CheckrideMission.UDPSocket = socket.udp()
-CheckrideMission.UDPSocket:settimeout(0)
+checkrideMissionInfo("Loading - DCS-Checkride Mission Script v" .. CheckrideMission.version)
 
 -- ============================================================================
 -- Logging
 -- ============================================================================
 function CheckrideMission.log(str)
-    env.info("[Checkride Mission] " .. str)
+    checkrideMissionInfo("[Checkride Mission] " .. str)
+end
+
+local function isArrayTable(value)
+    if type(value) ~= "table" then
+        return false
+    end
+
+    local count = 0
+    for key, _ in pairs(value) do
+        if type(key) ~= "number" then
+            return false
+        end
+        count = count + 1
+    end
+
+    for index = 1, count do
+        if value[index] == nil then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function jsonEscape(str)
+    str = tostring(str)
+    str = str:gsub('\\', '\\\\')
+    str = str:gsub('"', '\\"')
+    str = str:gsub('\n', '\\n')
+    str = str:gsub('\r', '\\r')
+    str = str:gsub('\t', '\\t')
+    return str
+end
+
+local function encodeJsonValue(value)
+    local valueType = type(value)
+
+    if valueType == "nil" then
+        return "null"
+    end
+
+    if valueType == "number" then
+        return tostring(value)
+    end
+
+    if valueType == "boolean" then
+        return value and "true" or "false"
+    end
+
+    if valueType == "string" then
+        return '"' .. jsonEscape(value) .. '"'
+    end
+
+    if valueType ~= "table" then
+        return '"' .. jsonEscape(value) .. '"'
+    end
+
+    if isArrayTable(value) then
+        local items = {}
+        for index = 1, #value do
+            items[#items + 1] = encodeJsonValue(value[index])
+        end
+        return "[" .. table.concat(items, ",") .. "]"
+    end
+
+    local items = {}
+    for key, itemValue in pairs(value) do
+        items[#items + 1] = '"' .. jsonEscape(key) .. '":' .. encodeJsonValue(itemValue)
+    end
+    return "{" .. table.concat(items, ",") .. "}"
+end
+
+function CheckrideMission.encodeMessage(message)
+    local ok, encoded = pcall(function() return encodeJsonValue(message) end)
+    if ok and encoded then
+        return encoded
+    end
+
+    return nil
+end
+
+function CheckrideMission.queueEvent(encodedMessage)
+    if not encodedMessage or encodedMessage == "" then
+        return
+    end
+
+    CheckrideMission.EventQueue[#CheckrideMission.EventQueue + 1] = encodedMessage
+end
+
+function CheckrideMissionPopEvent()
+    if not CheckrideMission or not CheckrideMission.EventQueue then
+        return ""
+    end
+
+    if #CheckrideMission.EventQueue == 0 then
+        return ""
+    end
+
+    local encoded = table.remove(CheckrideMission.EventQueue, 1)
+    return encoded or ""
 end
 
 -- ============================================================================
--- UDP Send
+-- Event Queue Send
 -- ============================================================================
 function CheckrideMission.sendEvent(message)
-    local ok, encoded = pcall(function() return JSON:encode(message) end)
-    if not ok then
-        CheckrideMission.log("Failed to encode event: " .. tostring(encoded))
+    local encoded = CheckrideMission.encodeMessage(message)
+    if not encoded then
+        CheckrideMission.log("Failed to encode event payload: " .. tostring(message and message.type or "unknown"))
         return
     end
-    CheckrideMission.log("send event: " .. message.type)
-    socket.try(CheckrideMission.UDPSocket:sendto(encoded .. " \n", CheckrideMission.UDPHost, CheckrideMission.UDPPort))
+
+    CheckrideMission.queueEvent(encoded)
+    CheckrideMission.log("queued event: " .. tostring(message and message.type or "unknown"))
 end
 
 -- ============================================================================
@@ -124,13 +218,31 @@ end
 -- Uses mission theatre time to determine if it's a night pass.
 -- Night = before 0600 or after 2000 local mission time.
 -- ============================================================================
-function CheckrideMission.isNight(missionTime)
-    if not missionTime then
+local function getMissionTimeOfDay(eventTime)
+    if timer and timer.getAbsTime then
+        local abs = timer.getAbsTime()
+        if abs then
+            return abs % 86400
+        end
+    end
+
+    if env and env.mission and env.mission.start_time and eventTime then
+        return (env.mission.start_time + eventTime) % 86400
+    end
+
+    if eventTime then
+        return eventTime % 86400
+    end
+
+    return nil
+end
+
+function CheckrideMission.isNight(eventTime)
+    local timeOfDay = getMissionTimeOfDay(eventTime)
+    if not timeOfDay then
         return false
     end
 
-    -- model_time is seconds since midnight in the mission
-    local timeOfDay = missionTime % 86400
     return timeOfDay >= 72000 or timeOfDay < 21600 -- 2000h or before 0600h
 end
 
@@ -154,11 +266,68 @@ end
 -- Event Handler
 -- ============================================================================
 CheckrideMission.EventHandler = {}
+CheckrideMission.WorldHandlerRegistered = false
+CheckrideMission.LandingQualityEventId = nil
+
+function CheckrideMission.getCapabilityStatus()
+    local hasWorld = world ~= nil
+    local hasWorldEventTable = hasWorld and world.event ~= nil
+    local hasLandingQualityEvent = hasWorldEventTable and world.event.S_EVENT_LANDING_QUALITY_MARK ~= nil
+    local hasWorldAddHandler = hasWorld and world.addEventHandler ~= nil
+
+    return {
+        hasWorld = hasWorld,
+        hasWorldEventTable = hasWorldEventTable,
+        hasLandingQualityEvent = hasLandingQualityEvent,
+        hasWorldAddHandler = hasWorldAddHandler,
+    }
+end
+
+function CheckrideMission.ensureWorldHandler()
+    if CheckrideMission.WorldHandlerRegistered then
+        return '__CHECKRIDE_WORLD_READY__'
+    end
+
+    local caps = CheckrideMission.getCapabilityStatus()
+    if not caps.hasWorld then
+        return '__CHECKRIDE_WORLD_WAIT__:missing_world'
+    end
+
+    if not caps.hasWorldEventTable then
+        return '__CHECKRIDE_WORLD_WAIT__:missing_world_event_table'
+    end
+
+    if not caps.hasLandingQualityEvent then
+        return '__CHECKRIDE_WORLD_WAIT__:missing_landing_quality_event'
+    end
+
+    if not caps.hasWorldAddHandler then
+        return '__CHECKRIDE_WORLD_WAIT__:missing_world_addEventHandler'
+    end
+
+    CheckrideMission.LandingQualityEventId = world.event.S_EVENT_LANDING_QUALITY_MARK
+
+    local ok, err = pcall(function()
+        world.addEventHandler(CheckrideMission.EventHandler)
+    end)
+
+    if not ok then
+        return '__CHECKRIDE_WORLD_FAIL__:' .. tostring(err)
+    end
+
+    CheckrideMission.WorldHandlerRegistered = true
+    CheckrideMission.log('world event handler registered')
+    return '__CHECKRIDE_WORLD_READY__'
+end
+
+function CheckrideMissionEnsureWorldHandler()
+    return CheckrideMission.ensureWorldHandler()
+end
 
 function CheckrideMission.EventHandler:onEvent(event)
     if not event then return end
 
-    if event.id == world.event.S_EVENT_LANDING_QUALITY_MARK then
+    if CheckrideMission.LandingQualityEventId and event.id == CheckrideMission.LandingQualityEventId then
         CheckrideMission.onLandingQualityMark(event)
     end
 end
@@ -212,5 +381,14 @@ end
 -- ============================================================================
 -- Register
 -- ============================================================================
-world.addEventHandler(CheckrideMission.EventHandler)
-env.info("Loaded - DCS-Checkride Mission Script v" .. CheckrideMission.version)
+local worldInitStatus = CheckrideMission.ensureWorldHandler()
+CheckrideMission.log('world init status: ' .. tostring(worldInitStatus))
+
+CheckrideMission.sendEvent({
+    type = "mission_heartbeat",
+    source = "mission",
+    version = CheckrideMission.version,
+    missionTime = timer and timer.getTime and timer.getTime() or nil,
+})
+CheckrideMission.log("mission startup heartbeat sent")
+checkrideMissionInfo("Loaded - DCS-Checkride Mission Script v" .. CheckrideMission.version)

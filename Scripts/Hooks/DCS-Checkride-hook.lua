@@ -190,8 +190,15 @@ function CheckrideMissionLoader.onPlayerDisconnect(id)
     forwardToCheckride('onPlayerDisconnect', id)
 end
 
+CheckrideMissionLoader.MissionBridgePollInterval = 0.5
+CheckrideMissionLoader._lastBridgePoll = 0
+
 function CheckrideMissionLoader.onSimulationFrame()
-    CheckrideMissionLoader.pollMissionEventBridge()
+    local now = DCS.getRealTime()
+    if (now - CheckrideMissionLoader._lastBridgePoll) >= CheckrideMissionLoader.MissionBridgePollInterval then
+        CheckrideMissionLoader._lastBridgePoll = now
+        CheckrideMissionLoader.pollMissionEventBridge()
+    end
     forwardToCheckride('onSimulationFrame')
 end
 

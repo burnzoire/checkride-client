@@ -156,6 +156,15 @@ CheckrideMission.GRADE_NORMALIZATION = {
     ["TLU"]    = "WO",
 }
 
+-- ============================================================================
+-- Normalized to:
+-- _OK_	Perfect pass
+-- OK	OK pass
+-- (OK)	Fair OK
+-- --	No grade
+-- B	Bolter (no trap)
+-- C 	Cut pass (dangerous)
+-- WO 	Waveoff (no trap)
 function CheckrideMission.parseComment(comment)
     if not comment or comment == "" then
         return nil, nil, nil

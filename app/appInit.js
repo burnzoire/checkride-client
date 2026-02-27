@@ -36,6 +36,13 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   const processor = eventProcessor || new EventProcessor();
   udpServer.onEvent = (event) => {
     log.info(`Handling event: ${JSON.stringify(event)}`)
+
+    if (event.type === 'connect' && dcsChatClient?.sendConfig) {
+      const missionScriptingEnabled = store.get('mission_scripting_enabled')
+      dcsChatClient.sendConfig({ mission_scripting_enabled: missionScriptingEnabled })
+        .catch((error) => log.error('Error re-sending mission scripting config on connect:', error))
+    }
+
     return EventFactory.create(event)
       .then(gameEvent => {
         const preparedPayload = gameEvent.prepare();

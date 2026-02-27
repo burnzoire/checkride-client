@@ -28,7 +28,7 @@ Checkride.JSON = JSON
 
 Checkride.ChatPollInterval = 0.2
 Checkride.LastChatPollAt = 0
-Checkride.missionScriptingEnabled = true
+Checkride.missionScriptingEnabled = true ---@type boolean
 
 Checkride.UPDHost = "127.0.0.1"
 Checkride.UDPPort = 41234

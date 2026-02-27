@@ -39,6 +39,10 @@ function CheckrideCallbackRouter.pollMissionEventBridge()
         return
     end
 
+    if not Checkride.missionScriptingEnabled then
+        return
+    end
+
     local t0 = DCS.getRealTime()
     local encodedEvent, ok = net.dostring_in(CHECKRIDE_MISSION_STATE, [[
         if CheckrideMissionPopEvent then
@@ -83,7 +87,7 @@ function CheckrideCallbackRouter.onMissionLoadEnd()
             return
         end
 
-        if Checkride.missionScriptingEnabled == false then
+        if not Checkride.missionScriptingEnabled then
             checkrideLogInfo('Mission script injection skipped: mission scripting disabled')
             return
         end

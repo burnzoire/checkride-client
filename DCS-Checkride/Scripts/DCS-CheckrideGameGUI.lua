@@ -46,6 +46,8 @@ else
     Checkride.log("Listening for chat messages on " .. Checkride.UDPChatHost .. ":" .. Checkride.UDPChatPort)
 end
 
+Checkride.sendEvent({ type = "ready" })
+
 
 function Checkride.sendEvent(message)
     Checkride.log("send event: " .. message.type)

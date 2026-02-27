@@ -97,23 +97,20 @@ describe('initApp', () => {
     expect(udpServer.onEvent).toBeDefined();
   });
 
-  it('re-sends mission scripting config when a connect event arrives', async () => {
+  it('sends config when a ready event arrives from GameGUI', async () => {
     const { udpServer } = await initApp();
-
-    const gameEvent = { prepare: jest.fn().mockReturnValue({}) };
-    EventFactory.create.mockResolvedValue(gameEvent);
-    const apiClientMock = { saveEvent: jest.fn().mockResolvedValue({}) };
-    APIClient.mockImplementation(() => apiClientMock);
 
     dcsChatClientMock.sendConfig.mockClear();
     store.get.mockImplementation((key) => key === 'mission_scripting_enabled' ? false : undefined);
 
-    await udpServer.onEvent({ type: 'connect', playerName: 'Test', playerUcid: 'abc' });
+    await udpServer.onEvent({ type: 'ready' });
 
     expect(dcsChatClientMock.sendConfig).toHaveBeenCalledWith({ mission_scripting_enabled: false });
+    expect(EventFactory.create).not.toHaveBeenCalledWith({ type: 'ready' });
   });
 
 
+  it('calls saveEvent and send when an event occurs', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),

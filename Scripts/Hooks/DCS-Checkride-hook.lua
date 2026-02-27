@@ -35,47 +35,29 @@ local function forwardToCheckride(callbackName, ...)
 end
 
 function CheckrideCallbackRouter.pollMissionEventBridge()
-    local canForwardEncoded = Checkride and Checkride.sendEncodedEvent
-    local canForwardDecoded = Checkride and Checkride.JSON and Checkride.JSON.decode and Checkride.sendEvent
-    if not canForwardEncoded and not canForwardDecoded then
+    if not Checkride or not Checkride.sendEncodedEvent then
         return
     end
 
-    local maxEventsPerFrame = 25
-
-    for _ = 1, maxEventsPerFrame do
-        local encodedEvent, ok = net.dostring_in(CHECKRIDE_MISSION_STATE, [[
-            if CheckrideMissionPopEvent then
-                return CheckrideMissionPopEvent()
-            end
-            return ''
-        ]])
-
-        if not ok then
-            checkrideLogError('Mission bridge poll failed: ' .. tostring(encodedEvent))
-            return
+    local encodedEvent, ok = net.dostring_in(CHECKRIDE_MISSION_STATE, [[
+        if CheckrideMissionPopEvent then
+            return CheckrideMissionPopEvent()
         end
+        return ''
+    ]])
 
-        if not encodedEvent or encodedEvent == '' then
-            return
-        end
+    if not ok then
+        checkrideLogError('Mission bridge poll failed: ' .. tostring(encodedEvent))
+        return
+    end
 
-        if Checkride and Checkride.sendEncodedEvent then
-            local forwardOk, forwardErr = pcall(Checkride.sendEncodedEvent, encodedEvent)
-            if not forwardOk then
-                checkrideLogError('Mission bridge sendEncodedEvent failed: ' .. tostring(forwardErr))
-            end
-        elseif Checkride and Checkride.JSON and Checkride.JSON.decode and Checkride.sendEvent then
-            local decodedOk, decodedEvent = pcall(function() return Checkride.JSON:decode(encodedEvent) end)
-            if decodedOk and decodedEvent then
-                Checkride.sendEvent(decodedEvent)
-            else
-                checkrideLogError('Mission bridge JSON decode failed: ' .. tostring(decodedEvent))
-            end
-        else
-            checkrideLogError('Mission bridge cannot forward event: Checkride JSON/socket sender unavailable')
-            return
-        end
+    if not encodedEvent or encodedEvent == '' then
+        return
+    end
+
+    local forwardOk, forwardErr = pcall(Checkride.sendEncodedEvent, encodedEvent)
+    if not forwardOk then
+        checkrideLogError('Mission bridge sendEncodedEvent failed: ' .. tostring(forwardErr))
     end
 end
 
@@ -210,7 +192,7 @@ function CheckrideCallbackRouter.onPlayerDisconnect(id)
     forwardToCheckride('onPlayerDisconnect', id)
 end
 
-CheckrideCallbackRouter.MissionBridgePollInterval = 0.5
+CheckrideCallbackRouter.MissionBridgePollInterval = 1.0
 CheckrideCallbackRouter._lastBridgePoll = 0
 
 function CheckrideCallbackRouter.onSimulationFrame()

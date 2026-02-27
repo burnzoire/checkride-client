@@ -30,6 +30,13 @@ Checkride.ChatPollInterval = 0.2
 Checkride.LastChatPollAt = 0
 Checkride.missionScriptingEnabled = true ---@type boolean
 
+function Checkride.applyConfig(config)
+    if config.mission_scripting_enabled ~= nil then
+        Checkride.missionScriptingEnabled = config.mission_scripting_enabled ~= false
+        Checkride.log("Config: mission_scripting_enabled=" .. tostring(Checkride.missionScriptingEnabled))
+    end
+end
+
 Checkride.UPDHost = "127.0.0.1"
 Checkride.UDPPort = 41234
 Checkride.UDPSendSocket = socket.udp()
@@ -45,8 +52,6 @@ if not listen_ok then
 else
     Checkride.log("Listening for chat messages on " .. Checkride.UDPChatHost .. ":" .. Checkride.UDPChatPort)
 end
-
-Checkride.sendEvent({ type = "ready" })
 
 
 function Checkride.sendEvent(message)
@@ -94,25 +99,23 @@ function Checkride.pollChatSocket()
 
         if ok and type(decoded) == "table" then
             if decoded.source == "checkride" and decoded.kind == "config" then
-                if decoded.mission_scripting_enabled ~= nil then
-                    Checkride.missionScriptingEnabled = decoded.mission_scripting_enabled ~= false
-                    Checkride.log("Mission scripting enabled: " .. tostring(Checkride.missionScriptingEnabled))
+                Checkride.applyConfig(decoded)
+            else
+                if decoded.message and decoded.message ~= "" then
+                    message = decoded.message
+                elseif decoded.text and decoded.text ~= "" then
+                    message = decoded.text
                 end
-                goto continue
-            end
-            if decoded.message and decoded.message ~= "" then
-                message = decoded.message
-            elseif decoded.text and decoded.text ~= "" then
-                message = decoded.text
-            end
-        end
 
-        if message and message ~= "" then
+                if message and message ~= "" then
+                    Checkride.log("Received chat message: " .. message)
+                    Checkride.sendChatToAll(message)
+                end
+            end
+        elseif message and message ~= "" then
             Checkride.log("Received chat message: " .. message)
             Checkride.sendChatToAll(message)
         end
-
-        ::continue::
     end
 end
 
@@ -238,8 +241,6 @@ function Checkride.onGameEvent(eventName, arg1, arg2, arg3, arg4, arg5, arg6, ar
         Checkride.onDisconnect(now, arg1, arg2, arg3, arg4)
     elseif eventName == "change_slot" then
         Checkride.onChangeSlot(now, arg1, arg2, arg3)
-    elseif eventName == "mission_end" then
-        Checkride.onMissionEnd(now)
     else
         Checkride.log("unknown event type: " .. eventName)
     end
@@ -271,17 +272,6 @@ function Checkride.onDisconnect(time, playerID, name, playerSide, reason_code)
     Checkride.sendEvent(event)
 
     Checkride.removePlayer(playerID)
-end
-
-function Checkride.onMissionEnd(time)
-    Checkride.log("onMissionEnd: sending disconnect for all remaining clients")
-    for id, player in pairs(Checkride.clients) do
-        local event = buildEvent("disconnect", time)
-        event.playerUcid = player.ucid
-        event.playerName = player.name
-        Checkride.sendEvent(event)
-    end
-    Checkride.clients = {}
 end
 
 local function isFlyableSlot(side, slotID)
@@ -499,3 +489,5 @@ end
 net.log("Loaded - DCS-Checkride GameGUI")
 
 Checkride.log("Checkride loaded v" .. Checkride.version)
+
+Checkride.sendEvent({ type = "ready" })

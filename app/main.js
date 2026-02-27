@@ -188,6 +188,7 @@ ipcMain.handle('settings:load', () => {
     use_ssl: store.get('use_ssl'),
     discord_webhook_path: store.get('discord_webhook_path'),
     api_token: store.get('api_token'),
+    mission_scripting_enabled: store.get('mission_scripting_enabled'),
   };
 });
 
@@ -199,6 +200,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
     use_ssl: Boolean(payload.use_ssl),
     discord_webhook_path: payload.discord_webhook_path?.trim() || '',
     api_token: payload.api_token?.trim() || '',
+    mission_scripting_enabled: Boolean(payload.mission_scripting_enabled),
   };
 
   store.set('server_host', nextConfig.server_host);
@@ -207,6 +209,14 @@ ipcMain.handle('settings:save', async (_event, payload) => {
   store.set('use_ssl', nextConfig.use_ssl);
   store.set('discord_webhook_path', nextConfig.discord_webhook_path);
   store.set('api_token', nextConfig.api_token);
+  store.set('mission_scripting_enabled', nextConfig.mission_scripting_enabled);
+
+  if (dcsChatClient?.sendConfig) {
+    const log = require('electron-log');
+    log.info(`Sending mission scripting config on settings save: mission_scripting_enabled=${nextConfig.mission_scripting_enabled}`);
+    dcsChatClient.sendConfig({ mission_scripting_enabled: nextConfig.mission_scripting_enabled })
+      .catch((error) => log.error('Error sending config on settings save:', error));
+  }
 
   if (apiClient?.update) {
     apiClient.update({

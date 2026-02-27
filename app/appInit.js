@@ -40,9 +40,9 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     if (event.type === 'ready') {
       log.info('GameGUI ready signal received, sending config')
       const missionScriptingEnabled = store.get('mission_scripting_enabled')
-      dcsChatClient.sendConfig({ mission_scripting_enabled: missionScriptingEnabled })
+      log.info(`Sending mission scripting config on ready: mission_scripting_enabled=${missionScriptingEnabled}`)
+      return dcsChatClient.sendConfig({ mission_scripting_enabled: missionScriptingEnabled })
         .catch((error) => log.error('Error sending config on ready:', error))
-      return
     }
 
     return EventFactory.create(event)
@@ -108,6 +108,7 @@ async function initApp() {
   const udpServer = new UDPServer(DEFAULT_UDP_PORT)
 
   const missionScriptingEnabled = store.get('mission_scripting_enabled')
+  log.info(`Sending mission scripting config on startup: mission_scripting_enabled=${missionScriptingEnabled}`)
   dcsChatClient.sendConfig({ mission_scripting_enabled: missionScriptingEnabled })
     .catch((error) => log.error('Error sending mission scripting config to DCS:', error))
 

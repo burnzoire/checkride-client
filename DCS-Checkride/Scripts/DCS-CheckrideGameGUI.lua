@@ -226,6 +226,8 @@ function Checkride.onGameEvent(eventName, arg1, arg2, arg3, arg4, arg5, arg6, ar
         Checkride.onDisconnect(now, arg1, arg2, arg3, arg4)
     elseif eventName == "change_slot" then
         Checkride.onChangeSlot(now, arg1, arg2, arg3)
+    elseif eventName == "mission_end" then
+        Checkride.onMissionEnd(now)
     else
         Checkride.log("unknown event type: " .. eventName)
     end
@@ -257,6 +259,17 @@ function Checkride.onDisconnect(time, playerID, name, playerSide, reason_code)
     Checkride.sendEvent(event)
 
     Checkride.removePlayer(playerID)
+end
+
+function Checkride.onMissionEnd(time)
+    Checkride.log("onMissionEnd: sending disconnect for all remaining clients")
+    for id, player in pairs(Checkride.clients) do
+        local event = buildEvent("disconnect", time)
+        event.playerUcid = player.ucid
+        event.playerName = player.name
+        Checkride.sendEvent(event)
+    end
+    Checkride.clients = {}
 end
 
 local function isFlyableSlot(side, slotID)

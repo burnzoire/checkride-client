@@ -39,12 +39,17 @@ function CheckrideCallbackRouter.pollMissionEventBridge()
         return
     end
 
+    local t0 = DCS.getRealTime()
     local encodedEvent, ok = net.dostring_in(CHECKRIDE_MISSION_STATE, [[
         if CheckrideMissionPopEvent then
             return CheckrideMissionPopEvent()
         end
         return ''
     ]])
+    local elapsed = DCS.getRealTime() - t0
+    if elapsed > 0.005 then
+        checkrideLogError('Mission bridge poll slow: ' .. string.format('%.1fms', elapsed * 1000))
+    end
 
     if not ok then
         checkrideLogError('Mission bridge poll failed: ' .. tostring(encodedEvent))

@@ -326,6 +326,13 @@ function CheckrideMission.ensureWorldHandler()
 
     CheckrideMission.LandingQualityEventId = world.event.S_EVENT_LANDING_QUALITY_MARK
 
+    -- Remove any previously registered handler before re-registering.
+    -- If world identity changed (mission reload), the old handler object may still
+    -- be registered and will fire alongside the new one, causing duplicate events.
+    if CheckrideMission._registeredHandler then
+        pcall(function() world.removeEventHandler(CheckrideMission._registeredHandler) end)
+    end
+
     local ok, err = pcall(function()
         world.addEventHandler(CheckrideMission.EventHandler)
     end)
@@ -333,6 +340,8 @@ function CheckrideMission.ensureWorldHandler()
     if not ok then
         return '__CHECKRIDE_WORLD_FAIL__:' .. tostring(err)
     end
+
+    CheckrideMission._registeredHandler = CheckrideMission.EventHandler
 
     CheckrideMission.WorldHandlerRegistered = true
     _G.__CHECKRIDE_WORLD_HANDLER_ACTIVE = true

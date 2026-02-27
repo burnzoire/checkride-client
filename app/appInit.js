@@ -2,7 +2,7 @@ const { DiscordClient } = require('./clients/discordClient');
 const { DCSChatClient, DEFAULT_DCS_CHAT_HOST } = require('./clients/dcsChatClient');
 const UDPServer = require('./services/udpServer');
 const { EventProcessor } = require('./services/eventProcessor');
-const { EventFactory } = require('./factories/eventFactory');
+const { EventFactory, InvalidEventTypeError } = require('./factories/eventFactory');
 const { APIClient } = require('./clients/apiClient');
 const { HealthChecker } = require('./services/healthChecker');
 
@@ -12,7 +12,6 @@ const store = require('./config');
 
 const DEFAULT_UDP_PORT = 41234;
 const DEFAULT_DCS_CHAT_UDP_PORT = 41235;
-const DEFAULT_MISSION_UDP_PORT = 41236;
 // Emoji enrichment utility for Discord summaries
 const EVENT_EMOJIS = {
   kill: ':dart: ',
@@ -74,7 +73,13 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         });
         return last;
       })
-      .catch(error => log.error(error));
+      .catch(error => {
+        if (error instanceof InvalidEventTypeError) {
+          log.debug(`Skipping unknown event type: ${event.type}`);
+          return;
+        }
+        log.error(error);
+      });
   }
 }
 
@@ -92,18 +97,16 @@ async function initApp() {
     port: DEFAULT_DCS_CHAT_UDP_PORT,
   })
   const udpServer = new UDPServer(DEFAULT_UDP_PORT)
-  const missionUdpServer = new UDPServer(DEFAULT_MISSION_UDP_PORT)
 
   const eventProcessor = new EventProcessor()
 
   attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, eventProcessor })
-  attachEventPipeline({ udpServer: missionUdpServer, apiClient, discordClient, dcsChatClient, eventProcessor })
 
   // Initialize and start health checker
   const healthChecker = new HealthChecker(apiClient, store)
   healthChecker.start()
 
-  return { udpServer, missionUdpServer, apiClient, discordClient, dcsChatClient, eventProcessor, healthChecker };
+  return { udpServer, apiClient, discordClient, dcsChatClient, eventProcessor, healthChecker };
 }
 
 module.exports = { initApp, attachEventPipeline };

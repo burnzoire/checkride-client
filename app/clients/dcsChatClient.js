@@ -10,6 +10,16 @@ class DCSChatClient {
     this.socket = dgram.createSocket('udp4');
   }
 
+  sendConfig(config) {
+    const payload = JSON.stringify({ source: 'checkride', kind: 'config', ...config });
+    return new Promise((resolve) => {
+      this.socket.send(payload, this.port, this.host, (error) => {
+        if (error) log.error(`Error sending DCS config: ${error}`);
+        resolve();
+      });
+    });
+  }
+
   send(message, publish, { kind = 'achievement' } = {}) {
     if (!message) {
       log.info('DCS chat message missing, skipping DCS notification');

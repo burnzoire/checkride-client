@@ -30,6 +30,10 @@ const schema = {
     type: 'boolean',
     default: true,
   },
+  mission_scripting_enabled: {
+    type: 'boolean',
+    default: true,
+  },
 };
 
 const store = new Store({ schema });

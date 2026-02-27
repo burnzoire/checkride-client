@@ -83,6 +83,11 @@ function CheckrideCallbackRouter.onMissionLoadEnd()
             return
         end
 
+        if Checkride.missionScriptingEnabled == false then
+            checkrideLogInfo('Mission script injection skipped: mission scripting disabled')
+            return
+        end
+
         checkrideLogInfo('Attempting mission script injection from: ' .. scriptPath)
 
         local scriptFile = io.open(scriptPath, 'r')

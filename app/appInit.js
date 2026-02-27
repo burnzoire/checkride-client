@@ -98,6 +98,10 @@ async function initApp() {
   })
   const udpServer = new UDPServer(DEFAULT_UDP_PORT)
 
+  const missionScriptingEnabled = store.get('mission_scripting_enabled')
+  dcsChatClient.sendConfig({ mission_scripting_enabled: missionScriptingEnabled })
+    .catch((error) => log.error('Error sending mission scripting config to DCS:', error))
+
   const eventProcessor = new EventProcessor()
 
   attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, eventProcessor })

@@ -28,6 +28,7 @@ Checkride.JSON = JSON
 
 Checkride.ChatPollInterval = 0.2
 Checkride.LastChatPollAt = 0
+Checkride.missionScriptingEnabled = true
 
 Checkride.UPDHost = "127.0.0.1"
 Checkride.UDPPort = 41234
@@ -90,6 +91,13 @@ function Checkride.pollChatSocket()
         end)
 
         if ok and type(decoded) == "table" then
+            if decoded.source == "checkride" and decoded.kind == "config" then
+                if decoded.mission_scripting_enabled ~= nil then
+                    Checkride.missionScriptingEnabled = decoded.mission_scripting_enabled ~= false
+                    Checkride.log("Mission scripting enabled: " .. tostring(Checkride.missionScriptingEnabled))
+                end
+                goto continue
+            end
             if decoded.message and decoded.message ~= "" then
                 message = decoded.message
             elseif decoded.text and decoded.text ~= "" then
@@ -101,6 +109,8 @@ function Checkride.pollChatSocket()
             Checkride.log("Received chat message: " .. message)
             Checkride.sendChatToAll(message)
         end
+
+        ::continue::
     end
 end
 

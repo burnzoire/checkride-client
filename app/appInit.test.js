@@ -36,6 +36,7 @@ describe('initApp', () => {
 
     dcsChatClientMock = {
       send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
     };
 
     UDPServer.mockImplementation(() => udpServerMock);
@@ -64,6 +65,8 @@ describe('initApp', () => {
           return fakePathPrefix;
         case 'discord_webhook_path':
           return fakeDiscordWebhookPath;
+        case 'mission_scripting_enabled':
+          return true;
         default:
           return defaultValue;
       }
@@ -89,6 +92,7 @@ describe('initApp', () => {
     expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix);
     expect(DiscordClient).toHaveBeenCalledWith(fakeDiscordWebhookPath);
     expect(DCSChatClient).toHaveBeenCalled();
+    expect(dcsChatClientMock.sendConfig).toHaveBeenCalledWith({ mission_scripting_enabled: true });
 
     expect(udpServer.onEvent).toBeDefined();
   });
@@ -186,6 +190,7 @@ describe('initApp', () => {
     };
     const dcsChatClientMock = {
       send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
     };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
@@ -223,6 +228,7 @@ describe('initApp', () => {
     };
     const dcsChatClientMock = {
       send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
     };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
@@ -324,6 +330,7 @@ describe('initApp', () => {
     };
     const dcsChatClientMock = {
       send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
     };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));

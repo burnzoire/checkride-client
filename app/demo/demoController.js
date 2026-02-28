@@ -6,7 +6,8 @@ const {
   RED_AIRCRAFT,
   AI_AIRCRAFT,
   AI_GROUND_UNITS,
-  AIRDROMES
+  AIRDROMES,
+  CARRIER_AIRCRAFT_TYPES
 } = require('./catalog');
 
 const { createSeededRandom } = require('./random');
@@ -36,6 +37,14 @@ const DEMO_PILOT_NAMES = [
   'Hangman',
   'Warlock'
 ];
+
+// Skill 3 = ace (Maverick/Iceman/Viper), 2 = experienced main cast, 1 = lesser-known
+const PILOT_SKILLS = {
+  Maverick: 3, Iceman: 3, Viper: 3,
+  Goose: 2, Jester: 2, Hollywood: 2, Wolfman: 2, Cougar: 2,
+  Merlin: 2, Slider: 2, Rooster: 2, Phoenix: 2, Hangman: 2, Bob: 2,
+  Stinger: 1, Chipper: 1, Sundown: 1, Charlie: 1, Warlock: 1, Mongoose: 1
+};
 
 function slugifyPilotName(name) {
   return String(name)
@@ -211,6 +220,7 @@ function createPilot({ index, random, serverIndex }) {
   return {
     ucid,
     name,
+    skill: PILOT_SKILLS[name] ?? 1,
     serverIndex,
     connected: false,
     flyable: false,
@@ -220,7 +230,9 @@ function createPilot({ index, random, serverIndex }) {
     side: random.chance(0.85) ? 'blue' : 'red',
     pendingDeath: false,
     airborneSinceMs: null,
-    plannedLandingAtMs: null
+    plannedLandingAtMs: null,
+    fromCarrier: false,
+    carrierName: null
   };
 }
 
@@ -314,6 +326,17 @@ class ServerSession {
       pilot.inAir = true;
       pilot.airborneSinceMs = nowMs;
       pilot.plannedLandingAtMs = nowMs + (this.random.int(5 * 60, 90 * 60) * 1000);
+
+      const isCarrierCapable = pilot.side === 'blue' && CARRIER_AIRCRAFT_TYPES.includes(pilot.unitType);
+      if (isCarrierCapable && this.random.chance(0.7)) {
+        const carrierName = this.random.pick(AIRDROMES.carrier);
+        pilot.fromCarrier = true;
+        pilot.carrierName = carrierName;
+        return [buildAirfieldEvent('takeoff', pilot, this.random, { airdromeName: carrierName })];
+      }
+
+      pilot.fromCarrier = false;
+      pilot.carrierName = null;
       return [buildAirfieldEvent('takeoff', pilot, this.random)];
     }
 
@@ -321,6 +344,19 @@ class ServerSession {
       pilot.inAir = false;
       pilot.airborneSinceMs = null;
       pilot.plannedLandingAtMs = null;
+
+      const wasCarrier = pilot.fromCarrier;
+      const carrierName = pilot.carrierName;
+      pilot.fromCarrier = false;
+      pilot.carrierName = null;
+
+      if (wasCarrier && carrierName) {
+        return [
+          buildAirfieldEvent('landing', pilot, this.random, { airdromeName: carrierName }),
+          buildGradingEvent(pilot, this.random, carrierName)
+        ];
+      }
+
       return [buildAirfieldEvent('landing', pilot, this.random)];
     }
 
@@ -489,16 +525,68 @@ function buildChangeSlotEvent(pilot, { slotId, prevSide, flyable }) {
   };
 }
 
-function buildAirfieldEvent(type, pilot, random) {
+// ---- Carrier grading (demo only) -------------------------------------
+
+// Grade distribution [grade, weight] by skill — weighted toward OK for a
+// typical operational squadron, with skill skewing the distribution.
+const GRADE_TABLES = {
+  3: [['_OK_', 15], ['OK', 50], ['(OK)', 22], ['--',  7], ['B',  4], ['WO', 1.5], ['C', 0.5]],
+  2: [['_OK_',  4], ['OK', 35], ['(OK)', 32], ['--', 15], ['B',  8], ['WO',  5],  ['C', 1]],
+  1: [['_OK_',  1], ['OK', 18], ['(OK)', 28], ['--', 25], ['B', 15], ['WO',  9],  ['C', 4]]
+};
+
+// Wire distribution [wire, weight] — wire 3 is the optimal wire
+const WIRE_TABLES = {
+  3: [[1,  5], [2, 20], [3, 65], [4, 10]],
+  2: [[1, 10], [2, 25], [3, 50], [4, 15]],
+  1: [[1, 15], [2, 25], [3, 40], [4, 20]]
+};
+
+// Grades that result in a caught wire
+const GRADES_WITH_WIRE = new Set(['_OK_', 'OK', '(OK)', '--']);
+
+function pickWeighted(random, table) {
+  const total = table.reduce((sum, [, w]) => sum + w, 0);
+  let r = random.next() * total;
+  for (const [val, weight] of table) {
+    r -= weight;
+    if (r <= 0) return val;
+  }
+  return table[table.length - 1][0];
+}
+
+function buildGradingEvent(pilot, random, carrierName) {
+  const skill = pilot.skill ?? 1;
+  const grade = pickWeighted(random, GRADE_TABLES[skill]);
+  const wire = GRADES_WITH_WIRE.has(grade) ? pickWeighted(random, WIRE_TABLES[skill]) : null;
+  const night = random.chance(0.3);
+  const gradingRaw = wire != null ? `${grade} ${wire}W` : grade;
+
+  return {
+    type: 'grading',
+    playerUcid: pilot.ucid,
+    playerName: pilot.name,
+    unitType: pilot.unitType,
+    lsoGrade: grade,
+    wire,
+    night,
+    gradingRaw,
+    carrierName
+  };
+}
+
+// -----------------------------------------------------------------------
+
+function buildAirfieldEvent(type, pilot, random, { airdromeName } = {}) {
   const airdromes = pilot.side === 'red' ? AIRDROMES.red : AIRDROMES.blue;
-  const airdromeName = airdromes.length ? random.pick(airdromes) : 'Test Field';
+  const resolvedAirdrome = airdromeName ?? (airdromes.length ? random.pick(airdromes) : 'Test Field');
 
   return {
     type,
     playerUcid: pilot.ucid,
     playerName: pilot.name,
     unitType: pilot.unitType,
-    airdromeName
+    airdromeName: resolvedAirdrome
   };
 }
 

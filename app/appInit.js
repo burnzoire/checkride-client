@@ -25,6 +25,7 @@ const EVENT_EMOJIS = {
   self_kill: ':eight_pointed_black_star: ',
   pilot_death: ':headstone: ',
   achievement: ':white_check_mark: ',
+  proficiency: ':white_check_mark: ',
 };
 
 function enrichWithEmojis(summary, eventType) {
@@ -54,7 +55,9 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
       .then((response) => {
         log.info(`API response: ${JSON.stringify(response)}`);
         const publish = response?.publish !== false;
-        const achievements = Array.isArray(response?.achievements) ? response.achievements : [];
+        const proficiencies = Array.isArray(response?.proficiencies) ? response.proficiencies
+          : Array.isArray(response?.achievements) ? response.achievements
+          : [];
         if (!response?.summary) return;
         const summaryMsg = enrichWithEmojis(response.summary, response.event_type);
         log.info(`About to send Discord summary: ${summaryMsg}`);
@@ -64,19 +67,19 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
           })
           .catch((error) => log.error('Error sending Discord summary:', error));
 
-        achievements.forEach((achievement, i) => {
-          if (achievement?.message) {
+        proficiencies.forEach((proficiency, i) => {
+          if (proficiency?.message) {
             if (dcsChatClient?.send) {
-              dcsChatClient.send(achievement.message, publish, { kind: 'achievement' })
-                .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
+              dcsChatClient.send(proficiency.message, publish, { kind: 'proficiency' })
+                .catch((error) => log.error(`Error sending DCS chat proficiency #${i + 1}:`, error));
             }
 
             last = last.then(() => {
-              const achievementMsg = enrichWithEmojis(achievement.message, 'achievement');
-              log.info(`About to send Discord achievement #${i + 1}: ${achievementMsg}`);
-              return discordClient.send(achievementMsg, publish)
-                .then(() => log.info(`Successfully sent Discord achievement #${i + 1}`))
-                .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));
+              const proficiencyMsg = enrichWithEmojis(proficiency.message, 'proficiency');
+              log.info(`About to send Discord proficiency #${i + 1}: ${proficiencyMsg}`);
+              return discordClient.send(proficiencyMsg, publish)
+                .then(() => log.info(`Successfully sent Discord proficiency #${i + 1}`))
+                .catch((error) => log.error(`Error sending Discord proficiency #${i + 1}:`, error));
             });
           }
         });

@@ -11,6 +11,7 @@ class GradingEvent extends GameEvent {
     this.night = rawEvent.night;
     this.gradingRaw = rawEvent.gradingRaw;
     this.carrierName = rawEvent.carrierName;
+    this.fuelState = rawEvent.fuelState;
     this.source = rawEvent.source || 'mission';
   }
 
@@ -30,6 +31,10 @@ class GradingEvent extends GameEvent {
 
     if (typeof this.night === 'boolean') {
       eventData.night = this.night;
+    }
+
+    if (typeof this.fuelState === 'number') {
+      eventData.fuel_state = this.fuelState;
     }
 
     return {

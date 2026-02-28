@@ -362,5 +362,78 @@ describe('initApp', () => {
     expect(log.error).toHaveBeenCalledWith('Error sending Discord achievement #1:', achievementError);
   });
 
+  it('calls saveAchievement when a client-side achievement unlocks', async () => {
+    const fakeEvent = { type: 'grading', playerUcid: 'ucid-1', playerName: 'Maverick', lsoGrade: 'OK', wire: 3 };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'grading', event_data: {} } }),
+    };
+    const fakeAchievement = {
+      id: 'carrier_qualified',
+      message: jest.fn().mockReturnValue('Maverick is Carrier Qualified'),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([fakeAchievement]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ summary: 'Trapped aboard', publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const discordClientMock = { send: jest.fn().mockResolvedValue() };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: discordClientMock,
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(fakeEvent);
+
+    expect(apiClientMock.saveAchievement).toHaveBeenCalledWith(expect.objectContaining({
+      playerUcid: 'ucid-1',
+      achievementId: 'carrier_qualified',
+      earnedAt: expect.any(String),
+    }));
+  });
+
+  it('loads achievements from API on connect event', async () => {
+    const connectEvent = { type: 'connect', playerUcid: 'ucid-1', playerName: 'Maverick' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'connect', event_data: {} } }),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const discordClientMock = { send: jest.fn().mockResolvedValue() };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: discordClientMock,
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(connectEvent);
+
+    expect(achievementEngineMock.loadAchievementsFromApi).toHaveBeenCalledWith('ucid-1', apiClientMock);
+  });
 
 });

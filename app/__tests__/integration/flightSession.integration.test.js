@@ -15,7 +15,8 @@ describe('Flight session integration', () => {
       saveEvent: jest.fn((payload) => {
         savedPayloads.push(payload);
         return Promise.resolve({ summary: 'ok', publish: true });
-      })
+      }),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
     };
 
     discordClientMock = {

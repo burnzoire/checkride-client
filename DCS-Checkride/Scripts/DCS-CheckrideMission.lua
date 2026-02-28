@@ -383,6 +383,7 @@ function CheckrideMission.onLandingQualityMark(event)
 
     local night = CheckrideMission.isNight(event.time)
     local carrierName = CheckrideMission.getCarrierName(event.place)
+    local fuelState = initiator:getFuel()
 
     local message = {
         type = "grading",
@@ -396,6 +397,7 @@ function CheckrideMission.onLandingQualityMark(event)
         gradingRaw = raw,
         carrierName = carrierName,
         missionTime = event.time,
+        fuelState = fuelState,
     }
 
     CheckrideMission.log(

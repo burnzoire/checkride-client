@@ -97,6 +97,80 @@ class APIClient {
     })
   }
 
+  saveAchievement({ playerUcid, achievementId, earnedAt }) {
+    return new Promise((resolve, reject) => {
+      const data = JSON.stringify({
+        player_ucid: playerUcid,
+        achievement_id: achievementId,
+        earned_at: earnedAt,
+      });
+
+      const options = {
+        host: this.host,
+        path: `${this.pathPrefix}/pilot_achievements`,
+        port: this.port,
+        method: 'POST',
+        headers: this.buildHeaders({
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data),
+        }),
+      };
+
+      const req = this.httpModule.request(options, (response) => {
+        let body = [];
+        response.on('data', (chunk) => { body.push(chunk); });
+        response.on('end', () => {
+          if (response.statusCode !== 200 && response.statusCode !== 201) {
+            reject(new APIClientError(`Failed to save achievement: ${Buffer.concat(body).toString()}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(Buffer.concat(body).toString()));
+          } catch (e) {
+            reject(new APIClientError('Failed to parse save achievement response'));
+          }
+        });
+        response.on('error', error => reject(new APIClientError(`API request failed: ${error}`)));
+      });
+
+      req.on('error', (error) => reject(new APIClientError(`API request failed: ${error}`)));
+      req.write(data);
+      req.end();
+    });
+  }
+
+  fetchPilotAchievements(playerUcid) {
+    return new Promise((resolve, reject) => {
+      const options = {
+        host: this.host,
+        path: `${this.pathPrefix}/pilot_achievements?player_ucid=${encodeURIComponent(playerUcid)}`,
+        port: this.port,
+        method: 'GET',
+        headers: this.buildHeaders(),
+      };
+
+      const req = this.httpModule.request(options, (response) => {
+        let body = [];
+        response.on('data', (chunk) => { body.push(chunk); });
+        response.on('end', () => {
+          if (response.statusCode !== 200) {
+            reject(new APIClientError(`Failed to fetch pilot achievements: ${Buffer.concat(body).toString()}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(Buffer.concat(body).toString()));
+          } catch (e) {
+            reject(new APIClientError('Failed to parse fetch pilot achievements response'));
+          }
+        });
+        response.on('error', error => reject(new APIClientError(`API request failed: ${error}`)));
+      });
+
+      req.on('error', (error) => reject(new APIClientError(`API request failed: ${error}`)));
+      req.end();
+    });
+  }
+
   healthcheck() {
     return new Promise((resolve, reject) => {
       var options = {

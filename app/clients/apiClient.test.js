@@ -323,6 +323,163 @@ describe('APIClient', () => {
     });
   });
 
+  describe('saveAchievement', () => {
+    it('resolves with parsed JSON on 201', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+      const responseBody = { id: 1, achievement_id: 'carrier_qualified' };
+
+      mockResponse.statusCode = 201;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from(JSON.stringify(responseBody)));
+        else if (event === 'end') handler();
+      });
+
+      const result = await client.saveAchievement({ playerUcid: 'abc123', achievementId: 'carrier_qualified', earnedAt: '2026-01-01T00:00:00.000Z' });
+
+      expect(result).toEqual(responseBody);
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'POST', path: '/pilot_achievements' }),
+        expect.any(Function)
+      );
+      expect(mockReq.write).toHaveBeenCalledWith(JSON.stringify({
+        player_ucid: 'abc123',
+        achievement_id: 'carrier_qualified',
+        earned_at: '2026-01-01T00:00:00.000Z',
+      }));
+    });
+
+    it('resolves with parsed JSON on 200 (idempotent duplicate)', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+      const responseBody = { id: 1, achievement_id: 'carrier_qualified' };
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from(JSON.stringify(responseBody)));
+        else if (event === 'end') handler();
+      });
+
+      const result = await client.saveAchievement({ playerUcid: 'abc123', achievementId: 'carrier_qualified', earnedAt: '2026-01-01T00:00:00.000Z' });
+      expect(result).toEqual(responseBody);
+    });
+
+    it('rejects on non-200/201 status', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 404;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('Not Found'));
+        else if (event === 'end') handler();
+      });
+
+      await expect(
+        client.saveAchievement({ playerUcid: 'abc123', achievementId: 'carrier_qualified', earnedAt: '2026-01-01T00:00:00.000Z' })
+      ).rejects.toThrow(APIClientError);
+      await expect(
+        client.saveAchievement({ playerUcid: 'abc123', achievementId: 'carrier_qualified', earnedAt: '2026-01-01T00:00:00.000Z' })
+      ).rejects.toThrow('Failed to save achievement: Not Found');
+    });
+
+    it('includes bearer token when provided', async () => {
+      jest.clearAllMocks();
+
+      const client = new APIClient(false, 'localhost', 3000, 'secret');
+
+      mockResponse.statusCode = 201;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('{}'));
+        else if (event === 'end') handler();
+      });
+
+      await client.saveAchievement({ playerUcid: 'abc123', achievementId: 'carrier_qualified', earnedAt: '2026-01-01T00:00:00.000Z' });
+
+      const options = mockRequest.mock.calls[0][0];
+      expect(options.headers['Authorization']).toBe('Bearer secret');
+    });
+  });
+
+  describe('fetchPilotAchievements', () => {
+    it('resolves with parsed JSON on 200', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+      const responseBody = { achievement_ids: ['carrier_qualified', 'night_qualified'] };
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from(JSON.stringify(responseBody)));
+        else if (event === 'end') handler();
+      });
+
+      const result = await client.fetchPilotAchievements('abc123');
+
+      expect(result).toEqual(responseBody);
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'GET',
+          path: '/pilot_achievements?player_ucid=abc123',
+        }),
+        expect.any(Function)
+      );
+    });
+
+    it('URL-encodes the player_ucid', async () => {
+      jest.clearAllMocks();
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('{"achievement_ids":[]}'));
+        else if (event === 'end') handler();
+      });
+
+      await client.fetchPilotAchievements('ucid with spaces');
+
+      const options = mockRequest.mock.calls[0][0];
+      expect(options.path).toBe('/pilot_achievements?player_ucid=ucid%20with%20spaces');
+    });
+
+    it('rejects on non-200 status', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 500;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('Server Error'));
+        else if (event === 'end') handler();
+      });
+
+      await expect(client.fetchPilotAchievements('abc123')).rejects.toThrow(APIClientError);
+      await expect(client.fetchPilotAchievements('abc123')).rejects.toThrow('Failed to fetch pilot achievements: Server Error');
+    });
+
+    it('rejects when response body cannot be parsed', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('not json'));
+        else if (event === 'end') handler();
+      });
+
+      await expect(client.fetchPilotAchievements('abc123')).rejects.toThrow(APIClientError);
+      await expect(client.fetchPilotAchievements('abc123')).rejects.toThrow('Failed to parse fetch pilot achievements response');
+    });
+
+    it('includes bearer token when provided', async () => {
+      jest.clearAllMocks();
+
+      const client = new APIClient(false, 'localhost', 3000, 'secret');
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('{"achievement_ids":[]}'));
+        else if (event === 'end') handler();
+      });
+
+      await client.fetchPilotAchievements('abc123');
+
+      const options = mockRequest.mock.calls[0][0];
+      expect(options.headers['Authorization']).toBe('Bearer secret');
+    });
+  });
+
   describe('Error Classes', () => {
     it('should create APIClientError with correct name', () => {
       const error = new APIClientError('test error');

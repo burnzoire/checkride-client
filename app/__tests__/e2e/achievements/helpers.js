@@ -56,6 +56,10 @@ function waveOff(overrides = {}) {
   return grading({ lsoGrade: 'WO', wire: null, ...overrides });
 }
 
+function connect(ucid = 'pilot-1') {
+  return { type: 'connect', playerUcid: ucid };
+}
+
 /** Pull the achievement IDs that were saved for a given pilot. */
 function savedAchievementIds(apiClient, ucid = 'pilot-1') {
   return apiClient.saveAchievement.mock.calls
@@ -63,4 +67,4 @@ function savedAchievementIds(apiClient, ucid = 'pilot-1') {
     .map(([arg]) => arg.achievementId);
 }
 
-module.exports = { makePipeline, sendAll, grading, bolter, waveOff, savedAchievementIds };
+module.exports = { makePipeline, sendAll, grading, bolter, waveOff, connect, savedAchievementIds };

@@ -374,6 +374,7 @@ describe('initApp', () => {
     const achievementEngineMock = {
       evaluate: jest.fn().mockReturnValue([fakeAchievement]),
       loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue({ summary: 'Trapped aboard', publish: true }),
@@ -411,6 +412,7 @@ describe('initApp', () => {
     const achievementEngineMock = {
       evaluate: jest.fn().mockReturnValue([]),
       loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue({ publish: true }),
@@ -433,6 +435,7 @@ describe('initApp', () => {
 
     await udpServer.onEvent(connectEvent);
 
+    expect(achievementEngineMock.resetPilot).toHaveBeenCalledWith('ucid-1');
     expect(achievementEngineMock.loadAchievementsFromApi).toHaveBeenCalledWith('ucid-1', apiClientMock);
   });
 

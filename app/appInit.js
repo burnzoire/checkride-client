@@ -49,6 +49,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     }
 
     if (event.type === 'connect' && event.playerUcid) {
+      engine.resetPilot(event.playerUcid);
       engine.loadAchievementsFromApi(event.playerUcid, apiClient)
         .catch((error) => log.error(`Failed to load achievements for pilot ${event.playerUcid}:`, error))
     }

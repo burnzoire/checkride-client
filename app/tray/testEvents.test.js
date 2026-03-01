@@ -247,6 +247,31 @@ describe('testEvents', () => {
     );
   });
 
+  it('should include test bolter grading event', () => {
+    const events = createTestEvents(mockUdpServer);
+    const bolterEvent = events.find(item => item.label === 'Send test bolter grading event');
+
+    expect(bolterEvent).toBeDefined();
+    expect(typeof bolterEvent.click).toBe('function');
+  });
+
+  it('should send bolter grading event data when clicked', () => {
+    const events = createTestEvents(mockUdpServer);
+    const bolterEvent = events.find(item => item.label === 'Send test bolter grading event');
+
+    bolterEvent.click();
+
+    expect(mockUdpServer.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'grading',
+        playerUcid: 'test1',
+        lsoGrade: 'B',
+        wire: null,
+        night: false,
+      })
+    );
+  });
+
   it('should include test disconnect event', () => {
     const events = createTestEvents(mockUdpServer);
     const disconnectEvent = events.find(item => item.label === 'Send test disconnect event');

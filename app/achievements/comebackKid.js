@@ -18,7 +18,7 @@ class ComebackKid extends Achievement {
   }
 
   evaluate(event, state) {
-    const isTrap = event.lsoGrade !== 'BOLTER' && Number.isFinite(event.wire);
+    const isTrap = event.lsoGrade !== 'B' && Number.isFinite(event.wire);
     return state.prevLastPassWasBolter && isTrap;
   }
 }

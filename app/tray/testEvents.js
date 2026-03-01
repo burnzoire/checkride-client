@@ -146,6 +146,24 @@ const createTestEvents = (udpServer, { enabled = true, dcsChatClient } = {}) => 
     }
   },
   {
+    label: 'Send test bolter grading event',
+    enabled,
+    click() {
+      udpServer.send({
+        type: "grading",
+        source: "mission",
+        playerUcid: "test1",
+        playerName: "Test Pilot",
+        unitType: "FA-18C",
+        lsoGrade: "B",
+        wire: null,
+        night: false,
+        gradingRaw: "BOLTER",
+        carrierName: "CVN-73 George Washington"
+      });
+    }
+  },
+  {
     label: 'Send test change slot event',
     enabled,
     click() {

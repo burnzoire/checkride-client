@@ -5,7 +5,7 @@ function trap(wire = 3, night = false, fuelState = null) {
 }
 
 function bolter() {
-  return { lsoGrade: 'BOLTER', wire: null, night: false, fuelState: null };
+  return { lsoGrade: 'B', wire: null, night: false, fuelState: null };
 }
 
 function waveOff() {
@@ -101,7 +101,7 @@ describe('PilotState', () => {
 
   it('does not update fuelAtTrap on a bolter', () => {
     state.applyGrading(trap(3, false, 0.5));
-    state.applyGrading({ lsoGrade: 'BOLTER', wire: null, night: false, fuelState: 0.1 });
+    state.applyGrading({ lsoGrade: 'B', wire: null, night: false, fuelState: 0.1 });
     // fuelAtTrap should still reflect the last trap, not the bolter
     expect(state.fuelAtTrap).toBeCloseTo(0.5);
   });

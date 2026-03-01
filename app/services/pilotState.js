@@ -4,7 +4,7 @@
  * State is held in memory only — it does not persist across sessions.
  */
 
-const BOLTER_GRADE = 'BOLTER';
+const BOLTER_GRADE = 'B';
 
 class PilotState {
   constructor() {

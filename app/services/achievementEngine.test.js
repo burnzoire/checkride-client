@@ -19,7 +19,7 @@ function grading(overrides = {}) {
 }
 
 function bolterEvent(overrides = {}) {
-  return grading({ lsoGrade: 'BOLTER', wire: null, ...overrides });
+  return grading({ lsoGrade: 'B', wire: null, ...overrides });
 }
 
 function waveOffEvent(overrides = {}) {

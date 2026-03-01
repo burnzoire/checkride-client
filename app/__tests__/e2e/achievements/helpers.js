@@ -49,7 +49,7 @@ function grading(overrides = {}) {
 }
 
 function bolter(overrides = {}) {
-  return grading({ lsoGrade: 'BOLTER', wire: null, ...overrides });
+  return grading({ lsoGrade: 'B', wire: null, ...overrides });
 }
 
 function waveOff(overrides = {}) {

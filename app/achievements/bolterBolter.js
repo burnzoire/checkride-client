@@ -11,6 +11,7 @@ class BolterBolter extends Achievement {
       id: 'bolter_bolter',
       name: 'Bolter Bolter!',
       description: 'Bolter on two consecutive passes.',
+      triggerType: 'grading',
       iconHint: 'Wave-off lights and a jet climbing away from the deck',
       iconDescription: 'Red wave-off lights blazing on the IFLOLS as a jet climbs away from the deck with afterburner lit, viewed from the LSO platform.',
 

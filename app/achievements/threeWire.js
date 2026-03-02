@@ -10,6 +10,7 @@ class ThreeWire extends Achievement {
       id: 'three_wire',
       name: 'Three Wire',
       description: 'Catch the 3-wire on a carrier landing.',
+      triggerType: 'grading',
       iconHint: 'Arrested landing hook catching the 3-wire',
       iconDescription: 'Close-up of a tailhook snagging the third arresting wire on a carrier deck, the wire bowing under tension.',
 

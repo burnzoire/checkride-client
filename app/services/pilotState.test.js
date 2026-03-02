@@ -106,3 +106,62 @@ describe('PilotState', () => {
     expect(state.fuelAtTrap).toBeCloseTo(0.5);
   });
 });
+
+// ─── sortie state (takeoff / kill enrichment) ────────────────────────────────
+
+describe('PilotState — sortie fields', () => {
+  let state;
+
+  beforeEach(() => {
+    state = new PilotState();
+  });
+
+  it('starts with launchedFromCarrier false, takeoffLocation null, and empty kills', () => {
+    expect(state.launchedFromCarrier).toBe(false);
+    expect(state.takeoffLocation).toBeNull();
+    expect(state.kills).toEqual([]);
+  });
+
+  describe('applyTakeoffEnrichment', () => {
+    it('sets launchedFromCarrier to true when takeoff was from a carrier', () => {
+      state.applyTakeoffEnrichment({ launchedFromCarrier: true, carrierName: 'CVN-71' });
+      expect(state.launchedFromCarrier).toBe(true);
+    });
+
+    it('sets launchedFromCarrier to false when takeoff was from a land base', () => {
+      state.applyTakeoffEnrichment({ launchedFromCarrier: false });
+      expect(state.launchedFromCarrier).toBe(false);
+    });
+
+    it('clears kills array on each new takeoff', () => {
+      state.applyKill({ victimUnitCategory: 'air', carrierDistanceNm: 20 });
+      expect(state.kills).toHaveLength(1);
+      state.applyTakeoffEnrichment({ launchedFromCarrier: true });
+      expect(state.kills).toHaveLength(0);
+    });
+
+    it('stores carrierName on the state', () => {
+      state.applyTakeoffEnrichment({ launchedFromCarrier: true, takeoffLocation: 'CVN-71' });
+      expect(state.takeoffLocation).toBe('CVN-71');
+    });
+  });
+
+  describe('applyKill', () => {
+    it('appends a kill entry with victimUnitCategory and carrierDistanceNm', () => {
+      state.applyKill({ victimUnitCategory: 'air', carrierDistanceNm: 30 });
+      expect(state.kills).toHaveLength(1);
+      expect(state.kills[0]).toEqual({ victimUnitCategory: 'air', carrierDistanceNm: 30 });
+    });
+
+    it('accumulates multiple kills within the same sortie', () => {
+      state.applyKill({ victimUnitCategory: 'air', carrierDistanceNm: 30 });
+      state.applyKill({ victimUnitCategory: 'ground', carrierDistanceNm: 10 });
+      expect(state.kills).toHaveLength(2);
+    });
+
+    it('accepts null carrierDistanceNm when no carrier reference exists', () => {
+      state.applyKill({ victimUnitCategory: 'air', carrierDistanceNm: null });
+      expect(state.kills[0].carrierDistanceNm).toBeNull();
+    });
+  });
+});

@@ -3,11 +3,13 @@ const PilotState = require('./pilotState');
 const ALL_ACHIEVEMENTS = require('../achievements');
 
 /**
- * AchievementEngine evaluates all active achievements on every grading event.
+ * AchievementEngine evaluates all active achievements on every relevant event.
  *
  * - Maintains per-pilot PilotState instances keyed by playerUcid.
  * - Tracks which achievements each pilot has already unlocked this session
  *   so each achievement fires at most once per pilot per session.
+ * - Dispatches events by type: each achievement declares a triggerType and is
+ *   only evaluated when an event of that type arrives.
  * - State is in-memory only; it resets when the Electron process restarts.
  */
 class AchievementEngine {
@@ -43,26 +45,42 @@ class AchievementEngine {
   }
 
   /**
-   * Evaluate all achievements for a single grading event.
+   * Evaluate all achievements for a single event.
+   * Dispatches to the correct state-apply method based on event type, then
+   * evaluates only achievements whose triggerType matches the event type.
+   *
+   * Supported event types:
+   *   - grading            → state.applyGrading()         → triggerType 'grading' achievements
+   *   - takeoff_enrichment → state.applyTakeoffEnrichment() → (state update only, no achievements yet)
+   *   - kill_enrichment    → state.applyKill()             → triggerType 'kill_enrichment' achievements
+   *
    * Returns an array of newly-unlocked Achievement instances (may be empty).
    *
-   * @param {object} event - raw grading event from DCS
+   * @param {object} event - raw event from DCS
    * @returns {Achievement[]}
    */
   evaluate(event) {
-    if (event.type !== 'grading') return [];
+    const DISPATCH = {
+      grading:             { ucidField: 'playerUcid', stateMethod: 'applyGrading' },
+      takeoff_enrichment:  { ucidField: 'playerUcid', stateMethod: 'applyTakeoffEnrichment' },
+      kill_enrichment:     { ucidField: 'playerUcid', stateMethod: 'applyKill' },
+    };
 
-    const ucid = event.playerUcid;
+    const dispatch = DISPATCH[event.type];
+    if (!dispatch) return [];
+
+    const ucid = event[dispatch.ucidField];
     if (!ucid) return [];
 
     const state = this._getOrCreateState(ucid);
-    state.applyGrading(event);
+    state[dispatch.stateMethod](event);
 
     const unlocked = this._getOrCreateUnlocked(ucid);
     const newlyUnlocked = [];
 
     for (const achievement of this.achievements) {
       if (unlocked.has(achievement.id)) continue;
+      if (achievement.triggerType !== event.type) continue;
 
       let earned = false;
       try {

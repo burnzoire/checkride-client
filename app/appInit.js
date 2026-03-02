@@ -54,6 +54,30 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         .catch((error) => log.error(`Failed to load achievements for pilot ${event.playerUcid}:`, error))
     }
 
+    // Events with persist: false update pilot state and fire achievements but are never saved to the API.
+    if (event.persist === false) {
+      const newlyUnlocked = engine.evaluate(event);
+      newlyUnlocked.forEach((achievement, i) => {
+        const pilotName = event.playerName || 'Unknown Pilot';
+        const msg = achievement.message(pilotName);
+
+        apiClient.saveAchievement({
+          playerUcid: event.playerUcid,
+          achievementId: achievement.id,
+          earnedAt: new Date().toISOString(),
+        }).catch((error) => log.error(`Failed to persist achievement ${achievement.id}:`, error));
+
+        if (dcsChatClient?.send) {
+          dcsChatClient.send(msg, true, { kind: 'achievement' })
+            .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
+        }
+
+        discordClient.send(enrichWithEmojis(msg, 'achievement'), true)
+          .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));
+      });
+      return Promise.resolve();
+    }
+
     let unlockedAchievements = [];
 
     return EventFactory.create(event)

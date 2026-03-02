@@ -9,6 +9,7 @@ class NightQualified extends Achievement {
       id: 'night_qualified',
       name: 'Night Qualified',
       description: 'Make 6 arrested landings on a carrier at night in a single session.',
+      triggerType: 'grading',
       iconHint: 'Carrier deck at night with approach lighting',
       iconDescription: 'Dark carrier deck seen from final approach, lit only by the IFLOLS meatball and deck edge lights against a black sky.',
 

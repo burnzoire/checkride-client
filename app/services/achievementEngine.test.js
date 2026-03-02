@@ -40,10 +40,48 @@ class StubAchievement extends Achievement {
 // ─── engine mechanics ────────────────────────────────────────────────────────
 
 describe('AchievementEngine — core mechanics', () => {
-  it('returns empty array for non-grading events', () => {
+  it('returns empty array for unknown event types', () => {
     const engine = new AchievementEngine([]);
     expect(engine.evaluate({ type: 'kill', playerUcid: 'p1' })).toEqual([]);
     expect(engine.evaluate({ type: 'landing', playerUcid: 'p1' })).toEqual([]);
+  });
+
+  it('processes takeoff_enrichment without triggering grading achievements', () => {
+    const always = new StubAchievement('always', () => true);
+    const engine = new AchievementEngine([always]);
+    const result = engine.evaluate({
+      type: 'takeoff_enrichment',
+      playerUcid: 'p1',
+      launchedFromCarrier: true,
+      carrierName: 'CVN-71',
+    });
+    expect(result).toHaveLength(0); // no achievement registered for takeoff_enrichment
+  });
+
+  it('processes kill_enrichment without triggering grading achievements', () => {
+    const always = new StubAchievement('always', () => true);
+    const engine = new AchievementEngine([always]);
+    const result = engine.evaluate({
+      type: 'kill_enrichment',
+      playerUcid: 'p1',
+      victimUnitCategory: 'air',
+      carrierDistanceNm: 10,
+    });
+    expect(result).toHaveLength(0); // grading achievement not triggered by kill_enrichment
+  });
+
+  it('passes kill_enrichment event to achievements registered with triggerType kill_enrichment', () => {
+    const killAchievement = new StubAchievement('kill_achv', () => true);
+    killAchievement.triggerType = 'kill_enrichment';
+    const engine = new AchievementEngine([killAchievement]);
+    const result = engine.evaluate({
+      type: 'kill_enrichment',
+      playerUcid: 'p1',
+      victimUnitCategory: 'air',
+      carrierDistanceNm: 10,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('kill_achv');
   });
 
   it('returns empty array when playerUcid is missing', () => {

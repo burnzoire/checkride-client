@@ -12,6 +12,7 @@ class JokerState extends Achievement {
       id: 'joker_state',
       name: 'Joker State',
       description: 'Trap with less than 10% fuel remaining.',
+      triggerType: 'grading',
       iconHint: 'Cockpit fuel gauge needle on empty as a carrier looms ahead',
       iconDescription: 'A cockpit fuel gauge with the needle just above empty, the carrier deck visible through the HUD glass in the background.',
 

@@ -8,6 +8,7 @@ const threeWire = require('./threeWire');
 const comebackKid = require('./comebackKid');
 const bolterBolter = require('./bolterBolter');
 const jokerState = require('./jokerState');
+const fleetDefender = require('./fleetDefender');
 
 const ALL_ACHIEVEMENTS = [
   carrierQualified,
@@ -16,6 +17,7 @@ const ALL_ACHIEVEMENTS = [
   comebackKid,
   bolterBolter,
   jokerState,
+  fleetDefender,
 ];
 
 module.exports = ALL_ACHIEVEMENTS;

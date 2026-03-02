@@ -9,6 +9,13 @@ CheckrideMission = {}
 CheckrideMission.version = "0.1.0"
 CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 
+-- Maps ucid (or fallback playerName) to the carrier Unit the pilot launched from.
+-- Reset each time a takeoff_enrichment is emitted; used to compute distance on kill.
+CheckrideMission.pilotCarrierByUcid = {}
+
+CheckrideMission.TakeoffEventId = nil
+CheckrideMission.KillEventId = nil
+
 local function checkrideMissionInfo(message)
     if log and log.write then
         log.write('DCS-Checkride-Mission', log.INFO, tostring(message))
@@ -136,6 +143,13 @@ function CheckrideMission.sendEvent(message)
 
     CheckrideMission.queueEvent(encoded)
     CheckrideMission.log("queued event: " .. tostring(message and message.type or "unknown"))
+end
+
+-- State-only events: never saved to the API, only evaluated by the achievement
+-- engine. Automatically stamps persist = false so call sites don't have to.
+function CheckrideMission.sendEnrichmentEvent(message)
+    message.persist = false
+    CheckrideMission.sendEvent(message)
 end
 
 -- ============================================================================
@@ -325,6 +339,8 @@ function CheckrideMission.ensureWorldHandler()
     end
 
     CheckrideMission.LandingQualityEventId = world.event.S_EVENT_LANDING_QUALITY_MARK
+    CheckrideMission.TakeoffEventId = world.event.S_EVENT_TAKEOFF
+    CheckrideMission.KillEventId = world.event.S_EVENT_KILL
 
     -- Remove any previously registered handler before re-registering.
     -- If world identity changed (mission reload), the old handler object may still
@@ -359,6 +375,14 @@ function CheckrideMission.EventHandler:onEvent(event)
 
     if CheckrideMission.LandingQualityEventId and event.id == CheckrideMission.LandingQualityEventId then
         CheckrideMission.onLandingQualityMark(event)
+    end
+
+    if CheckrideMission.TakeoffEventId and event.id == CheckrideMission.TakeoffEventId then
+        CheckrideMission.onTakeoff(event)
+    end
+
+    if CheckrideMission.KillEventId and event.id == CheckrideMission.KillEventId then
+        CheckrideMission.onKill(event)
     end
 end
 
@@ -408,6 +432,139 @@ function CheckrideMission.onLandingQualityMark(event)
     )
 
     CheckrideMission.sendEvent(message)
+end
+
+-- ============================================================================
+-- Takeoff Enrichment
+-- Emits a takeoff_enrichment event so the client can track whether the pilot
+-- launched from a carrier and store their takeoff position for kill distance.
+-- Unit.Category: AIRPLANE=0, HELICOPTER=1, GROUND_UNIT=2, SHIP=3
+-- ============================================================================
+function CheckrideMission.onTakeoff(event)
+    local initiator = event.initiator
+    if not initiator then return end
+
+    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end -- AI unit, skip
+
+    local place = event.place
+    if not place then return end
+
+    -- Determine if the takeoff surface is a ship (carrier)
+    local isCarrier = false
+    local ok, desc = pcall(function() return place:getDesc() end)
+    if ok and desc and desc.category == 3 then
+        isCarrier = true
+    end
+
+    local carrierKey = ucid or playerName
+    local carrierName = CheckrideMission.getCarrierName(place)
+
+    if isCarrier then
+        CheckrideMission.pilotCarrierByUcid[carrierKey] = place
+    else
+        CheckrideMission.pilotCarrierByUcid[carrierKey] = nil
+    end
+
+    local message = {
+        type             = "takeoff_enrichment",
+        source           = "mission",
+        playerUcid       = ucid,
+        playerName       = playerName,
+        launchedFromCarrier = isCarrier,
+        takeoffLocation  = carrierName,
+        missionTime      = event.time,
+    }
+
+    CheckrideMission.log(
+        playerName .. " took off from " ..
+        (isCarrier and ("carrier " .. (carrierName or "unknown")) or "airbase")
+    )
+
+    CheckrideMission.sendEnrichmentEvent(message)
+end
+
+-- ============================================================================
+-- Kill Enrichment
+-- Emits a kill_enrichment event with victim category and distance to carrier.
+-- victimUnitCategory: "air" | "ground" | "ship" | "other"
+-- carrierDistanceNm: number (nm from killer's carrier) or nil if no carrier ref.
+-- ============================================================================
+function CheckrideMission.onKill(event)
+    local initiator = event.initiator
+    if not initiator then return end
+
+    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end -- AI kill, skip
+
+    local target = event.target
+    if not target then return end
+
+    -- Victim unit category
+    local victimCategory = nil
+    local okDesc, desc = pcall(function() return target:getDesc() end)
+    if okDesc and desc then
+        victimCategory = desc.category
+    end
+
+    local victimUnitCategory = "other"
+    if victimCategory == 0 or victimCategory == 1 then
+        victimUnitCategory = "air"
+    elseif victimCategory == 2 then
+        victimUnitCategory = "ground"
+    elseif victimCategory == 3 then
+        victimUnitCategory = "ship"
+    end
+
+    -- Coalition check (enemy = different, non-neutral)
+    local killerCoal = nil
+    local victimCoal = nil
+    pcall(function() killerCoal = initiator:getCoalition() end)
+    pcall(function() victimCoal  = target:getCoalition()  end)
+    local isEnemy = killerCoal and victimCoal and
+                    killerCoal ~= victimCoal and victimCoal ~= 0
+
+    -- Distance from pilot's carrier
+    local carrierKey = ucid or playerName
+    local carrier = CheckrideMission.pilotCarrierByUcid[carrierKey]
+    local carrierDistanceNm = nil
+
+    if carrier then
+        local carrierAlive = false
+        local okAlive, alive = pcall(function() return carrier:isExist() end)
+        if okAlive then carrierAlive = alive end
+
+        if carrierAlive then
+            local okCarrierPos, carrierPos = pcall(function() return carrier:getPoint() end)
+            local okTargetPos,  targetPos  = pcall(function() return target:getPoint()  end)
+
+            if okCarrierPos and carrierPos and okTargetPos and targetPos then
+                local dx = carrierPos.x - targetPos.x
+                local dz = carrierPos.z - targetPos.z
+                carrierDistanceNm = math.sqrt(dx * dx + dz * dz) / 1852.0
+            end
+        end
+    end
+
+    local message = {
+        type               = "kill_enrichment",
+        source             = "mission",
+        playerUcid         = ucid,
+        playerName         = playerName,
+        victimUnitCategory = victimUnitCategory,
+        isEnemy            = isEnemy,
+        carrierDistanceNm  = carrierDistanceNm,
+        missionTime        = event.time,
+    }
+
+    CheckrideMission.log(
+        playerName .. " kill: " .. victimUnitCategory ..
+        (carrierDistanceNm
+            and (" at " .. string.format("%.1f", carrierDistanceNm) .. "nm from carrier")
+            or  " (no carrier ref)")
+    )
+
+    CheckrideMission.sendEnrichmentEvent(message)
 end
 
 -- ============================================================================

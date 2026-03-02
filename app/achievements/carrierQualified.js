@@ -9,6 +9,7 @@ class CarrierQualified extends Achievement {
       id: 'carrier_qualified',
       name: 'Carrier Qualified',
       description: 'Make 6 arrested landings on a carrier in a single session.',
+      triggerType: 'grading',
       iconHint: 'Naval aviator wings over a carrier flight deck',
       iconDescription: 'Gold naval aviator wings badge with a carrier silhouette beneath them, viewed from the stern.',
 

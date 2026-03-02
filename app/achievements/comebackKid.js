@@ -11,6 +11,7 @@ class ComebackKid extends Achievement {
       id: 'comeback_kid',
       name: 'Comeback Kid',
       description: 'Trap on your very next pass after a bolter.',
+      triggerType: 'grading',
       iconHint: 'Fighter jet going around then returning to land',
       iconDescription: 'A fighter at full burner clawing away from the deck on a bolter, with a second silhouette of the same aircraft on final approach behind it.',
 

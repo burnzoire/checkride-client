@@ -438,7 +438,7 @@ end
 -- Takeoff Enrichment
 -- Emits a takeoff_enrichment event so the client can track whether the pilot
 -- launched from a carrier and store their takeoff position for kill distance.
--- Unit.Category: AIRPLANE=0, HELICOPTER=1, GROUND_UNIT=2, SHIP=3
+-- Airbase desc category: AIRDROME=0, HELIPAD=1, SHIP=2
 -- ============================================================================
 function CheckrideMission.onTakeoff(event)
     local initiator = event.initiator
@@ -454,15 +454,13 @@ function CheckrideMission.onTakeoff(event)
     local isCarrier = false
     local placeName = CheckrideMission.getCarrierName(place)
 
-    -- Airbase.Category.SHIP == 2
-    local SHIP_AIRBASE_CATEGORY = 2
+    -- Object category for Airbase is BASE (4) so this is mainly diagnostic.
     local okCategory, placeCategory = pcall(function() return place:getCategory() end)
-    if okCategory and (placeCategory == SHIP_AIRBASE_CATEGORY) then
-        isCarrier = true
-    end
 
+    -- Airbase descriptor category for ship decks is 2.
+    local SHIP_AIRBASE_DESC_CATEGORY = 2
     local ok, desc = pcall(function() return place:getDesc() end)
-    if ok and desc and desc.category == 3 then
+    if ok and desc and desc.category == SHIP_AIRBASE_DESC_CATEGORY then
         isCarrier = true
     end
 

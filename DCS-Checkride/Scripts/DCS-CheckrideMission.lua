@@ -452,13 +452,22 @@ function CheckrideMission.onTakeoff(event)
 
     -- Determine if the takeoff surface is a ship (carrier)
     local isCarrier = false
+    local placeName = CheckrideMission.getCarrierName(place)
+
+    -- Airbase.Category.SHIP == 2
+    local SHIP_AIRBASE_CATEGORY = 2
+    local okCategory, placeCategory = pcall(function() return place:getCategory() end)
+    if okCategory and (placeCategory == SHIP_AIRBASE_CATEGORY) then
+        isCarrier = true
+    end
+
     local ok, desc = pcall(function() return place:getDesc() end)
     if ok and desc and desc.category == 3 then
         isCarrier = true
     end
 
     local carrierKey = ucid or playerName
-    local carrierName = CheckrideMission.getCarrierName(place)
+    local carrierName = placeName
 
     if isCarrier then
         CheckrideMission.pilotCarrierByUcid[carrierKey] = place
@@ -475,6 +484,13 @@ function CheckrideMission.onTakeoff(event)
         takeoffLocation  = carrierName,
         missionTime      = event.time,
     }
+
+    CheckrideMission.log(
+        "takeoff enrichment: place=" .. tostring(carrierName or "unknown") ..
+        " placeCategory=" .. tostring(placeCategory) ..
+        " descCategory=" .. tostring(ok and desc and desc.category or nil) ..
+        " launchedFromCarrier=" .. tostring(isCarrier)
+    )
 
     CheckrideMission.log(
         playerName .. " took off from " ..
@@ -556,6 +572,15 @@ function CheckrideMission.onKill(event)
         carrierDistanceNm  = carrierDistanceNm,
         missionTime        = event.time,
     }
+
+    CheckrideMission.log(
+        "kill enrichment: player=" .. tostring(playerName or "unknown") ..
+        " victimCategory=" .. tostring(victimUnitCategory) ..
+        " isEnemy=" .. tostring(isEnemy) ..
+        " carrierRef=" .. tostring(carrier ~= nil) ..
+        " carrierName=" .. tostring(CheckrideMission.getCarrierName(carrier) or "unknown") ..
+        " carrierDistanceNm=" .. tostring(carrierDistanceNm)
+    )
 
     CheckrideMission.log(
         playerName .. " kill: " .. victimUnitCategory ..

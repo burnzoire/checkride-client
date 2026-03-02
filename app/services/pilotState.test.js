@@ -23,8 +23,7 @@ describe('PilotState', () => {
     expect(state.trapCount).toBe(0);
     expect(state.nightTrapCount).toBe(0);
     expect(state.consecutiveBolters).toBe(0);
-    expect(state.lastPassWasBolter).toBe(false);
-    expect(state.prevLastPassWasBolter).toBe(false);
+    expect(state.prevPassWasBolter).toBe(false);
     expect(state.fuelAtTrap).toBeNull();
   });
 
@@ -70,23 +69,11 @@ describe('PilotState', () => {
     expect(state.consecutiveBolters).toBe(0);
   });
 
-  it('sets lastPassWasBolter after a bolter', () => {
+  it('prevPassWasBolter reflects the pass before the current one', () => {
     state.applyGrading(bolter());
-    expect(state.lastPassWasBolter).toBe(true);
-  });
-
-  it('clears lastPassWasBolter after a trap', () => {
-    state.applyGrading(bolter());
+    // After the trap, prevPassWasBolter should reflect the bolter state
     state.applyGrading(trap());
-    expect(state.lastPassWasBolter).toBe(false);
-  });
-
-  it('snapshots prevLastPassWasBolter before updating', () => {
-    state.applyGrading(bolter());
-    // After the trap, prevLastPassWasBolter should reflect the bolter state
-    state.applyGrading(trap());
-    expect(state.prevLastPassWasBolter).toBe(true);
-    expect(state.lastPassWasBolter).toBe(false);
+    expect(state.prevPassWasBolter).toBe(true);
   });
 
   it('records fuelAtTrap from grading event', () => {

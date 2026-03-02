@@ -1,4 +1,10 @@
 /**
+ * @typedef {Object} Kill
+ * @property {'air'|'ground'|'ship'|'other'} victimUnitCategory
+ * @property {number|null} carrierDistanceNm - distance in nautical miles from the pilot's carrier, or null if no carrier reference exists
+ */
+
+/**
  * PilotState tracks per-pilot history within a session.
  * A new instance is created per pilot when their first event arrives.
  * State is held in memory only — it does not persist across sessions.
@@ -13,14 +19,11 @@ const BOLTER_GRADE = 'B';
 class PilotState {
   constructor() {
     // ── Grading state ──────────────────────────────────────────────────────────
-    this.trapCount = 0;
-    this.nightTrapCount = 0;
-    this.consecutiveBolters = 0;
-    // Snapshot of lastPassWasBolter from BEFORE the current applyGrading call,
-    // so that achievements can reference the previous pass state.
-    this.prevLastPassWasBolter = false;
-    this.lastPassWasBolter = false;
-    this.fuelAtTrap = null;
+    // Chronological record of every grading pass this session. All per-pass
+    // counters and flags are derived from this array via getters so there is
+    // no duplicated or stale incremental state to maintain.
+    /** @type {object[]} */
+    this.passes = [];
 
     // ── Sortie state (reset on each takeoff) ───────────────────────────────────
     // Set by applyTakeoffEnrichment when the mission script confirms where the
@@ -28,7 +31,42 @@ class PilotState {
     // carrier sortie never bleeds into a land-base sortie.
     this.launchedFromCarrier = false;
     this.takeoffLocation = null;  // carrier/airdrome name, or null
+    /** @type {Kill[]} */
     this.kills = [];              // array of { victimUnitCategory, carrierDistanceNm }
+  }
+
+  // ── Derived grading state ──────────────────────────────────────────────────
+
+  get trapCount() {
+    return this.passes.filter(p => Number.isFinite(p.wire)).length;
+  }
+
+  get nightTrapCount() {
+    return this.passes.filter(p => Number.isFinite(p.wire) && p.night).length;
+  }
+
+  get consecutiveBolters() {
+    let count = 0;
+    for (let i = this.passes.length - 1; i >= 0; i--) {
+      if (this.passes[i].lsoGrade === BOLTER_GRADE) count++;
+      else break;
+    }
+    return count;
+  }
+
+  get prevPassWasBolter() {
+    return this.passes.length > 1 &&
+      this.passes[this.passes.length - 2].lsoGrade === BOLTER_GRADE;
+  }
+
+  get fuelAtTrap() {
+    for (let i = this.passes.length - 1; i >= 0; i--) {
+      const p = this.passes[i];
+      if (Number.isFinite(p.wire)) {
+        return typeof p.fuelState === 'number' ? p.fuelState : null;
+      }
+    }
+    return null;
   }
 
   /**
@@ -49,7 +87,8 @@ class PilotState {
    * Appends the kill to the kills array for achievement evaluation.
    *
    * @param {object} event - kill_enrichment event
-   *   { victimUnitCategory: string, carrierDistanceNm: number|null }
+   * @param {'air'|'ground'|'ship'|'other'} event.victimUnitCategory
+   * @param {number|null} event.carrierDistanceNm
    */
   applyKill(event) {
     this.kills.push({
@@ -60,34 +99,11 @@ class PilotState {
 
   /**
    * Update state from a raw grading event.
-   * Must be called before evaluating achievements so that counts are current,
-   * but prevLastPassWasBolter is snapshotted first so comeback-style achievements work.
    *
    * @param {object} event - raw grading event (lsoGrade, wire, night, fuelState, ...)
    */
   applyGrading(event) {
-    const isBolter = event.lsoGrade === BOLTER_GRADE;
-    const isTrap = !isBolter && Number.isFinite(event.wire);
-
-    // Snapshot before updating so achievements can see the previous pass state.
-    this.prevLastPassWasBolter = this.lastPassWasBolter;
-
-    if (isTrap) {
-      this.trapCount++;
-      if (event.night) {
-        this.nightTrapCount++;
-      }
-      this.fuelAtTrap = typeof event.fuelState === 'number' ? event.fuelState : null;
-    }
-
-    if (isBolter) {
-      this.consecutiveBolters++;
-    } else {
-      // Wave-off, trap, or anything else resets the consecutive bolter streak.
-      this.consecutiveBolters = 0;
-    }
-
-    this.lastPassWasBolter = isBolter;
+    this.passes.push(event);
   }
 }
 

@@ -109,6 +109,25 @@ describe('initApp', () => {
     expect(EventFactory.create).not.toHaveBeenCalledWith({ type: 'ready' });
   });
 
+  it('logs state-only events when persist is false', async () => {
+    const { udpServer } = await initApp();
+
+    const event = {
+      type: 'kill_enrichment',
+      persist: false,
+      playerName: 'Maverick',
+      victimUnitCategory: 'air',
+      isEnemy: true,
+      carrierDistanceNm: 42.37,
+    };
+
+    await udpServer.onEvent(event);
+
+    expect(log.info).toHaveBeenCalledWith(
+      `State-only event (persist=false): ${JSON.stringify(event)}`
+    );
+  });
+
 
   it('calls saveEvent and send when an event occurs', async () => {
     const fakeEvent = { type: 'event' };

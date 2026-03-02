@@ -56,6 +56,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
     // Events with persist: false update pilot state and fire achievements but are never saved to the API.
     if (event.persist === false) {
+      log.info(`State-only event (persist=false): ${JSON.stringify(event)}`)
       const newlyUnlocked = engine.evaluate(event);
       newlyUnlocked.forEach((achievement, i) => {
         const pilotName = event.playerName || 'Unknown Pilot';

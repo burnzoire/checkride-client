@@ -5,6 +5,17 @@
  */
 
 /**
+ * @typedef {Object} GradingEvent
+ * @property {'_OK_'|'OK'|'(OK)'|'--'|'B'|'C'|'WO'} lsoGrade
+ * @property {number|null} wire - arrested wire number, or null for bolter/wave-off
+ * @property {boolean} night
+ * @property {number|null} fuelState - normalized 0.0–1.0, or null if unavailable
+ * @property {string|null} [carrierName]
+ * @property {string|null} [unitType]
+ * @property {string|null} [gradingRaw]
+ */
+
+/**
  * PilotState tracks per-pilot history within a session.
  * A new instance is created per pilot when their first event arrives.
  * State is held in memory only — it does not persist across sessions.
@@ -22,7 +33,7 @@ class PilotState {
     // Chronological record of every grading pass this session. All per-pass
     // counters and flags are derived from this array via getters so there is
     // no duplicated or stale incremental state to maintain.
-    /** @type {object[]} */
+    /** @type {GradingEvent[]} */
     this.passes = [];
 
     // ── Sortie state (reset on each takeoff) ───────────────────────────────────
@@ -100,7 +111,7 @@ class PilotState {
   /**
    * Update state from a raw grading event.
    *
-   * @param {object} event - raw grading event (lsoGrade, wire, night, fuelState, ...)
+   * @param {GradingEvent} event
    */
   applyGrading(event) {
     this.passes.push(event);

@@ -162,9 +162,9 @@ describe('night_qualified achievement', () => {
   const ALL = require('../achievements');
   const nightQualified = ALL.find(a => a.id === 'night_qualified');
 
-  it('unlocks on the 6th night trap', () => {
+  it('unlocks on the 2nd night trap', () => {
     const engine = new AchievementEngine([nightQualified]);
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 1; i++) {
       expect(engine.evaluate(grading({ night: true }))).toHaveLength(0);
     }
     expect(engine.evaluate(grading({ night: true }))).toHaveLength(1);

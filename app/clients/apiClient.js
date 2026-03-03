@@ -17,16 +17,17 @@ class APISaveEventError extends APIClientError {
 }
 
 class APIClient {
-  constructor(useSsl, host, port, apiToken = '', pathPrefix = '') {
+  constructor(useSsl, host, port, apiToken = '', pathPrefix = '', clientVersion = null) {
     this.useSsl = useSsl
     this.httpModule = this.useSsl ? https : http
     this.host = host
     this.port = port
     this.apiToken = apiToken
     this.pathPrefix = pathPrefix
+    this.clientVersion = clientVersion
   }
 
-  update({ useSsl, host, port, apiToken, pathPrefix }) {
+  update({ useSsl, host, port, apiToken, pathPrefix, clientVersion }) {
     this.useSsl = useSsl
     this.httpModule = this.useSsl ? https : http
     this.host = host
@@ -37,6 +38,9 @@ class APIClient {
     if (typeof pathPrefix !== 'undefined') {
       this.pathPrefix = pathPrefix
     }
+    if (typeof clientVersion !== 'undefined') {
+      this.clientVersion = clientVersion
+    }
   }
 
   buildHeaders(additionalHeaders = {}) {
@@ -44,6 +48,10 @@ class APIClient {
 
     if (this.apiToken) {
       headers['Authorization'] = `Bearer ${this.apiToken}`
+    }
+
+    if (this.clientVersion) {
+      headers['X-Checkride-Client-Version'] = this.clientVersion
     }
 
     return headers

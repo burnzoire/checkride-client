@@ -53,6 +53,7 @@ describe('APIClient', () => {
       expect(client.host).toBe('localhost');
       expect(client.port).toBe(3000);
       expect(client.apiToken).toBe('');
+      expect(client.clientVersion).toBeNull();
     });
 
     it('should create an instance with https when useSsl is true', () => {
@@ -62,6 +63,12 @@ describe('APIClient', () => {
       expect(client.host).toBe('example.com');
       expect(client.port).toBe(443);
       expect(client.apiToken).toBe('token');
+      expect(client.clientVersion).toBeNull();
+    });
+
+    it('accepts a client version when provided', () => {
+      const client = new APIClient(true, 'example.com', 443, 'token', '/api', '1.2.3');
+      expect(client.clientVersion).toBe('1.2.3');
     });
   });
 
@@ -76,14 +83,16 @@ describe('APIClient', () => {
       expect(client.host).toBe('api.example.com');
       expect(client.port).toBe(443);
       expect(client.apiToken).toBe('token-1');
+      expect(client.clientVersion).toBeNull();
 
-      client.update({ useSsl: false, host: 'internal', port: 8080, apiToken: 'token-2' });
+      client.update({ useSsl: false, host: 'internal', port: 8080, apiToken: 'token-2', clientVersion: '2.0.0' });
 
       expect(client.useSsl).toBe(false);
       expect(client.httpModule).toBe(http);
       expect(client.host).toBe('internal');
       expect(client.port).toBe(8080);
       expect(client.apiToken).toBe('token-2');
+      expect(client.clientVersion).toBe('2.0.0');
     });
   });
 
@@ -107,6 +116,16 @@ describe('APIClient', () => {
 
       expect(headers).toEqual(input);
       expect(headers).not.toBe(input);
+    });
+
+    it('includes X-Checkride-Client-Version when version is set', () => {
+      const client = new APIClient(false, 'localhost', 3000, '', '', '1.2.3');
+
+      const headers = client.buildHeaders();
+
+      expect(headers).toEqual({
+        'X-Checkride-Client-Version': '1.2.3',
+      });
     });
   });
 

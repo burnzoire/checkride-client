@@ -6,6 +6,7 @@ const AchievementEngine = require('./services/achievementEngine');
 const { EventFactory, InvalidEventTypeError } = require('./factories/eventFactory');
 const { APIClient } = require('./clients/apiClient');
 const { HealthChecker } = require('./services/healthChecker');
+const { version: CLIENT_VERSION } = require('./package.json');
 
 
 const log = require('electron-log');
@@ -177,7 +178,7 @@ async function initApp() {
   const apiToken = store.get("api_token")
   const pathPrefix = store.get("path_prefix")
   const discordWebhookPath = store.get("discord_webhook_path")
-  const apiClient = new APIClient(useSsl, apiHost, apiPort, apiToken, pathPrefix)
+  const apiClient = new APIClient(useSsl, apiHost, apiPort, apiToken, pathPrefix, CLIENT_VERSION)
   const discordClient = new DiscordClient(discordWebhookPath)
   const dcsChatClient = new DCSChatClient({
     host: DEFAULT_DCS_CHAT_HOST,

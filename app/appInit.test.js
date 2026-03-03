@@ -89,7 +89,7 @@ describe('initApp', () => {
     expect(dcsChatClient).toBe(dcsChatClientMock);
 
     expect(UDPServer).toHaveBeenCalledWith(41234);
-    expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix);
+    expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, expect.any(String));
     expect(DiscordClient).toHaveBeenCalledWith(fakeDiscordWebhookPath);
     expect(DCSChatClient).toHaveBeenCalled();
     expect(dcsChatClientMock.sendConfig).toHaveBeenCalledWith({ mission_scripting_enabled: true });

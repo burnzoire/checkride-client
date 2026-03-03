@@ -37,4 +37,5 @@ FunctionEnd
 
   CopyFiles /SILENT "$INSTDIR\resources\dcs\Scripts\Hooks\DCS-Checkride-hook.lua" "$DcsPath\Scripts\Hooks"
   CopyFiles /SILENT "$INSTDIR\resources\dcs\Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideGameGUI.lua" "$DcsPath\Mods\Services\DCS-Checkride\Scripts"
+  CopyFiles /SILENT "$INSTDIR\resources\dcs\Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideMission.lua" "$DcsPath\Mods\Services\DCS-Checkride\Scripts"
 !macroend

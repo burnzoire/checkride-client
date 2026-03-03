@@ -36,6 +36,7 @@ describe('initApp', () => {
 
     dcsChatClientMock = {
       send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
     };
 
     UDPServer.mockImplementation(() => udpServerMock);
@@ -64,6 +65,8 @@ describe('initApp', () => {
           return fakePathPrefix;
         case 'discord_webhook_path':
           return fakeDiscordWebhookPath;
+        case 'mission_scripting_enabled':
+          return true;
         default:
           return defaultValue;
       }
@@ -86,12 +89,45 @@ describe('initApp', () => {
     expect(dcsChatClient).toBe(dcsChatClientMock);
 
     expect(UDPServer).toHaveBeenCalledWith(41234);
-    expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix);
+    expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, expect.any(String));
     expect(DiscordClient).toHaveBeenCalledWith(fakeDiscordWebhookPath);
     expect(DCSChatClient).toHaveBeenCalled();
+    expect(dcsChatClientMock.sendConfig).toHaveBeenCalledWith({ mission_scripting_enabled: true });
 
     expect(udpServer.onEvent).toBeDefined();
   });
+
+  it('sends config when a ready event arrives from GameGUI', async () => {
+    const { udpServer } = await initApp();
+
+    dcsChatClientMock.sendConfig.mockClear();
+    store.get.mockImplementation((key) => key === 'mission_scripting_enabled' ? false : undefined);
+
+    await udpServer.onEvent({ type: 'ready' });
+
+    expect(dcsChatClientMock.sendConfig).toHaveBeenCalledWith({ mission_scripting_enabled: false });
+    expect(EventFactory.create).not.toHaveBeenCalledWith({ type: 'ready' });
+  });
+
+  it('logs state-only events when persist is false', async () => {
+    const { udpServer } = await initApp();
+
+    const event = {
+      type: 'kill_enrichment',
+      persist: false,
+      playerName: 'Maverick',
+      victimUnitCategory: 'air',
+      isEnemy: true,
+      carrierDistanceNm: 42.37,
+    };
+
+    await udpServer.onEvent(event);
+
+    expect(log.info).toHaveBeenCalledWith(
+      `State-only event (persist=false): ${JSON.stringify(event)}`
+    );
+  });
+
 
   it('calls saveEvent and send when an event occurs', async () => {
     const fakeEvent = { type: 'event' };
@@ -166,7 +202,7 @@ describe('initApp', () => {
     expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
   });
 
-  it('sends achievement messages when achievements are present', async () => {
+  it('ignores legacy achievements in event responses', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
@@ -186,6 +222,7 @@ describe('initApp', () => {
     };
     const dcsChatClientMock = {
       send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
     };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
@@ -201,10 +238,48 @@ describe('initApp', () => {
     await udpServer.onEvent(fakeEvent);
 
     expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
-    expect(discordClientMock.send).toHaveBeenCalledWith(':white_check_mark: Maverick achieved F-14 Sidewinder Basic Proficiency', true);
-    expect(discordClientMock.send).toHaveBeenCalledWith(':white_check_mark: Maverick achieved F-14 Sidewinder Advanced Proficiency', true);
-    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Maverick achieved F-14 Sidewinder Basic Proficiency', true, { kind: 'achievement' });
-    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Maverick achieved F-14 Sidewinder Advanced Proficiency', true, { kind: 'achievement' });
+    expect(discordClientMock.send).toHaveBeenCalledTimes(1);
+    expect(dcsChatClientMock.send).not.toHaveBeenCalled();
+  });
+
+  it('uses proficiencies and ignores mirrored achievements to avoid duplicate notifications', async () => {
+    const fakeEvent = { type: 'event' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
+    };
+    const sharedMessage = 'Maverick achieved F-14 Sidewinder Basic Proficiency';
+    const apiResponse = {
+      summary: 'summary',
+      proficiencies: [{ message: sharedMessage }],
+      achievements: [{ message: sharedMessage }],
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue(apiResponse),
+    };
+    const discordClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
+    const dcsChatClientMock = {
+      send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
+    };
+
+    processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
+
+    APIClient.mockImplementation(() => apiClientMock);
+    DiscordClient.mockImplementation(() => discordClientMock);
+    DCSChatClient.mockImplementation(() => dcsChatClientMock);
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const { udpServer } = await initApp();
+    await udpServer.onEvent(fakeEvent);
+
+    expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
+    expect(discordClientMock.send).toHaveBeenCalledWith(`:white_check_mark: ${sharedMessage}`, true);
+    expect(discordClientMock.send).toHaveBeenCalledTimes(2);
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith(sharedMessage, true, { kind: 'proficiency' });
+    expect(dcsChatClientMock.send).toHaveBeenCalledTimes(1);
   });
 
   it('does not send discord messages when summary is missing', async () => {
@@ -223,6 +298,7 @@ describe('initApp', () => {
     };
     const dcsChatClientMock = {
       send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
     };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
@@ -271,23 +347,23 @@ describe('initApp', () => {
     expect(log.error).toHaveBeenCalledWith('Error sending Discord summary:', discordError);
   });
 
-  it('logs errors when discord achievement send fails', async () => {
+  it('logs errors when discord proficiency send fails', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
     };
     const apiResponse = {
       summary: 'summary',
-      achievements: [{ message: 'Achievement message' }]
+      proficiencies: [{ message: 'Proficiency message' }]
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue(apiResponse),
     };
-    const achievementError = new Error('achievement failed');
+    const proficiencyError = new Error('proficiency failed');
     const discordClientMock = {
       send: jest.fn()
         .mockResolvedValueOnce()
-        .mockRejectedValueOnce(achievementError),
+        .mockRejectedValueOnce(proficiencyError),
     };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
@@ -301,29 +377,30 @@ describe('initApp', () => {
 
     await udpServer.onEvent(fakeEvent);
 
-    expect(log.error).toHaveBeenCalledWith('Error sending Discord achievement #1:', achievementError);
+    expect(log.error).toHaveBeenCalledWith('Error sending Discord proficiency #1:', proficiencyError);
   });
 
-  it('sends DCS chat even when discord achievement send fails', async () => {
+  it('sends DCS chat even when discord proficiency send fails', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
     };
     const apiResponse = {
       summary: 'summary',
-      achievements: [{ message: 'Achievement message' }]
+      proficiencies: [{ message: 'Proficiency message' }]
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue(apiResponse),
     };
-    const achievementError = new Error('achievement failed');
+    const proficiencyError = new Error('proficiency failed');
     const discordClientMock = {
       send: jest.fn()
         .mockResolvedValueOnce()
-        .mockRejectedValueOnce(achievementError),
+        .mockRejectedValueOnce(proficiencyError),
     };
     const dcsChatClientMock = {
       send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
     };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
@@ -338,9 +415,127 @@ describe('initApp', () => {
 
     await udpServer.onEvent(fakeEvent);
 
-    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Achievement message', true, { kind: 'achievement' });
-    expect(log.error).toHaveBeenCalledWith('Error sending Discord achievement #1:', achievementError);
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Proficiency message', true, { kind: 'proficiency' });
+    expect(log.error).toHaveBeenCalledWith('Error sending Discord proficiency #1:', proficiencyError);
   });
 
+  it('calls saveAchievement when a client-side achievement unlocks', async () => {
+    const fakeEvent = { type: 'grading', playerUcid: 'ucid-1', playerName: 'Maverick', lsoGrade: 'OK', wire: 3 };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'grading', event_data: {} } }),
+    };
+    const fakeAchievement = {
+      id: 'carrier_qualified',
+      message: jest.fn().mockReturnValue('Maverick is Carrier Qualified'),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([fakeAchievement]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ summary: 'Trapped aboard', publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const discordClientMock = { send: jest.fn().mockResolvedValue() };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: discordClientMock,
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(fakeEvent);
+
+    expect(apiClientMock.saveAchievement).toHaveBeenCalledWith(expect.objectContaining({
+      playerUcid: 'ucid-1',
+      achievementId: 'carrier_qualified',
+      earnedAt: expect.any(String),
+    }));
+  });
+
+  it('does not send client-side achievement notifications when already recorded server-side', async () => {
+    const fakeEvent = { type: 'grading', playerUcid: 'ucid-1', playerName: 'Maverick', lsoGrade: 'OK', wire: 3 };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'grading', event_data: {} } }),
+    };
+    const fakeAchievement = {
+      id: 'three_wire',
+      message: jest.fn().mockReturnValue('Maverick earned "Three Wire"'),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([fakeAchievement]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ summary: 'Maverick (F-14B) was graded: _OK_ (3-wire)', publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({ created: false, achievement_id: 'three_wire' }),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: ['three_wire'] }),
+    };
+    const discordClientMock = { send: jest.fn().mockResolvedValue() };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: discordClientMock,
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(fakeEvent);
+
+    expect(apiClientMock.saveAchievement).toHaveBeenCalledWith(expect.objectContaining({
+      playerUcid: 'ucid-1',
+      achievementId: 'three_wire',
+    }));
+    expect(dcsChatClientMock.send).not.toHaveBeenCalledWith('Maverick earned "Three Wire"', true, { kind: 'achievement' });
+  });
+
+  it('loads achievements from API on connect event', async () => {
+    const connectEvent = { type: 'connect', playerUcid: 'ucid-1', playerName: 'Maverick' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'connect', event_data: {} } }),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const discordClientMock = { send: jest.fn().mockResolvedValue() };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: discordClientMock,
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(connectEvent);
+
+    expect(achievementEngineMock.resetPilot).toHaveBeenCalledWith('ucid-1');
+    expect(achievementEngineMock.loadAchievementsFromApi).toHaveBeenCalledWith('ucid-1', apiClientMock);
+  });
 
 });

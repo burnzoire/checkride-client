@@ -2,6 +2,7 @@ const AirfieldEvent = require('../events/airfieldEvent');
 const ChangeSlotEvent = require('../events/changeSlotEvent');
 const ConnectEvent = require('../events/connectEvent');
 const DisconnectEvent = require('../events/disconnectEvent');
+const GradingEvent = require('../events/gradingEvent');
 const KillEvent = require('../events/killEvent');
 const PilotEvent = require('../events/pilotEvent');
 const SelfKillEvent = require('../events/selfKillEvent');
@@ -23,7 +24,8 @@ const eventClasses = {
   "self_kill": SelfKillEvent,
   "connect": ConnectEvent,
   "disconnect": DisconnectEvent,
-  "change_slot": ChangeSlotEvent
+  "change_slot": ChangeSlotEvent,
+  "grading": GradingEvent
 };
 
 class EventFactory {

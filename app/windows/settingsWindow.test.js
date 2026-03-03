@@ -20,7 +20,7 @@ describe('settingsWindow', () => {
     const windowOptions = BrowserWindow.mock.calls[0][0];
     expect(windowOptions).toMatchObject({
       width: 420,
-      height: 520,
+      height: 700,
       resizable: false,
       minimizable: false,
       maximizable: false,

@@ -35,8 +35,11 @@ const RED_AIRCRAFT = [
 const AI_AIRCRAFT = ['MiG-29A', 'Su-27', 'Su-30', 'MiG-21Bis'];
 const AI_GROUND_UNITS = ['T-72', 'BMP-2', 'ZSU-23-4'];
 
+const CARRIER_AIRCRAFT_TYPES = ['F-14A', 'FA-18C'];
+
 const AIRDROMES = {
-  blue: ['Test Field 1', 'Test Field 2', 'Test Carrier 1'],
+  blue: ['Test Field 1', 'Test Field 2'],
+  carrier: ['Test Carrier 1'],
   red: ['Test Field Red 1', 'Test Field Red 2']
 };
 
@@ -45,5 +48,6 @@ module.exports = {
   RED_AIRCRAFT,
   AI_AIRCRAFT,
   AI_GROUND_UNITS,
-  AIRDROMES
+  AIRDROMES,
+  CARRIER_AIRCRAFT_TYPES
 };

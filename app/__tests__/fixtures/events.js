@@ -85,6 +85,19 @@ module.exports = {
     flyable: true
   },
 
+  gradingBolterEvent: {
+    type: "grading",
+    playerUcid: "player123",
+    playerName: "Test Pilot",
+    unitType: "FA-18C",
+    lsoGrade: "B",
+    wire: null,
+    night: false,
+    gradingRaw: "B",
+    carrierName: "CVN-73",
+    fuelState: null
+  },
+
   expectedGameEvent: {
     kill: {
       event_type: "kill",
@@ -187,6 +200,22 @@ module.exports = {
         slot_id: "5",
         prev_side: "1",
         flyable: true
+      }
+    },
+
+    gradingBolter: {
+      event: {
+        event_type: "grading",
+        source: "mission",
+        event_data: {
+          player_ucid: "player123",
+          player_name: "Test Pilot",
+          unit_type: "FA-18C",
+          lso_grade: "B",
+          grading_raw: "B",
+          airdrome_name: "CVN-73",
+          night: false
+        }
       }
     }
   }

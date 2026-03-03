@@ -24,9 +24,18 @@ package.cpath = package.cpath .. ";.\\LuaSocket\\?.dll;"
 
 local JSON = loadfile("Scripts\\JSON.lua")()
 local socket = require("socket")
+Checkride.JSON = JSON
 
 Checkride.ChatPollInterval = 0.2
 Checkride.LastChatPollAt = 0
+Checkride.missionScriptingEnabled = true ---@type boolean
+
+function Checkride.applyConfig(config)
+    if config.mission_scripting_enabled ~= nil then
+        Checkride.missionScriptingEnabled = config.mission_scripting_enabled ~= false
+        Checkride.log("Config: mission_scripting_enabled=" .. tostring(Checkride.missionScriptingEnabled))
+    end
+end
 
 Checkride.UPDHost = "127.0.0.1"
 Checkride.UDPPort = 41234
@@ -48,6 +57,14 @@ end
 function Checkride.sendEvent(message)
     Checkride.log("send event: " .. message.type)
     socket.try(Checkride.UDPSendSocket:sendto(JSON:encode(message) .. " \n", Checkride.UPDHost, Checkride.UDPPort))
+end
+
+function Checkride.sendEncodedEvent(encodedMessage)
+    if not encodedMessage or encodedMessage == "" then
+        return
+    end
+
+    socket.try(Checkride.UDPSendSocket:sendto(tostring(encodedMessage) .. " \n", Checkride.UPDHost, Checkride.UDPPort))
 end
 
 function Checkride.sendChatToAll(message)
@@ -81,14 +98,21 @@ function Checkride.pollChatSocket()
         end)
 
         if ok and type(decoded) == "table" then
-            if decoded.message and decoded.message ~= "" then
-                message = decoded.message
-            elseif decoded.text and decoded.text ~= "" then
-                message = decoded.text
-            end
-        end
+            if decoded.source == "checkride" and decoded.kind == "config" then
+                Checkride.applyConfig(decoded)
+            else
+                if decoded.message and decoded.message ~= "" then
+                    message = decoded.message
+                elseif decoded.text and decoded.text ~= "" then
+                    message = decoded.text
+                end
 
-        if message and message ~= "" then
+                if message and message ~= "" then
+                    Checkride.log("Received chat message: " .. message)
+                    Checkride.sendChatToAll(message)
+                end
+            end
+        elseif message and message ~= "" then
             Checkride.log("Received chat message: " .. message)
             Checkride.sendChatToAll(message)
         end
@@ -246,6 +270,8 @@ function Checkride.onDisconnect(time, playerID, name, playerSide, reason_code)
     event.playerSide = playerSide
     event.reasonCode = reason_code
     Checkride.sendEvent(event)
+
+    Checkride.removePlayer(playerID)
 end
 
 local function isFlyableSlot(side, slotID)
@@ -460,6 +486,8 @@ function Checkride.onChatMessage(message, from)
     Checkride.log("Message: [" .. tostring(from) .. "]" .. nameLabel .. tostring(message))
 end
 
-DCS.setUserCallbacks(Checkride)
 net.log("Loaded - DCS-Checkride GameGUI")
+
 Checkride.log("Checkride loaded v" .. Checkride.version)
+
+Checkride.sendEvent({ type = "ready" })

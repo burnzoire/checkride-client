@@ -17,16 +17,17 @@ class APISaveEventError extends APIClientError {
 }
 
 class APIClient {
-  constructor(useSsl, host, port, apiToken = '', pathPrefix = '') {
+  constructor(useSsl, host, port, apiToken = '', pathPrefix = '', clientVersion = null) {
     this.useSsl = useSsl
     this.httpModule = this.useSsl ? https : http
     this.host = host
     this.port = port
     this.apiToken = apiToken
     this.pathPrefix = pathPrefix
+    this.clientVersion = clientVersion
   }
 
-  update({ useSsl, host, port, apiToken, pathPrefix }) {
+  update({ useSsl, host, port, apiToken, pathPrefix, clientVersion }) {
     this.useSsl = useSsl
     this.httpModule = this.useSsl ? https : http
     this.host = host
@@ -37,6 +38,9 @@ class APIClient {
     if (typeof pathPrefix !== 'undefined') {
       this.pathPrefix = pathPrefix
     }
+    if (typeof clientVersion !== 'undefined') {
+      this.clientVersion = clientVersion
+    }
   }
 
   buildHeaders(additionalHeaders = {}) {
@@ -44,6 +48,10 @@ class APIClient {
 
     if (this.apiToken) {
       headers['Authorization'] = `Bearer ${this.apiToken}`
+    }
+
+    if (this.clientVersion) {
+      headers['X-Checkride-Client-Version'] = this.clientVersion
     }
 
     return headers
@@ -95,6 +103,88 @@ class APIClient {
       req.write(data)
       req.end()
     })
+  }
+
+  saveAchievement({ playerUcid, achievementId, earnedAt }) {
+    return new Promise((resolve, reject) => {
+      const data = JSON.stringify({
+        player_ucid: playerUcid,
+        achievement_id: achievementId,
+        earned_at: earnedAt,
+      });
+
+      const options = {
+        host: this.host,
+        path: `${this.pathPrefix}/pilot_achievements`,
+        port: this.port,
+        method: 'POST',
+        headers: this.buildHeaders({
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data),
+        }),
+      };
+
+      const req = this.httpModule.request(options, (response) => {
+        let body = [];
+        response.on('data', (chunk) => { body.push(chunk); });
+        response.on('end', () => {
+          const statusCode = response.statusCode;
+          const rawBody = Buffer.concat(body).toString();
+          const isSuccess = statusCode === 200 || statusCode === 201;
+
+          if (!isSuccess) {
+            reject(new APIClientError(`Failed to save achievement: ${rawBody}`));
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(rawBody);
+            const created = statusCode === 201;
+
+            resolve({ ...parsed, created, statusCode });
+          } catch (e) {
+            reject(new APIClientError('Failed to parse save achievement response'));
+          }
+        });
+        response.on('error', error => reject(new APIClientError(`API request failed: ${error}`)));
+      });
+
+      req.on('error', (error) => reject(new APIClientError(`API request failed: ${error}`)));
+      req.write(data);
+      req.end();
+    });
+  }
+
+  fetchPilotAchievements(playerUcid) {
+    return new Promise((resolve, reject) => {
+      const options = {
+        host: this.host,
+        path: `${this.pathPrefix}/pilot_achievements?player_ucid=${encodeURIComponent(playerUcid)}`,
+        port: this.port,
+        method: 'GET',
+        headers: this.buildHeaders(),
+      };
+
+      const req = this.httpModule.request(options, (response) => {
+        let body = [];
+        response.on('data', (chunk) => { body.push(chunk); });
+        response.on('end', () => {
+          if (response.statusCode !== 200) {
+            reject(new APIClientError(`Failed to fetch pilot achievements: ${Buffer.concat(body).toString()}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(Buffer.concat(body).toString()));
+          } catch (e) {
+            reject(new APIClientError('Failed to parse fetch pilot achievements response'));
+          }
+        });
+        response.on('error', error => reject(new APIClientError(`API request failed: ${error}`)));
+      });
+
+      req.on('error', (error) => reject(new APIClientError(`API request failed: ${error}`)));
+      req.end();
+    });
   }
 
   healthcheck() {

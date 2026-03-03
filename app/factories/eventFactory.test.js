@@ -3,6 +3,7 @@ const AirfieldEvent = require('../events/airfieldEvent');
 const ChangeSlotEvent = require('../events/changeSlotEvent');
 const ConnectEvent = require('../events/connectEvent');
 const DisconnectEvent = require('../events/disconnectEvent');
+const GradingEvent = require('../events/gradingEvent');
 const KillEvent = require('../events/killEvent');
 const PilotEvent = require('../events/pilotEvent');
 const SelfKillEvent = require('../events/selfKillEvent');
@@ -19,7 +20,8 @@ describe('EventFactory', () => {
     { type: 'self_kill', expectedClass: SelfKillEvent },
     { type: 'connect', expectedClass: ConnectEvent },
     { type: 'disconnect', expectedClass: DisconnectEvent },
-    { type: 'change_slot', expectedClass: ChangeSlotEvent }
+    { type: 'change_slot', expectedClass: ChangeSlotEvent },
+    { type: 'grading', expectedClass: GradingEvent }
   ])('creates an instance of the correct event class based on event type', ({ type, expectedClass }) => {
 
     it(`returns an instance of ${expectedClass.name} when type is ${type}`, async () => {
@@ -41,7 +43,7 @@ describe('EventFactory', () => {
 
   it('throws an error when event type is invalid', async () => {
     const eventData = { type: 'invalid', otherData: 'other' };
-    
+
     await expect(EventFactory.create(eventData)).rejects.toThrow(InvalidEventTypeError);
   });
 

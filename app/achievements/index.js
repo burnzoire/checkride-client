@@ -7,7 +7,7 @@ const nightQualified = require('./nightQualified');
 const threeWire = require('./threeWire');
 const comebackKid = require('./comebackKid');
 const bolterBolter = require('./bolterBolter');
-const jokerState = require('./jokerState');
+const barelyRecovered = require('./barelyRecovered');
 const fleetDefender = require('./fleetDefender');
 
 const ALL_ACHIEVEMENTS = [
@@ -16,7 +16,7 @@ const ALL_ACHIEVEMENTS = [
   threeWire,
   comebackKid,
   bolterBolter,
-  jokerState,
+  barelyRecovered,
   fleetDefender,
 ];
 

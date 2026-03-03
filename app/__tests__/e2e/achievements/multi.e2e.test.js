@@ -35,9 +35,9 @@ describe('e2e — multiple achievements in one session', () => {
       // bolter_bolter: two consecutive bolters
       bolter(),
       bolter(),
-      // comeback_kid: trap after the third bolter; three_wire + joker_state on same pass
+      // comeback_kid: trap after the third bolter; three_wire + barely_recovered on same pass
       bolter(),
-      grading({ wire: 3, fuelState: 0.05 }),
+      grading({ wire: 3, fuelState: 0.04 }),
       // carrier_qualified: 5 more traps to reach 6 total
       grading({ wire: 2 }),
       grading({ wire: 2 }),
@@ -49,7 +49,7 @@ describe('e2e — multiple achievements in one session', () => {
     expect(ids).toContain('bolter_bolter');
     expect(ids).toContain('comeback_kid');
     expect(ids).toContain('three_wire');
-    expect(ids).toContain('joker_state');
+    expect(ids).toContain('barely_recovered');
     expect(ids).toContain('carrier_qualified');
   });
 });

@@ -269,35 +269,35 @@ describe('bolter_bolter achievement', () => {
   });
 });
 
-// ─── joker_state ─────────────────────────────────────────────────────────────
+// ─── barely_recovered ────────────────────────────────────────────────────────
 
-describe('joker_state achievement', () => {
+describe('barely_recovered achievement', () => {
   const ALL = require('../achievements');
-  const jokerState = ALL.find(a => a.id === 'joker_state');
+  const barelyRecovered = ALL.find(a => a.id === 'barely_recovered');
 
-  it('unlocks when fuelState < 0.1 on a trap', () => {
-    const engine = new AchievementEngine([jokerState]);
-    expect(engine.evaluate(grading({ fuelState: 0.05 }))[0].id).toBe('joker_state');
+  it('unlocks when fuelState < 0.05 on a trap', () => {
+    const engine = new AchievementEngine([barelyRecovered]);
+    expect(engine.evaluate(grading({ fuelState: 0.04 }))[0].id).toBe('barely_recovered');
   });
 
-  it('does not unlock when fuelState >= 0.1', () => {
-    const engine = new AchievementEngine([jokerState]);
+  it('does not unlock when fuelState >= 0.05', () => {
+    const engine = new AchievementEngine([barelyRecovered]);
     expect(engine.evaluate(grading({ fuelState: 0.15 }))).toHaveLength(0);
   });
 
   it('does not unlock when fuelState is absent', () => {
-    const engine = new AchievementEngine([jokerState]);
+    const engine = new AchievementEngine([barelyRecovered]);
     expect(engine.evaluate(grading({ fuelState: null }))).toHaveLength(0);
   });
 
   it('does not unlock on a bolter even with low fuel', () => {
-    const engine = new AchievementEngine([jokerState]);
+    const engine = new AchievementEngine([barelyRecovered]);
     expect(engine.evaluate(bolterEvent({ fuelState: 0.02 }))).toHaveLength(0);
   });
 
-  it('does not unlock at exactly 0.1 fuel (must be strictly less)', () => {
-    const engine = new AchievementEngine([jokerState]);
-    expect(engine.evaluate(grading({ fuelState: 0.1 }))).toHaveLength(0);
+  it('does not unlock at exactly 0.05 fuel (must be strictly less)', () => {
+    const engine = new AchievementEngine([barelyRecovered]);
+    expect(engine.evaluate(grading({ fuelState: 0.05 }))).toHaveLength(0);
   });
 });
 

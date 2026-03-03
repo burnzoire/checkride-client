@@ -120,12 +120,20 @@ class APIClient {
         let body = [];
         response.on('data', (chunk) => { body.push(chunk); });
         response.on('end', () => {
-          if (response.statusCode !== 200 && response.statusCode !== 201) {
-            reject(new APIClientError(`Failed to save achievement: ${Buffer.concat(body).toString()}`));
+          const statusCode = response.statusCode;
+          const rawBody = Buffer.concat(body).toString();
+          const isSuccess = statusCode === 200 || statusCode === 201;
+
+          if (!isSuccess) {
+            reject(new APIClientError(`Failed to save achievement: ${rawBody}`));
             return;
           }
+
           try {
-            resolve(JSON.parse(Buffer.concat(body).toString()));
+            const parsed = JSON.parse(rawBody);
+            const created = statusCode === 201;
+
+            resolve({ ...parsed, created, statusCode });
           } catch (e) {
             reject(new APIClientError('Failed to parse save achievement response'));
           }

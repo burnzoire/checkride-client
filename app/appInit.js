@@ -34,6 +34,11 @@ function enrichWithEmojis(summary, eventType) {
   return emoji ? emoji + summary : summary;
 }
 
+function isNewAchievementSaveResult(result) {
+  if (!result || typeof result !== 'object') return true;
+  return result.created !== false;
+}
+
 function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, eventProcessor, achievementEngine }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
@@ -58,25 +63,30 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     if (event.persist === false) {
       log.info(`State-only event (persist=false): ${JSON.stringify(event)}`)
       const newlyUnlocked = engine.evaluate(event);
+      let last = Promise.resolve();
       newlyUnlocked.forEach((achievement, i) => {
         const pilotName = event.playerName || 'Unknown Pilot';
         const msg = achievement.message(pilotName);
 
-        apiClient.saveAchievement({
+        last = last.then(() => apiClient.saveAchievement({
           playerUcid: event.playerUcid,
           achievementId: achievement.id,
           earnedAt: new Date().toISOString(),
-        }).catch((error) => log.error(`Failed to persist achievement ${achievement.id}:`, error));
+        }))
+          .then((result) => {
+            if (!isNewAchievementSaveResult(result)) return;
 
-        if (dcsChatClient?.send) {
-          dcsChatClient.send(msg, true, { kind: 'achievement' })
-            .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
-        }
+            if (dcsChatClient?.send) {
+              dcsChatClient.send(msg, true, { kind: 'achievement' })
+                .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
+            }
 
-        discordClient.send(enrichWithEmojis(msg, 'achievement'), true)
-          .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));
+            return discordClient.send(enrichWithEmojis(msg, 'achievement'), true)
+              .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));
+          })
+          .catch((error) => log.error(`Failed to persist achievement ${achievement.id}:`, error));
       });
-      return Promise.resolve();
+      return last;
     }
 
     let unlockedAchievements = [];
@@ -144,24 +154,26 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
           const pilotName = event.playerName || 'Unknown Pilot';
           const msg = achievement.message(pilotName);
 
-          apiClient.saveAchievement({
+          last = last.then(() => apiClient.saveAchievement({
             playerUcid: event.playerUcid,
             achievementId: achievement.id,
             earnedAt: new Date().toISOString(),
-          }).catch((error) => log.error(`Failed to persist achievement ${achievement.id}:`, error));
+          }))
+            .then((result) => {
+              if (!isNewAchievementSaveResult(result)) return;
 
-          if (dcsChatClient?.send) {
-            dcsChatClient.send(msg, publish, { kind: 'achievement' })
-              .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
-          }
+              if (dcsChatClient?.send) {
+                dcsChatClient.send(msg, publish, { kind: 'achievement' })
+                  .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
+              }
 
-          last = last.then(() => {
-            const achievementMsg = enrichWithEmojis(msg, 'achievement');
-            log.info(`About to send Discord achievement #${i + 1}: ${achievementMsg}`);
-            return discordClient.send(achievementMsg, publish)
-              .then(() => log.info(`Successfully sent Discord achievement #${i + 1}`))
-              .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));
-          });
+              const achievementMsg = enrichWithEmojis(msg, 'achievement');
+              log.info(`About to send Discord achievement #${i + 1}: ${achievementMsg}`);
+              return discordClient.send(achievementMsg, publish)
+                .then(() => log.info(`Successfully sent Discord achievement #${i + 1}`))
+                .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));
+            })
+            .catch((error) => log.error(`Failed to persist achievement ${achievement.id}:`, error));
         });
 
         return last;

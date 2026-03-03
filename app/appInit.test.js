@@ -423,6 +423,48 @@ describe('initApp', () => {
     }));
   });
 
+  it('does not send client-side achievement notifications when already recorded server-side', async () => {
+    const fakeEvent = { type: 'grading', playerUcid: 'ucid-1', playerName: 'Maverick', lsoGrade: 'OK', wire: 3 };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'grading', event_data: {} } }),
+    };
+    const fakeAchievement = {
+      id: 'three_wire',
+      message: jest.fn().mockReturnValue('Maverick earned "Three Wire"'),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([fakeAchievement]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ summary: 'Maverick (F-14B) was graded: _OK_ (3-wire)', publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({ created: false, achievement_id: 'three_wire' }),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: ['three_wire'] }),
+    };
+    const discordClientMock = { send: jest.fn().mockResolvedValue() };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: discordClientMock,
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(fakeEvent);
+
+    expect(apiClientMock.saveAchievement).toHaveBeenCalledWith(expect.objectContaining({
+      playerUcid: 'ucid-1',
+      achievementId: 'three_wire',
+    }));
+    expect(dcsChatClientMock.send).not.toHaveBeenCalledWith('Maverick earned "Three Wire"', true, { kind: 'achievement' });
+  });
+
   it('loads achievements from API on connect event', async () => {
     const connectEvent = { type: 'connect', playerUcid: 'ucid-1', playerName: 'Maverick' };
     const gameEvent = {

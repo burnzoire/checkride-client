@@ -336,7 +336,7 @@ describe('APIClient', () => {
 
       const result = await client.saveAchievement({ playerUcid: 'abc123', achievementId: 'carrier_qualified', earnedAt: '2026-01-01T00:00:00.000Z' });
 
-      expect(result).toEqual(responseBody);
+      expect(result).toEqual({ ...responseBody, created: true, statusCode: 201 });
       expect(mockRequest).toHaveBeenCalledWith(
         expect.objectContaining({ method: 'POST', path: '/pilot_achievements' }),
         expect.any(Function)
@@ -359,7 +359,7 @@ describe('APIClient', () => {
       });
 
       const result = await client.saveAchievement({ playerUcid: 'abc123', achievementId: 'carrier_qualified', earnedAt: '2026-01-01T00:00:00.000Z' });
-      expect(result).toEqual(responseBody);
+      expect(result).toEqual({ ...responseBody, created: false, statusCode: 200 });
     });
 
     it('rejects on non-200/201 status', async () => {

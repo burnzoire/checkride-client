@@ -5,6 +5,7 @@
 const carrierQualified = require('./carrierQualified');
 const nightQualified = require('./nightQualified');
 const threeWire = require('./threeWire');
+const textbookTrap = require('./textbookTrap');
 const comebackKid = require('./comebackKid');
 const bolterBolter = require('./bolterBolter');
 const barelyRecovered = require('./barelyRecovered');
@@ -14,6 +15,7 @@ const ALL_ACHIEVEMENTS = [
   carrierQualified,
   nightQualified,
   threeWire,
+  textbookTrap,
   comebackKid,
   bolterBolter,
   barelyRecovered,

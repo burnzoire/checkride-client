@@ -11,23 +11,23 @@ jest.mock('../../../factories/eventFactory', () => ({
 const { makePipeline, sendAll, grading, savedAchievementIds } = require('./helpers');
 
 describe('e2e — night_qualified', () => {
-  it('unlocks after 6 night traps', async () => {
+  it('unlocks after 2 night traps', async () => {
     const { udpServer, apiClient } = makePipeline();
-    await sendAll(udpServer, Array.from({ length: 6 }, () => grading({ night: true })));
+    await sendAll(udpServer, Array.from({ length: 2 }, () => grading({ night: true })));
     expect(savedAchievementIds(apiClient)).toContain('night_qualified');
   });
 
-  it('does NOT unlock after 6 daytime traps', async () => {
+  it('does NOT unlock after 1 daytime traps', async () => {
     const { udpServer, apiClient } = makePipeline();
-    await sendAll(udpServer, Array.from({ length: 6 }, () => grading({ night: false })));
+    await sendAll(udpServer, Array.from({ length: 1 }, () => grading({ night: false })));
     expect(savedAchievementIds(apiClient)).not.toContain('night_qualified');
   });
 
   it('daytime traps do not count toward the night tally', async () => {
     const { udpServer, apiClient } = makePipeline();
     await sendAll(udpServer, [
-      ...Array.from({ length: 5 }, () => grading({ night: true })),
-      ...Array.from({ length: 5 }, () => grading({ night: false })),
+      ...Array.from({ length: 1 }, () => grading({ night: true })),
+      ...Array.from({ length: 1 }, () => grading({ night: false })),
     ]);
     expect(savedAchievementIds(apiClient)).not.toContain('night_qualified');
   });
@@ -38,11 +38,9 @@ describe('e2e — night_qualified', () => {
       grading({ night: false }),
       grading({ night: true }),
       grading({ night: false }),
-      grading({ night: true }),
-      grading({ night: true }),
       grading({ night: false }),
-      grading({ night: true }),
-      grading({ night: true }),
+      grading({ night: false }),
+      grading({ night: false }),
       grading({ night: true }),
     ];
     await sendAll(udpServer, mixed);
@@ -51,7 +49,7 @@ describe('e2e — night_qualified', () => {
 
   it('fires exactly once per session', async () => {
     const { udpServer, apiClient } = makePipeline();
-    await sendAll(udpServer, Array.from({ length: 12 }, () => grading({ night: true })));
+    await sendAll(udpServer, Array.from({ length: 4 }, () => grading({ night: true })));
     const saves = apiClient.saveAchievement.mock.calls.filter(
       ([arg]) => arg.achievementId === 'night_qualified',
     );

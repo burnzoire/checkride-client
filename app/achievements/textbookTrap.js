@@ -16,7 +16,7 @@ class TextbookTrap extends Achievement {
   }
 
   evaluate(event, _state) {
-    return event.wire === 3 && event.grade === '_OK_';
+    return event.wire === 3 && event.lsoGrade === '_OK_';
   }
 }
 

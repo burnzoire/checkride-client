@@ -102,7 +102,6 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         log.info(`API response: ${JSON.stringify(response)}`);
         const publish = response?.publish !== false;
         const proficiencies = Array.isArray(response?.proficiencies) ? response.proficiencies : [];
-        const apiAchievements = Array.isArray(response?.achievements) ? response.achievements : [];
 
         let last = Promise.resolve();
 
@@ -128,23 +127,6 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
                 return discordClient.send(proficiencyMsg, publish)
                   .then(() => log.info(`Successfully sent Discord proficiency #${i + 1}`))
                   .catch((error) => log.error(`Error sending Discord proficiency #${i + 1}:`, error));
-              });
-            }
-          });
-
-          apiAchievements.forEach((achievement, i) => {
-            if (achievement?.message) {
-              if (dcsChatClient?.send) {
-                dcsChatClient.send(achievement.message, publish, { kind: 'achievement' })
-                  .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
-              }
-
-              last = last.then(() => {
-                const achievementMsg = enrichWithEmojis(achievement.message, 'achievement');
-                log.info(`About to send Discord achievement #${i + 1}: ${achievementMsg}`);
-                return discordClient.send(achievementMsg, publish)
-                  .then(() => log.info(`Successfully sent Discord achievement #${i + 1}`))
-                  .catch((error) => log.error(`Error sending Discord achievement #${i + 1}:`, error));
               });
             }
           });

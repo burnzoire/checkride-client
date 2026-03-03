@@ -202,7 +202,7 @@ describe('initApp', () => {
     expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
   });
 
-  it('sends achievement messages when achievements are present', async () => {
+  it('ignores legacy achievements in event responses', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
@@ -238,10 +238,48 @@ describe('initApp', () => {
     await udpServer.onEvent(fakeEvent);
 
     expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
-    expect(discordClientMock.send).toHaveBeenCalledWith(':white_check_mark: Maverick achieved F-14 Sidewinder Basic Proficiency', true);
-    expect(discordClientMock.send).toHaveBeenCalledWith(':white_check_mark: Maverick achieved F-14 Sidewinder Advanced Proficiency', true);
-    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Maverick achieved F-14 Sidewinder Basic Proficiency', true, { kind: 'achievement' });
-    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Maverick achieved F-14 Sidewinder Advanced Proficiency', true, { kind: 'achievement' });
+    expect(discordClientMock.send).toHaveBeenCalledTimes(1);
+    expect(dcsChatClientMock.send).not.toHaveBeenCalled();
+  });
+
+  it('uses proficiencies and ignores mirrored achievements to avoid duplicate notifications', async () => {
+    const fakeEvent = { type: 'event' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
+    };
+    const sharedMessage = 'Maverick achieved F-14 Sidewinder Basic Proficiency';
+    const apiResponse = {
+      summary: 'summary',
+      proficiencies: [{ message: sharedMessage }],
+      achievements: [{ message: sharedMessage }],
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue(apiResponse),
+    };
+    const discordClientMock = {
+      send: jest.fn().mockResolvedValue(),
+    };
+    const dcsChatClientMock = {
+      send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
+    };
+
+    processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
+
+    APIClient.mockImplementation(() => apiClientMock);
+    DiscordClient.mockImplementation(() => discordClientMock);
+    DCSChatClient.mockImplementation(() => dcsChatClientMock);
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const { udpServer } = await initApp();
+    await udpServer.onEvent(fakeEvent);
+
+    expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
+    expect(discordClientMock.send).toHaveBeenCalledWith(`:white_check_mark: ${sharedMessage}`, true);
+    expect(discordClientMock.send).toHaveBeenCalledTimes(2);
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith(sharedMessage, true, { kind: 'proficiency' });
+    expect(dcsChatClientMock.send).toHaveBeenCalledTimes(1);
   });
 
   it('does not send discord messages when summary is missing', async () => {
@@ -309,23 +347,23 @@ describe('initApp', () => {
     expect(log.error).toHaveBeenCalledWith('Error sending Discord summary:', discordError);
   });
 
-  it('logs errors when discord achievement send fails', async () => {
+  it('logs errors when discord proficiency send fails', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
     };
     const apiResponse = {
       summary: 'summary',
-      achievements: [{ message: 'Achievement message' }]
+      proficiencies: [{ message: 'Proficiency message' }]
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue(apiResponse),
     };
-    const achievementError = new Error('achievement failed');
+    const proficiencyError = new Error('proficiency failed');
     const discordClientMock = {
       send: jest.fn()
         .mockResolvedValueOnce()
-        .mockRejectedValueOnce(achievementError),
+        .mockRejectedValueOnce(proficiencyError),
     };
 
     processMock.mockImplementation(() => ({ event: { event_type: 'event', event_data: { sample: true }, event_uid: 'uid' } }));
@@ -339,26 +377,26 @@ describe('initApp', () => {
 
     await udpServer.onEvent(fakeEvent);
 
-    expect(log.error).toHaveBeenCalledWith('Error sending Discord achievement #1:', achievementError);
+    expect(log.error).toHaveBeenCalledWith('Error sending Discord proficiency #1:', proficiencyError);
   });
 
-  it('sends DCS chat even when discord achievement send fails', async () => {
+  it('sends DCS chat even when discord proficiency send fails', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'event', event_data: { sample: true } } }),
     };
     const apiResponse = {
       summary: 'summary',
-      achievements: [{ message: 'Achievement message' }]
+      proficiencies: [{ message: 'Proficiency message' }]
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue(apiResponse),
     };
-    const achievementError = new Error('achievement failed');
+    const proficiencyError = new Error('proficiency failed');
     const discordClientMock = {
       send: jest.fn()
         .mockResolvedValueOnce()
-        .mockRejectedValueOnce(achievementError),
+        .mockRejectedValueOnce(proficiencyError),
     };
     const dcsChatClientMock = {
       send: jest.fn().mockResolvedValue(),
@@ -377,8 +415,8 @@ describe('initApp', () => {
 
     await udpServer.onEvent(fakeEvent);
 
-    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Achievement message', true, { kind: 'achievement' });
-    expect(log.error).toHaveBeenCalledWith('Error sending Discord achievement #1:', achievementError);
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Proficiency message', true, { kind: 'proficiency' });
+    expect(log.error).toHaveBeenCalledWith('Error sending Discord proficiency #1:', proficiencyError);
   });
 
   it('calls saveAchievement when a client-side achievement unlocks', async () => {

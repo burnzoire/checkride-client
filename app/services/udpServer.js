@@ -24,8 +24,8 @@ class UDPServer {
       const event = JSON.parse(msg.toString())
 
       if (this.onEventCallback) {
-
-        this.onEventCallback(event)
+        Promise.resolve()
+          .then(() => this.onEventCallback(event))
           .catch(err => log.error(err))
       }
     })

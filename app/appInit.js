@@ -40,6 +40,17 @@ function isNewAchievementSaveResult(result) {
   return result.created !== false;
 }
 
+function sendMissionScriptingConfig(dcsChatClient, missionScriptingEnabled, source) {
+  if (!dcsChatClient?.sendConfig) {
+    log.warn(`Skipping mission scripting config (${source}): DCS chat client is unavailable`)
+    return Promise.resolve()
+  }
+
+  log.info(`Sending mission scripting config on ${source}: mission_scripting_enabled=${missionScriptingEnabled}`)
+  return dcsChatClient.sendConfig({ mission_scripting_enabled: missionScriptingEnabled })
+    .catch((error) => log.error(`Error sending mission scripting config on ${source}:`, error))
+}
+
 function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, eventProcessor, achievementEngine }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
@@ -49,9 +60,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     if (event.type === 'ready') {
       log.info('GameGUI ready signal received, sending config')
       const missionScriptingEnabled = store.get('mission_scripting_enabled')
-      log.info(`Sending mission scripting config on ready: mission_scripting_enabled=${missionScriptingEnabled}`)
-      return dcsChatClient.sendConfig({ mission_scripting_enabled: missionScriptingEnabled })
-        .catch((error) => log.error('Error sending config on ready:', error))
+      return sendMissionScriptingConfig(dcsChatClient, missionScriptingEnabled, 'ready')
     }
 
     if (event.type === 'connect' && event.playerUcid) {
@@ -196,9 +205,7 @@ async function initApp() {
   const udpServer = new UDPServer(DEFAULT_UDP_PORT)
 
   const missionScriptingEnabled = store.get('mission_scripting_enabled')
-  log.info(`Sending mission scripting config on startup: mission_scripting_enabled=${missionScriptingEnabled}`)
-  dcsChatClient.sendConfig({ mission_scripting_enabled: missionScriptingEnabled })
-    .catch((error) => log.error('Error sending mission scripting config to DCS:', error))
+  sendMissionScriptingConfig(dcsChatClient, missionScriptingEnabled, 'startup')
 
   const eventProcessor = new EventProcessor()
   const achievementEngine = new AchievementEngine()

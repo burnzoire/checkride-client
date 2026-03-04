@@ -34,6 +34,7 @@ jest.mock('electron-log', () => {
 const UDPServer = require('./udpServer');
 const dgram = require('dgram');
 const log = require('electron-log');
+const flushAsync = () => new Promise((resolve) => setImmediate(resolve));
 
 describe('UDPServer', () => {
   let udpServer;
@@ -59,7 +60,7 @@ describe('UDPServer', () => {
   });
 
   describe('onEvent', () => {
-    it('should call onEvent callback when a message is received', () => {
+    it('should call onEvent callback when a message is received', async () => {
       const fakeEvent = { type: 'event' };
       const callback = jest.fn().mockResolvedValue();
       udpServer.onEvent = callback;
@@ -67,6 +68,8 @@ describe('UDPServer', () => {
       const messageCallback = udpServer.server.on.mock.calls[1][1];
       const rinfoMock = { address: 'localhost', port: 41234 };
       messageCallback(Buffer.from(JSON.stringify(fakeEvent)), rinfoMock);
+
+      await flushAsync();
 
       expect(callback).toHaveBeenCalledWith(fakeEvent);
     });
@@ -78,9 +81,27 @@ describe('UDPServer', () => {
       udpServer.onEventCallback = jest.fn(() => Promise.reject(new Error('Test error')));
 
       const messageCallback = udpServer.server.on.mock.calls[1][1];
-      await messageCallback(Buffer.from(message), rinfo);
+      messageCallback(Buffer.from(message), rinfo);
+
+      await flushAsync();
 
       expect(log.error).toHaveBeenCalledWith(new Error('Test error'));
+    });
+
+    it('should log error when onEventCallback throws synchronously', async () => {
+      const message = JSON.stringify({ type: 'syncErrorEvent' });
+      const rinfo = { address: 'localhost', port: 41234 };
+
+      udpServer.onEventCallback = jest.fn(() => {
+        throw new Error('Sync callback error');
+      });
+
+      const messageCallback = udpServer.server.on.mock.calls[1][1];
+      messageCallback(Buffer.from(message), rinfo);
+
+      await flushAsync();
+
+      expect(log.error).toHaveBeenCalledWith(new Error('Sync callback error'));
     });
 
     it('should not call onEvent callback when it is not provided', () => {

@@ -109,6 +109,28 @@ describe('initApp', () => {
     expect(EventFactory.create).not.toHaveBeenCalledWith({ type: 'ready' });
   });
 
+  it('does not crash when ready arrives without a DCS chat client', async () => {
+    const udpServer = {};
+    const apiClientMock = { saveEvent: jest.fn(), saveAchievement: jest.fn() };
+    const discordClientMock = { send: jest.fn().mockResolvedValue() };
+
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: discordClientMock,
+    });
+
+    await expect(udpServer.onEvent({ type: 'ready' })).resolves.toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith('Skipping mission scripting config (ready): DCS chat client is unavailable');
+  });
+
+  it('does not crash startup when DCS chat client lacks sendConfig', async () => {
+    DCSChatClient.mockImplementation(() => ({ send: jest.fn().mockResolvedValue() }));
+
+    await expect(initApp()).resolves.toBeDefined();
+    expect(log.warn).toHaveBeenCalledWith('Skipping mission scripting config (startup): DCS chat client is unavailable');
+  });
+
   it('logs state-only events when persist is false', async () => {
     const { udpServer } = await initApp();
 

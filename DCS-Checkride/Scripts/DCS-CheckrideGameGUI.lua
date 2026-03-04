@@ -187,6 +187,10 @@ local function getPlayerOrAI(playerID)
     return Checkride.clients[playerID] or { name = "AI", ucid = "" }
 end
 
+local function isBlank(value)
+    return value == nil or tostring(value) == ""
+end
+
 function Checkride.getUnitAttributes(unitType)
     if not unitType or unitType == "" then
         return {}
@@ -302,6 +306,18 @@ function Checkride.onChangeSlot(time, playerID, slotID, prevSide)
     Checkride.log("onChangeSlot " .. playerID .. " - " .. tostring(slotID))
     local player = Checkride.findOrCreatePlayer(playerID)
     local side = net.get_player_info(playerID, 'side')
+    if isBlank(player.name) then
+        player.name = net.get_player_info(playerID, 'name')
+    end
+    if isBlank(player.ucid) then
+        player.ucid = net.get_player_info(playerID, 'ucid')
+    end
+
+    if isBlank(player.name) and isBlank(player.ucid) then
+        Checkride.log("discarding change_slot with blank player identity")
+        return
+    end
+
     Checkride.log(player.name .. " to slot " .. tostring(slotID))
     player.slot = slotID
     player.side = side

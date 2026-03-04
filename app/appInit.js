@@ -94,12 +94,21 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
     return EventFactory.create(event)
       .then(gameEvent => {
-        unlockedAchievements = engine.evaluate(event);
         const preparedPayload = gameEvent.prepare();
+        if (!preparedPayload) {
+          log.debug(`Skipping event with empty prepared payload: ${event.type}`);
+          return null;
+        }
+
+        unlockedAchievements = engine.evaluate(event);
         const processedPayload = processor.process(event, preparedPayload);
         return apiClient.saveEvent(processedPayload);
       })
       .then((response) => {
+        if (!response) {
+          return;
+        }
+
         log.info(`API response: ${JSON.stringify(response)}`);
         const publish = response?.publish !== false;
         const proficiencies = Array.isArray(response?.proficiencies) ? response.proficiencies : [];

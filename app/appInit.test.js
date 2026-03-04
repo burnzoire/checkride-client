@@ -160,6 +160,43 @@ describe('initApp', () => {
     expect(discordClientMock.send).toHaveBeenCalledWith(apiResponse.summary, true);
   });
 
+  it('skips processing when game event prepare returns null', async () => {
+    const fakeEvent = { type: 'change_slot', playerUcid: '', playerName: '' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue(null),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ summary: 'should not happen' }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const discordClientMock = { send: jest.fn().mockResolvedValue() };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: discordClientMock,
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(fakeEvent);
+
+    expect(achievementEngineMock.evaluate).not.toHaveBeenCalled();
+    expect(processMock).not.toHaveBeenCalled();
+    expect(apiClientMock.saveEvent).not.toHaveBeenCalled();
+    expect(discordClientMock.send).not.toHaveBeenCalled();
+  });
+
 
   it('logs error when an error occurs in the onEvent callback', async () => {
     const fakeEvent = { type: 'event' };

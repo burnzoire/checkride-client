@@ -36,4 +36,19 @@ describe('ChangeSlotEvent', () => {
       }
     });
   });
+
+  it('returns null when both player identity fields are blank', () => {
+    const rawEvent = {
+      type: 'change_slot',
+      playerUcid: '',
+      playerName: '',
+      slotId: '1',
+      prevSide: '1',
+      flyable: true,
+    };
+
+    const event = new ChangeSlotEvent(rawEvent);
+
+    expect(event.prepare()).toBeNull();
+  });
 });

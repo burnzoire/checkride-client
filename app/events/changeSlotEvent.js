@@ -11,6 +11,10 @@ class ChangeSlotEvent extends GameEvent {
   }
 
   prepare() {
+    if (!this.playerUcid && !this.playerName) {
+      return null;
+    }
+
     return {
       event: {
         event_type: this.eventType,

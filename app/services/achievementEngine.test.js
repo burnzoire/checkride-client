@@ -26,6 +26,18 @@ function waveOffEvent(overrides = {}) {
   return grading({ lsoGrade: 'WO', wire: null, ...overrides });
 }
 
+function refuel(overrides = {}) {
+  return {
+    type: 'refuel_enrichment',
+    playerUcid: 'pilot-1',
+    playerName: 'Maverick',
+    contactEvent: 'contact_start',
+    system: 'basket',
+    occurredAt: '2026-03-07T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
 // Minimal stub achievement for testing engine mechanics
 class StubAchievement extends Achievement {
   constructor(id, evaluateFn) {
@@ -82,6 +94,17 @@ describe('AchievementEngine — core mechanics', () => {
     });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('kill_achv');
+  });
+
+  it('passes refuel_enrichment event to achievements registered with triggerType refuel_enrichment', () => {
+    const refuelAchievement = new StubAchievement('refuel_achv', () => true);
+    refuelAchievement.triggerType = 'refuel_enrichment';
+    const engine = new AchievementEngine([refuelAchievement]);
+
+    const result = engine.evaluate(refuel());
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('refuel_achv');
   });
 
   it('returns empty array when playerUcid is missing', () => {

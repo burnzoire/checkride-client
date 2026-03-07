@@ -52,7 +52,8 @@ class AchievementEngine {
    * Supported event types:
    *   - grading            → state.applyGrading()         → triggerType 'grading' achievements
    *   - takeoff_enrichment → state.applyTakeoffEnrichment() → (state update only, no achievements yet)
-   *   - kill_enrichment    → state.applyKill()             → triggerType 'kill_enrichment' achievements
+  *   - kill_enrichment    → state.applyKill()             → triggerType 'kill_enrichment' achievements
+  *   - refuel_enrichment  → state.applyRefuelEnrichment() → triggerType 'refuel_enrichment' achievements
    *
    * Returns an array of newly-unlocked Achievement instances (may be empty).
    *
@@ -64,6 +65,7 @@ class AchievementEngine {
       grading:             { ucidField: 'playerUcid', stateMethod: 'applyGrading' },
       takeoff_enrichment:  { ucidField: 'playerUcid', stateMethod: 'applyTakeoffEnrichment' },
       kill_enrichment:     { ucidField: 'playerUcid', stateMethod: 'applyKill' },
+      refuel_enrichment:   { ucidField: 'playerUcid', stateMethod: 'applyRefuelEnrichment' },
     };
 
     const dispatch = DISPATCH[event.type];

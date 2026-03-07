@@ -44,6 +44,13 @@ class PilotState {
     this.takeoffLocation = null;  // carrier/airdrome name, or null
     /** @type {Kill[]} */
     this.kills = [];              // array of { victimUnitCategory, carrierDistanceNm }
+    this.lastTakeoffAtMs = null;
+
+    this.refuelContactStartedAtMs = null;
+    this.refuelStartFuelState = null;
+    this.lastRefuelFuelGain = null;
+    this.lastRefuelContactDurationSeconds = null;
+    this.longestRefuelContactSeconds = 0;
   }
 
   // ── Derived grading state ──────────────────────────────────────────────────
@@ -91,6 +98,12 @@ class PilotState {
     this.launchedFromCarrier = event.launchedFromCarrier === true;
     this.takeoffLocation = event.takeoffLocation ?? null;
     this.kills = [];
+    this.lastTakeoffAtMs = this._parseOccurredAt(event);
+
+    this.refuelContactStartedAtMs = null;
+    this.refuelStartFuelState = null;
+    this.lastRefuelFuelGain = null;
+    this.lastRefuelContactDurationSeconds = null;
   }
 
   /**
@@ -108,6 +121,42 @@ class PilotState {
     });
   }
 
+  applyRefuelEnrichment(event) {
+    const contactEvent = event.contactEvent ?? event.contact_event ?? event.contact ?? null;
+    const occurredAtMs = this._parseOccurredAt(event);
+
+    if (contactEvent === 'contact_start') {
+      this.refuelContactStartedAtMs = occurredAtMs;
+      this.refuelStartFuelState = this._normalizeFuelState(event.fuelState);
+      this.lastRefuelFuelGain = null;
+      this.lastRefuelContactDurationSeconds = null;
+      return;
+    }
+
+    if (contactEvent !== 'contact_end') {
+      return;
+    }
+
+    const endFuelState = this._normalizeFuelState(event.fuelState);
+
+    if (this.refuelContactStartedAtMs !== null && occurredAtMs !== null) {
+      const durationSeconds = Math.max(0, (occurredAtMs - this.refuelContactStartedAtMs) / 1000);
+      this.lastRefuelContactDurationSeconds = durationSeconds;
+      this.longestRefuelContactSeconds = Math.max(this.longestRefuelContactSeconds, durationSeconds);
+    } else {
+      this.lastRefuelContactDurationSeconds = null;
+    }
+
+    if (this.refuelStartFuelState !== null && endFuelState !== null) {
+      this.lastRefuelFuelGain = Math.max(0, endFuelState - this.refuelStartFuelState);
+    } else {
+      this.lastRefuelFuelGain = null;
+    }
+
+    this.refuelContactStartedAtMs = null;
+    this.refuelStartFuelState = null;
+  }
+
   /**
    * Update state from a raw grading event.
    *
@@ -115,6 +164,18 @@ class PilotState {
    */
   applyGrading(event) {
     this.passes.push(event);
+  }
+
+  _parseOccurredAt(event) {
+    const candidate = event.occurredAt ?? event.occurred_at;
+    if (typeof candidate !== 'string') return null;
+
+    const ms = Date.parse(candidate);
+    return Number.isFinite(ms) ? ms : null;
+  }
+
+  _normalizeFuelState(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
   }
 }
 

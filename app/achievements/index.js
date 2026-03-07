@@ -10,6 +10,10 @@ const comebackKid = require('./comebackKid');
 const bolterBolter = require('./bolterBolter');
 const barelyRecovered = require('./barelyRecovered');
 const fleetDefender = require('./fleetDefender');
+const basketCase = require('./basketCase');
+const boomShakalaka = require('./boomShakalaka');
+const topUp = require('./topUp');
+const nightTanker = require('./nightTanker');
 
 const ALL_ACHIEVEMENTS = [
   carrierQualified,
@@ -20,6 +24,10 @@ const ALL_ACHIEVEMENTS = [
   bolterBolter,
   barelyRecovered,
   fleetDefender,
+  basketCase,
+  boomShakalaka,
+  topUp,
+  nightTanker,
 ];
 
 module.exports = ALL_ACHIEVEMENTS;

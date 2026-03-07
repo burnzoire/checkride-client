@@ -51,9 +51,14 @@ class AchievementEngine {
    *
    * Supported event types:
    *   - grading            → state.applyGrading()         → triggerType 'grading' achievements
+  *   - takeoff            → state.applyTakeoff()         → (state update only)
+  *   - landing            → state.applyLanding()         → (state update only)
+  *   - crash/eject/pilot_death/disconnect/self_kill → state.applyPilotDown() → (state update only)
    *   - takeoff_enrichment → state.applyTakeoffEnrichment() → (state update only, no achievements yet)
-  *   - kill_enrichment    → state.applyKill()             → triggerType 'kill_enrichment' achievements
-  *   - refuel_enrichment  → state.applyRefuelEnrichment() → triggerType 'refuel_enrichment' achievements
+   *   - kill_enrichment    → state.applyKill()             → triggerType 'kill_enrichment' achievements
+   *   - refuel_enrichment  → state.applyRefuelEnrichment() → triggerType 'refuel_enrichment' achievements
+   *   - flight_sample_enrichment → state.applyFlightSampleEnrichment() → (state update only)
+   *   - change_slot        → state.applyChangeSlot()       → (state update only)
    *
    * Returns an array of newly-unlocked Achievement instances (may be empty).
    *
@@ -63,9 +68,18 @@ class AchievementEngine {
   evaluate(event) {
     const DISPATCH = {
       grading:             { ucidField: 'playerUcid', stateMethod: 'applyGrading' },
+      takeoff:             { ucidField: 'playerUcid', stateMethod: 'applyTakeoff' },
+      landing:             { ucidField: 'playerUcid', stateMethod: 'applyLanding' },
+      crash:               { ucidField: 'playerUcid', stateMethod: 'applyPilotDown' },
+      eject:               { ucidField: 'playerUcid', stateMethod: 'applyPilotDown' },
+      pilot_death:         { ucidField: 'playerUcid', stateMethod: 'applyPilotDown' },
+      disconnect:          { ucidField: 'playerUcid', stateMethod: 'applyPilotDown' },
+      self_kill:           { ucidField: 'playerUcid', stateMethod: 'applyPilotDown' },
       takeoff_enrichment:  { ucidField: 'playerUcid', stateMethod: 'applyTakeoffEnrichment' },
       kill_enrichment:     { ucidField: 'playerUcid', stateMethod: 'applyKill' },
       refuel_enrichment:   { ucidField: 'playerUcid', stateMethod: 'applyRefuelEnrichment' },
+      flight_sample_enrichment: { ucidField: 'playerUcid', stateMethod: 'applyFlightSampleEnrichment' },
+      change_slot:         { ucidField: 'playerUcid', stateMethod: 'applyChangeSlot' },
     };
 
     const dispatch = DISPATCH[event.type];
@@ -99,6 +113,63 @@ class AchievementEngine {
     }
 
     return newlyUnlocked;
+  }
+
+  buildSnapshot({ pilotUcid, triggerEvent, unlockedAchievements = [] }) {
+    if (!pilotUcid) return null;
+
+    const state = this.pilotStates.get(pilotUcid);
+    if (!state) return null;
+
+    return {
+      pilot_uid: pilotUcid,
+      pilot_name: triggerEvent?.playerName || null,
+      trigger_event_type: triggerEvent?.type || null,
+      trigger_event_at: triggerEvent?.occurredAt || null,
+      snapshot_at: new Date().toISOString(),
+      unlocked_ids: unlockedAchievements.map((a) => a.id),
+      state: this.serializeState(state)
+    };
+  }
+
+  serializeState(state) {
+    const killsAir = state.kills.filter((k) => k.victimUnitCategory === 'air').length;
+    const killsGround = state.kills.filter((k) => k.victimUnitCategory === 'ground').length;
+
+    return {
+      now: {
+        inAir: state.inAir,
+        takeoffLocation: state.takeoffLocation,
+        takeoffFromCarrier: state.launchedFromCarrier,
+        speedKts: state.currentSpeedKts,
+        speedMach: null,
+        altBaroFt: state.currentAltitudeFt,
+        altRadarFt: null,
+        positionX: null,
+        positionY: null,
+        killsGround,
+        killsAir,
+      },
+      metrics: {
+        trapCount: state.trapCount,
+        nightTrapCount: state.nightTrapCount,
+        consecutiveBolters: state.consecutiveBolters,
+        prevPassWasBolter: state.prevPassWasBolter,
+        fuelAtTrap: state.fuelAtTrap,
+        launchedFromCarrier: state.launchedFromCarrier,
+        takeoffLocation: state.takeoffLocation,
+        lastTakeoffAtMs: state.lastTakeoffAtMs,
+        killsCount: state.kills.length,
+        kills: state.kills,
+        refuelContactStartedAtMs: state.refuelContactStartedAtMs,
+        refuelStartFuelState: state.refuelStartFuelState,
+        lastRefuelFuelGain: state.lastRefuelFuelGain,
+        lastRefuelContactDurationSeconds: state.lastRefuelContactDurationSeconds,
+        longestRefuelContactSeconds: state.longestRefuelContactSeconds,
+        currentSpeedKts: state.currentSpeedKts,
+        currentAltitudeFt: state.currentAltitudeFt,
+      },
+    };
   }
 
   /**

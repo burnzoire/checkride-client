@@ -38,6 +38,15 @@ function refuel(overrides = {}) {
   };
 }
 
+function changeSlot(overrides = {}) {
+  return {
+    type: 'change_slot',
+    playerUcid: 'pilot-1',
+    playerName: 'Maverick',
+    ...overrides,
+  };
+}
+
 // Minimal stub achievement for testing engine mechanics
 class StubAchievement extends Achievement {
   constructor(id, evaluateFn) {
@@ -55,7 +64,45 @@ describe('AchievementEngine — core mechanics', () => {
   it('returns empty array for unknown event types', () => {
     const engine = new AchievementEngine([]);
     expect(engine.evaluate({ type: 'kill', playerUcid: 'p1' })).toEqual([]);
-    expect(engine.evaluate({ type: 'landing', playerUcid: 'p1' })).toEqual([]);
+    expect(engine.evaluate({ type: 'totally_unknown', playerUcid: 'p1' })).toEqual([]);
+  });
+
+  it('tracks inAir true/false from core lifecycle events', () => {
+    const engine = new AchievementEngine([]);
+
+    engine.evaluate({ type: 'takeoff', playerUcid: 'pilot-1', playerName: 'Maverick', occurredAt: '2026-03-07T10:00:00.000Z' });
+    let snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'takeoff', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+    expect(snapshot.state.now.inAir).toBe(true);
+
+    engine.evaluate({ type: 'landing', playerUcid: 'pilot-1', playerName: 'Maverick' });
+    snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'landing', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+    expect(snapshot.state.now.inAir).toBe(false);
+  });
+
+  it('creates pilot state for change_slot so a snapshot can be published', () => {
+    const engine = new AchievementEngine([]);
+
+    const unlocked = engine.evaluate(changeSlot());
+    expect(unlocked).toEqual([]);
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: changeSlot(),
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot).not.toBeNull();
+    expect(snapshot.state).toHaveProperty('now');
+    expect(snapshot.state).toHaveProperty('metrics');
+    expect(snapshot.trigger_event_type).toBe('change_slot');
   });
 
   it('processes takeoff_enrichment without triggering grading achievements', () => {

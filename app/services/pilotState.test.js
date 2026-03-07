@@ -107,12 +107,14 @@ describe('PilotState — sortie fields', () => {
     expect(state.launchedFromCarrier).toBe(false);
     expect(state.takeoffLocation).toBeNull();
     expect(state.kills).toEqual([]);
+    expect(state.inAir).toBe(false);
   });
 
   describe('applyTakeoffEnrichment', () => {
     it('sets launchedFromCarrier to true when takeoff was from a carrier', () => {
       state.applyTakeoffEnrichment({ launchedFromCarrier: true, carrierName: 'CVN-71' });
       expect(state.launchedFromCarrier).toBe(true);
+      expect(state.inAir).toBe(true);
     });
 
     it('sets launchedFromCarrier to false when takeoff was from a land base', () => {
@@ -189,6 +191,86 @@ describe('PilotState — sortie fields', () => {
       state.applyRefuelEnrichment({ contactEvent: 'contact_end', occurredAt: '2026-03-07T10:03:30.000Z', fuelState: 0.50 });
 
       expect(state.longestRefuelContactSeconds).toBe(90);
+    });
+  });
+
+  describe('inAir tracking', () => {
+    it('records takeoffLocation from takeoff event airdromeName', () => {
+      state.applyTakeoff({ occurredAt: '2026-03-07T10:00:00.000Z', airdromeName: 'Batumi' });
+
+      expect(state.inAir).toBe(true);
+      expect(state.takeoffLocation).toBe('Batumi');
+      expect(state.launchedFromCarrier).toBe(false);
+    });
+
+    it('sets inAir true on takeoff and false on landing', () => {
+      state.applyTakeoff({ occurredAt: '2026-03-07T10:00:00.000Z' });
+      expect(state.inAir).toBe(true);
+
+      state.applyLanding();
+      expect(state.inAir).toBe(false);
+    });
+
+    it('sets inAir false on pilot down events', () => {
+      state.applyTakeoff({ occurredAt: '2026-03-07T10:00:00.000Z' });
+      expect(state.inAir).toBe(true);
+
+      state.applyPilotDown();
+      expect(state.inAir).toBe(false);
+    });
+
+    it('resets inAir false on slot change', () => {
+      state.applyTakeoff({ occurredAt: '2026-03-07T10:00:00.000Z' });
+      expect(state.inAir).toBe(true);
+
+      state.applyChangeSlot();
+      expect(state.inAir).toBe(false);
+    });
+
+    it('sets inAir true on slot change when flyable is true', () => {
+      state.applyChangeSlot({ flyable: true });
+      expect(state.inAir).toBe(true);
+    });
+
+    it('sets inAir false on slot change when flyable is false', () => {
+      state.applyTakeoff({ occurredAt: '2026-03-07T10:00:00.000Z' });
+      expect(state.inAir).toBe(true);
+
+      state.applyChangeSlot({ flyable: false });
+      expect(state.inAir).toBe(false);
+    });
+
+    it('sets inAir false when changing between flyable slots', () => {
+      state.applyChangeSlot({ slotId: '2', flyable: true });
+      expect(state.inAir).toBe(true);
+
+      state.applyChangeSlot({ slotId: '5', flyable: true });
+      expect(state.inAir).toBe(false);
+    });
+
+    it('clears takeoffLocation and carrier flag on slot change', () => {
+      state.applyTakeoffEnrichment({ launchedFromCarrier: true, takeoffLocation: 'CVN-71' });
+
+      state.applyChangeSlot({ slotId: '5', flyable: true });
+
+      expect(state.takeoffLocation).toBeNull();
+      expect(state.launchedFromCarrier).toBe(false);
+    });
+
+    it('keeps inAir true for repeated change_slot on same flyable slot', () => {
+      state.applyChangeSlot({ slotId: '2', flyable: true });
+      expect(state.inAir).toBe(true);
+
+      state.applyChangeSlot({ slotId: '2', flyable: true });
+      expect(state.inAir).toBe(true);
+    });
+
+    it('uses inAir from flight sample enrichment when provided', () => {
+      state.applyFlightSampleEnrichment({ inAir: true });
+      expect(state.inAir).toBe(true);
+
+      state.applyFlightSampleEnrichment({ in_air: false });
+      expect(state.inAir).toBe(false);
     });
   });
 });

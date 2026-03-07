@@ -187,6 +187,47 @@ class APIClient {
     });
   }
 
+  publishPilotState(pilotStateUpdate) {
+    return new Promise((resolve, reject) => {
+      const data = JSON.stringify({ pilot_state_update: pilotStateUpdate });
+
+      const options = {
+        host: this.host,
+        path: `${this.pathPrefix}/pilot_state_updates`,
+        port: this.port,
+        method: 'POST',
+        headers: this.buildHeaders({
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data),
+        }),
+      };
+
+      const req = this.httpModule.request(options, (response) => {
+        let body = [];
+        response.on('data', (chunk) => { body.push(chunk); });
+        response.on('end', () => {
+          const rawBody = Buffer.concat(body).toString();
+          const ok = response.statusCode === 202 || response.statusCode === 200;
+          if (!ok) {
+            reject(new APIClientError(`Failed to publish pilot state: ${rawBody}`));
+            return;
+          }
+
+          try {
+            resolve(rawBody ? JSON.parse(rawBody) : { ok: true });
+          } catch (e) {
+            resolve({ ok: true });
+          }
+        });
+        response.on('error', error => reject(new APIClientError(`API request failed: ${error}`)));
+      });
+
+      req.on('error', (error) => reject(new APIClientError(`API request failed: ${error}`)));
+      req.write(data);
+      req.end();
+    });
+  }
+
   healthcheck() {
     return new Promise((resolve, reject) => {
       var options = {

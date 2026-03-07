@@ -51,6 +51,24 @@ function sendMissionScriptingConfig(dcsChatClient, missionScriptingEnabled, sour
     .catch((error) => log.error(`Error sending mission scripting config on ${source}:`, error))
 }
 
+function publishPilotStateUpdate({ apiClient, engine, event, unlockedAchievements }) {
+  if (!event?.playerUcid) return;
+  if (!engine || typeof engine.buildSnapshot !== 'function') return;
+
+  const snapshot = engine.buildSnapshot({
+    pilotUcid: event.playerUcid,
+    triggerEvent: event,
+    unlockedAchievements,
+  });
+
+  if (!snapshot) return;
+
+  log.debug(`Pilot state snapshot: pilot=${event.playerUcid} trigger=${event.type} inAir=${snapshot.state?.now?.inAir}`);
+
+  apiClient.publishPilotState(snapshot)
+    .catch((error) => log.error(`Failed to publish pilot state for ${event.playerUcid}:`, error));
+}
+
 function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, eventProcessor, achievementEngine }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
@@ -73,6 +91,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     if (event.persist === false) {
       log.info(`State-only event (persist=false): ${JSON.stringify(event)}`)
       const newlyUnlocked = engine.evaluate(event);
+      publishPilotStateUpdate({ apiClient, engine, event, unlockedAchievements: newlyUnlocked });
       let last = Promise.resolve();
       newlyUnlocked.forEach((achievement, i) => {
         const pilotName = event.playerName || 'Unknown Pilot';
@@ -106,10 +125,13 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         const preparedPayload = gameEvent.prepare();
         if (!preparedPayload) {
           log.debug(`Skipping event with empty prepared payload: ${event.type}`);
+          unlockedAchievements = engine.evaluate(event);
+          publishPilotStateUpdate({ apiClient, engine, event, unlockedAchievements });
           return null;
         }
 
         unlockedAchievements = engine.evaluate(event);
+        publishPilotStateUpdate({ apiClient, engine, event, unlockedAchievements });
         const processedPayload = processor.process(event, preparedPayload);
         return apiClient.saveEvent(processedPayload);
       })

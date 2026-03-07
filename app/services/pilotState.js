@@ -51,6 +51,11 @@ class PilotState {
     this.lastRefuelFuelGain = null;
     this.lastRefuelContactDurationSeconds = null;
     this.longestRefuelContactSeconds = 0;
+
+    this.currentSpeedKts = null;
+    this.currentAltitudeFt = null;
+    this.inAir = false;
+    this.currentSlotId = null;
   }
 
   // ── Derived grading state ──────────────────────────────────────────────────
@@ -99,11 +104,14 @@ class PilotState {
     this.takeoffLocation = event.takeoffLocation ?? null;
     this.kills = [];
     this.lastTakeoffAtMs = this._parseOccurredAt(event);
+    this.inAir = true;
 
     this.refuelContactStartedAtMs = null;
     this.refuelStartFuelState = null;
     this.lastRefuelFuelGain = null;
     this.lastRefuelContactDurationSeconds = null;
+    this.currentSpeedKts = null;
+    this.currentAltitudeFt = null;
   }
 
   /**
@@ -155,6 +163,75 @@ class PilotState {
 
     this.refuelContactStartedAtMs = null;
     this.refuelStartFuelState = null;
+  }
+
+  applyFlightSampleEnrichment(event) {
+    const speed = event.speedKts ?? event.speed_kts;
+    const altitude = event.altitudeFt ?? event.altitude_ft;
+    const inAir = event.inAir ?? event.in_air;
+
+    this.currentSpeedKts = typeof speed === 'number' && Number.isFinite(speed) ? speed : this.currentSpeedKts;
+    this.currentAltitudeFt = typeof altitude === 'number' && Number.isFinite(altitude) ? altitude : this.currentAltitudeFt;
+    this.inAir = typeof inAir === 'boolean' ? inAir : this.inAir;
+  }
+
+  applyTakeoff(event) {
+    const takeoffLocation = event?.airdromeName ?? event?.airdrome_name;
+
+    this.lastTakeoffAtMs = this._parseOccurredAt(event) ?? this.lastTakeoffAtMs;
+    if (typeof takeoffLocation === 'string' && takeoffLocation.length > 0) {
+      this.takeoffLocation = takeoffLocation;
+      this.launchedFromCarrier = false;
+    }
+    this.inAir = true;
+  }
+
+  applyLanding() {
+    this.inAir = false;
+  }
+
+  applyPilotDown() {
+    this.inAir = false;
+  }
+
+  applyChangeSlot(event = {}) {
+    const inAir = event.inAir ?? event.in_air;
+    const flyable = event.flyable;
+    const nextSlotId = event.slotId ?? event.slot_id ?? null;
+    const previousSlotId = this.currentSlotId;
+    const slotChanged =
+      previousSlotId !== null &&
+      nextSlotId !== null &&
+      String(previousSlotId) !== String(nextSlotId);
+
+    this.kills = [];
+    this.lastTakeoffAtMs = null;
+    this.takeoffLocation = null;
+    this.launchedFromCarrier = false;
+    this.refuelContactStartedAtMs = null;
+    this.refuelStartFuelState = null;
+    this.lastRefuelFuelGain = null;
+    this.lastRefuelContactDurationSeconds = null;
+    this.currentSpeedKts = null;
+    this.currentAltitudeFt = null;
+    this.currentSlotId = nextSlotId;
+
+    if (typeof inAir === 'boolean') {
+      this.inAir = inAir;
+      return;
+    }
+
+    if (slotChanged) {
+      this.inAir = false;
+      return;
+    }
+
+    if (typeof flyable === 'boolean') {
+      this.inAir = flyable;
+      return;
+    }
+
+    this.inAir = false;
   }
 
   /**

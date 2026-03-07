@@ -213,7 +213,7 @@ describe('initApp', () => {
 
     await udpServer.onEvent(fakeEvent);
 
-    expect(achievementEngineMock.evaluate).not.toHaveBeenCalled();
+    expect(achievementEngineMock.evaluate).toHaveBeenCalledWith(fakeEvent);
     expect(processMock).not.toHaveBeenCalled();
     expect(apiClientMock.saveEvent).not.toHaveBeenCalled();
     expect(discordClientMock.send).not.toHaveBeenCalled();

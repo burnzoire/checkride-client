@@ -53,7 +53,11 @@ class PilotState {
     this.longestRefuelContactSeconds = 0;
 
     this.currentSpeedKts = null;
+    this.currentSpeedMach = null;
     this.currentAltitudeFt = null;
+    this.currentRadarAltitudeFt = null;
+    this.currentPositionX = null;
+    this.currentPositionY = null;
     this.currentFuelState = null;
     this.inAir = false;
     this.currentSlotId = null;
@@ -112,7 +116,11 @@ class PilotState {
     this.lastRefuelFuelGain = null;
     this.lastRefuelContactDurationSeconds = null;
     this.currentSpeedKts = null;
+    this.currentSpeedMach = null;
     this.currentAltitudeFt = null;
+    this.currentRadarAltitudeFt = null;
+    this.currentPositionX = null;
+    this.currentPositionY = null;
     this.currentFuelState = null;
   }
 
@@ -169,12 +177,22 @@ class PilotState {
 
   applyFlightSampleEnrichment(event) {
     const speed = event.speedKts ?? event.speed_kts;
+    const speedMach = event.speedMach ?? event.speed_mach;
     const altitude = event.altitudeFt ?? event.altitude_ft;
+    const altRadarFt = event.altRadarFt ?? event.alt_radar_ft;
+    const positionX = event.positionX ?? event.position_x;
+    const positionY = event.positionY ?? event.position_y;
     const currentFuelState = event.currentFuelState ?? event.current_fuel_state ?? event.fuelState ?? event.fuel_state;
     const inAir = event.inAir ?? event.in_air;
 
     this.currentSpeedKts = typeof speed === 'number' && Number.isFinite(speed) ? speed : this.currentSpeedKts;
+    this.currentSpeedMach = typeof speedMach === 'number' && Number.isFinite(speedMach) ? speedMach : this.currentSpeedMach;
     this.currentAltitudeFt = typeof altitude === 'number' && Number.isFinite(altitude) ? altitude : this.currentAltitudeFt;
+    this.currentRadarAltitudeFt = typeof altRadarFt === 'number' && Number.isFinite(altRadarFt)
+      ? altRadarFt
+      : this.currentRadarAltitudeFt;
+    this.currentPositionX = typeof positionX === 'number' && Number.isFinite(positionX) ? positionX : this.currentPositionX;
+    this.currentPositionY = typeof positionY === 'number' && Number.isFinite(positionY) ? positionY : this.currentPositionY;
     this.currentFuelState = typeof currentFuelState === 'number' && Number.isFinite(currentFuelState)
       ? currentFuelState
       : this.currentFuelState;
@@ -219,7 +237,11 @@ class PilotState {
     this.lastRefuelFuelGain = null;
     this.lastRefuelContactDurationSeconds = null;
     this.currentSpeedKts = null;
+    this.currentSpeedMach = null;
     this.currentAltitudeFt = null;
+    this.currentRadarAltitudeFt = null;
+    this.currentPositionX = null;
+    this.currentPositionY = null;
     this.currentFuelState = null;
     this.currentSlotId = nextSlotId;
 

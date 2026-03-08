@@ -174,6 +174,31 @@ local function isFiniteNumber(value)
     return type(value) == "number" and value == value and value > -math.huge and value < math.huge
 end
 
+local function speedOfSoundAtPoint(point)
+    if atmosphere and atmosphere.getSpeedOfSound then
+        local ok, value = pcall(function() return atmosphere.getSpeedOfSound(point) end)
+        if ok and isFiniteNumber(value) and value > 0 then
+            return value
+        end
+    end
+
+    if atmosphere and atmosphere.getTemperatureAndPressure then
+        local ok, temperature = pcall(function() return atmosphere.getTemperatureAndPressure(point) end)
+        if ok and isFiniteNumber(temperature) then
+            local tempKelvin = temperature
+            if temperature < 100 then
+                tempKelvin = temperature + 273.15
+            end
+
+            if tempKelvin > 0 then
+                return math.sqrt(1.4 * 287.05 * tempKelvin)
+            end
+        end
+    end
+
+    return nil
+end
+
 local function appendSidePlayers(target, side)
     if not coalition or not coalition.getPlayers then
         return
@@ -276,22 +301,43 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
     end
 
     local speedKts = nil
+    local speedMach = nil
     local altitudeFt = nil
+    local altRadarFt = nil
+    local positionX = nil
+    local positionY = nil
     local currentFuelState = nil
     local inAir = nil
     local unitType = nil
+    local speedMps = nil
 
     local okVelocity, velocity = pcall(function() return unit:getVelocity() end)
     if okVelocity and velocity and isFiniteNumber(velocity.x) and isFiniteNumber(velocity.y) and isFiniteNumber(velocity.z) then
-        local speedMps = math.sqrt((velocity.x * velocity.x) + (velocity.y * velocity.y) + (velocity.z * velocity.z))
+        speedMps = math.sqrt((velocity.x * velocity.x) + (velocity.y * velocity.y) + (velocity.z * velocity.z))
         if isFiniteNumber(speedMps) then
             speedKts = speedMps * MPS_TO_KNOTS
         end
     end
 
     local okPoint, point = pcall(function() return unit:getPoint() end)
-    if okPoint and point and isFiniteNumber(point.y) then
+    if okPoint and point and isFiniteNumber(point.x) and isFiniteNumber(point.y) and isFiniteNumber(point.z) then
         altitudeFt = point.y * METERS_TO_FEET
+        positionX = point.x
+        positionY = point.z
+
+        if land and land.getHeight then
+            local okGround, groundMeters = pcall(function() return land.getHeight({ x = point.x, y = point.z }) end)
+            if okGround and isFiniteNumber(groundMeters) then
+                altRadarFt = math.max(0, point.y - groundMeters) * METERS_TO_FEET
+            end
+        end
+
+        if isFiniteNumber(speedMps) and speedMps >= 0 then
+            local speedOfSound = speedOfSoundAtPoint(point)
+            if isFiniteNumber(speedOfSound) and speedOfSound > 0 then
+                speedMach = speedMps / speedOfSound
+            end
+        end
     end
 
     local okFuel, fuelState = pcall(function() return unit:getFuel() end)
@@ -316,7 +362,11 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
         playerName = entry.playerName,
         unitType = unitType,
         speedKts = speedKts,
+        speedMach = speedMach,
         altitudeFt = altitudeFt,
+        altRadarFt = altRadarFt,
+        positionX = positionX,
+        positionY = positionY,
         currentFuelState = currentFuelState,
         inAir = inAir,
         missionTime = now,

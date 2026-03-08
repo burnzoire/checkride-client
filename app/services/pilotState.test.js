@@ -280,5 +280,31 @@ describe('PilotState — sortie fields', () => {
       state.applyFlightSampleEnrichment({ current_fuel_state: 0.59 });
       expect(state.currentFuelState).toBeCloseTo(0.59);
     });
+
+    it('captures mach, radar altitude, and position from flight sample enrichment', () => {
+      state.applyFlightSampleEnrichment({
+        speedMach: 0.91,
+        altRadarFt: 830,
+        positionX: -241033.4,
+        positionY: 524199.2,
+      });
+
+      expect(state.currentSpeedMach).toBeCloseTo(0.91);
+      expect(state.currentRadarAltitudeFt).toBeCloseTo(830);
+      expect(state.currentPositionX).toBeCloseTo(-241033.4);
+      expect(state.currentPositionY).toBeCloseTo(524199.2);
+
+      state.applyFlightSampleEnrichment({
+        speed_mach: 0.87,
+        alt_radar_ft: 760,
+        position_x: -241000.0,
+        position_y: 524250.0,
+      });
+
+      expect(state.currentSpeedMach).toBeCloseTo(0.87);
+      expect(state.currentRadarAltitudeFt).toBeCloseTo(760);
+      expect(state.currentPositionX).toBeCloseTo(-241000.0);
+      expect(state.currentPositionY).toBeCloseTo(524250.0);
+    });
   });
 });

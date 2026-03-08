@@ -54,6 +54,7 @@ class PilotState {
 
     this.currentSpeedKts = null;
     this.currentAltitudeFt = null;
+    this.currentFuelState = null;
     this.inAir = false;
     this.currentSlotId = null;
   }
@@ -112,6 +113,7 @@ class PilotState {
     this.lastRefuelContactDurationSeconds = null;
     this.currentSpeedKts = null;
     this.currentAltitudeFt = null;
+    this.currentFuelState = null;
   }
 
   /**
@@ -168,10 +170,14 @@ class PilotState {
   applyFlightSampleEnrichment(event) {
     const speed = event.speedKts ?? event.speed_kts;
     const altitude = event.altitudeFt ?? event.altitude_ft;
+    const currentFuelState = event.currentFuelState ?? event.current_fuel_state ?? event.fuelState ?? event.fuel_state;
     const inAir = event.inAir ?? event.in_air;
 
     this.currentSpeedKts = typeof speed === 'number' && Number.isFinite(speed) ? speed : this.currentSpeedKts;
     this.currentAltitudeFt = typeof altitude === 'number' && Number.isFinite(altitude) ? altitude : this.currentAltitudeFt;
+    this.currentFuelState = typeof currentFuelState === 'number' && Number.isFinite(currentFuelState)
+      ? currentFuelState
+      : this.currentFuelState;
     this.inAir = typeof inAir === 'boolean' ? inAir : this.inAir;
   }
 
@@ -214,6 +220,7 @@ class PilotState {
     this.lastRefuelContactDurationSeconds = null;
     this.currentSpeedKts = null;
     this.currentAltitudeFt = null;
+    this.currentFuelState = null;
     this.currentSlotId = nextSlotId;
 
     if (typeof inAir === 'boolean') {

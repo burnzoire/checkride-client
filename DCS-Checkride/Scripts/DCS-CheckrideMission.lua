@@ -12,7 +12,7 @@ CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 CheckrideMission.FlightSample = {
     enabled = true,
     maxTrackedPilots = 64,
-    tickSeconds = 0.10,
+    tickSeconds = 0.20,
     rosterRefreshSeconds = 1.0,
     roster = {},
     nextPilotIndex = 1,
@@ -277,6 +277,7 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
 
     local speedKts = nil
     local altitudeFt = nil
+    local currentFuelState = nil
     local inAir = nil
     local unitType = nil
 
@@ -291,6 +292,11 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
     local okPoint, point = pcall(function() return unit:getPoint() end)
     if okPoint and point and isFiniteNumber(point.y) then
         altitudeFt = point.y * METERS_TO_FEET
+    end
+
+    local okFuel, fuelState = pcall(function() return unit:getFuel() end)
+    if okFuel and isFiniteNumber(fuelState) then
+        currentFuelState = fuelState
     end
 
     local okInAir, unitInAir = pcall(function() return unit:inAir() end)
@@ -311,6 +317,7 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
         unitType = unitType,
         speedKts = speedKts,
         altitudeFt = altitudeFt,
+        currentFuelState = currentFuelState,
         inAir = inAir,
         missionTime = now,
     }
@@ -321,7 +328,7 @@ end
 function CheckrideMission.sampleTelemetryTick(_, now)
     local cfg = CheckrideMission.FlightSample
     if not cfg.enabled then
-        return now + (cfg.tickSeconds or 0.10)
+        return now + (cfg.tickSeconds or 0.20)
     end
 
     CheckrideMission.refreshTelemetryRoster(now)
@@ -341,7 +348,7 @@ function CheckrideMission.sampleTelemetryTick(_, now)
         CheckrideMission.emitFlightSampleForEntry(entry, now)
     end
 
-    return now + (cfg.tickSeconds or 0.10)
+    return now + (cfg.tickSeconds or 0.20)
 end
 
 function CheckrideMission.startTelemetrySampler()
@@ -356,9 +363,9 @@ function CheckrideMission.startTelemetrySampler()
         return
     end
 
-    timer.scheduleFunction(CheckrideMission.sampleTelemetryTick, nil, timer.getTime() + (cfg.tickSeconds or 0.10))
+    timer.scheduleFunction(CheckrideMission.sampleTelemetryTick, nil, timer.getTime() + (cfg.tickSeconds or 0.20))
     CheckrideMission.log(
-        "telemetry sampler started: tick=" .. tostring(cfg.tickSeconds or 0.10) ..
+        "telemetry sampler started: tick=" .. tostring(cfg.tickSeconds or 0.20) ..
         "s rosterRefresh=" .. tostring(cfg.rosterRefreshSeconds or 1.0) ..
         "s maxTrackedPilots=" .. tostring(cfg.maxTrackedPilots or 64)
     )

@@ -137,20 +137,19 @@ class AchievementEngine {
     const killsGround = state.kills.filter((k) => k.victimUnitCategory === 'ground').length;
 
     return {
-      now: {
+      telemetry: {
         inAir: state.inAir,
         takeoffLocation: state.takeoffLocation,
         takeoffFromCarrier: state.launchedFromCarrier,
         speedKts: state.currentSpeedKts,
+        currentFuelState: state.currentFuelState,
         speedMach: null,
         altBaroFt: state.currentAltitudeFt,
         altRadarFt: null,
         positionX: null,
         positionY: null,
-        killsGround,
-        killsAir,
       },
-      metrics: {
+      state: {
         trapCount: state.trapCount,
         nightTrapCount: state.nightTrapCount,
         consecutiveBolters: state.consecutiveBolters,
@@ -159,6 +158,8 @@ class AchievementEngine {
         launchedFromCarrier: state.launchedFromCarrier,
         takeoffLocation: state.takeoffLocation,
         lastTakeoffAtMs: state.lastTakeoffAtMs,
+        killsGround,
+        killsAir,
         killsCount: state.kills.length,
         kills: state.kills,
         refuelContactStartedAtMs: state.refuelContactStartedAtMs,
@@ -166,8 +167,6 @@ class AchievementEngine {
         lastRefuelFuelGain: state.lastRefuelFuelGain,
         lastRefuelContactDurationSeconds: state.lastRefuelContactDurationSeconds,
         longestRefuelContactSeconds: state.longestRefuelContactSeconds,
-        currentSpeedKts: state.currentSpeedKts,
-        currentAltitudeFt: state.currentAltitudeFt,
       },
     };
   }

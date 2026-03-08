@@ -76,7 +76,7 @@ describe('AchievementEngine — core mechanics', () => {
       triggerEvent: { type: 'takeoff', playerUcid: 'pilot-1' },
       unlockedAchievements: [],
     });
-    expect(snapshot.state.now.inAir).toBe(true);
+    expect(snapshot.state.telemetry.inAir).toBe(true);
 
     engine.evaluate({ type: 'landing', playerUcid: 'pilot-1', playerName: 'Maverick' });
     snapshot = engine.buildSnapshot({
@@ -84,7 +84,7 @@ describe('AchievementEngine — core mechanics', () => {
       triggerEvent: { type: 'landing', playerUcid: 'pilot-1' },
       unlockedAchievements: [],
     });
-    expect(snapshot.state.now.inAir).toBe(false);
+    expect(snapshot.state.telemetry.inAir).toBe(false);
   });
 
   it('creates pilot state for change_slot so a snapshot can be published', () => {
@@ -100,8 +100,8 @@ describe('AchievementEngine — core mechanics', () => {
     });
 
     expect(snapshot).not.toBeNull();
-    expect(snapshot.state).toHaveProperty('now');
-    expect(snapshot.state).toHaveProperty('metrics');
+    expect(snapshot.state).toHaveProperty('telemetry');
+    expect(snapshot.state).toHaveProperty('state');
     expect(snapshot.trigger_event_type).toBe('change_slot');
   });
 

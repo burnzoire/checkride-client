@@ -272,5 +272,13 @@ describe('PilotState — sortie fields', () => {
       state.applyFlightSampleEnrichment({ in_air: false });
       expect(state.inAir).toBe(false);
     });
+
+    it('captures currentFuelState from flight sample enrichment', () => {
+      state.applyFlightSampleEnrichment({ currentFuelState: 0.62 });
+      expect(state.currentFuelState).toBeCloseTo(0.62);
+
+      state.applyFlightSampleEnrichment({ current_fuel_state: 0.59 });
+      expect(state.currentFuelState).toBeCloseTo(0.59);
+    });
   });
 });

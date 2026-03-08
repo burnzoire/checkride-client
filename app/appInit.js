@@ -63,7 +63,8 @@ function publishPilotStateUpdate({ apiClient, engine, event, unlockedAchievement
 
   if (!snapshot) return;
 
-  log.debug(`Pilot state snapshot: pilot=${event.playerUcid} trigger=${event.type} inAir=${snapshot.state?.now?.inAir}`);
+  const snapshotInAir = snapshot.state?.telemetry?.inAir ?? snapshot.state?.now?.inAir;
+  log.debug(`Pilot state snapshot: pilot=${event.playerUcid} trigger=${event.type} inAir=${snapshotInAir}`);
 
   apiClient.publishPilotState(snapshot)
     .catch((error) => log.error(`Failed to publish pilot state for ${event.playerUcid}:`, error));

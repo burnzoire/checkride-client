@@ -8,6 +8,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "start": "electron .",
+    "deploy:lua": "node scripts/deploy-lua.js",
     "dist": "electron-builder",
     "release": "electron-builder --publish=always",
     "release:tag": "bash scripts/release.sh"

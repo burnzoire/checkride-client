@@ -9,6 +9,16 @@ CheckrideMission = {}
 CheckrideMission.version = "0.1.0"
 CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 
+CheckrideMission.FlightSample = {
+    enabled = true,
+    maxTrackedPilots = 64,
+    tickSeconds = 0.10,
+    rosterRefreshSeconds = 1.0,
+    roster = {},
+    nextPilotIndex = 1,
+    lastRosterRefreshAt = 0,
+}
+
 -- Maps ucid (or fallback playerName) to the carrier Unit the pilot launched from.
 -- Reset each time a takeoff_enrichment is emitted; used to compute distance on kill.
 CheckrideMission.pilotCarrierByUcid = {}
@@ -150,6 +160,208 @@ end
 function CheckrideMission.sendEnrichmentEvent(message)
     message.persist = false
     CheckrideMission.sendEvent(message)
+end
+
+-- ============================================================================
+-- Flight Sample Telemetry (staggered)
+-- Emits lightweight state-only events with current speed/alt/in-air.
+-- To avoid CPU spikes, this samples at most one pilot per tick, capped to 64.
+-- ============================================================================
+local MPS_TO_KNOTS = 1.9438444924406
+local METERS_TO_FEET = 3.2808398950131
+
+local function isFiniteNumber(value)
+    return type(value) == "number" and value == value and value > -math.huge and value < math.huge
+end
+
+local function appendSidePlayers(target, side)
+    if not coalition or not coalition.getPlayers then
+        return
+    end
+
+    local ok, players = pcall(function() return coalition.getPlayers(side) end)
+    if not ok or type(players) ~= "table" then
+        return
+    end
+
+    for _, unit in ipairs(players) do
+        target[#target + 1] = unit
+    end
+end
+
+local function buildTelemetryRoster()
+    local units = {}
+
+    local redSide = coalition and coalition.side and coalition.side.RED or 1
+    local blueSide = coalition and coalition.side and coalition.side.BLUE or 2
+    local neutralSide = coalition and coalition.side and coalition.side.NEUTRAL or 0
+
+    appendSidePlayers(units, redSide)
+    appendSidePlayers(units, blueSide)
+    appendSidePlayers(units, neutralSide)
+
+    local entries = {}
+    local seen = {}
+
+    for _, unit in ipairs(units) do
+        local playerName = nil
+        local okName, name = pcall(function() return unit:getPlayerName() end)
+        if okName and name and name ~= "" then
+            playerName = name
+        end
+
+        if playerName then
+            local ucid = nil
+            if CheckrideLookupUCID then
+                ucid = CheckrideLookupUCID(playerName)
+            end
+
+            local identity = tostring(ucid or playerName)
+            if not seen[identity] then
+                seen[identity] = true
+                entries[#entries + 1] = {
+                    unit = unit,
+                    playerName = playerName,
+                    playerUcid = ucid,
+                }
+            end
+        end
+    end
+
+    table.sort(entries, function(a, b)
+        local ak = tostring(a.playerUcid or a.playerName or "")
+        local bk = tostring(b.playerUcid or b.playerName or "")
+        return ak < bk
+    end)
+
+    local maxPilots = CheckrideMission.FlightSample.maxTrackedPilots or 64
+    if #entries > maxPilots then
+        local trimmed = {}
+        for index = 1, maxPilots do
+            trimmed[index] = entries[index]
+        end
+        entries = trimmed
+    end
+
+    return entries
+end
+
+function CheckrideMission.refreshTelemetryRoster(now)
+    local cfg = CheckrideMission.FlightSample
+    if not cfg.enabled then
+        return
+    end
+
+    if (now - (cfg.lastRosterRefreshAt or 0)) < (cfg.rosterRefreshSeconds or 1.0) then
+        return
+    end
+
+    cfg.lastRosterRefreshAt = now
+    cfg.roster = buildTelemetryRoster()
+
+    if cfg.nextPilotIndex > #cfg.roster then
+        cfg.nextPilotIndex = 1
+    end
+end
+
+function CheckrideMission.emitFlightSampleForEntry(entry, now)
+    if not entry or not entry.unit then
+        return
+    end
+
+    local unit = entry.unit
+    local okExist, exists = pcall(function() return unit:isExist() end)
+    if not okExist or not exists then
+        return
+    end
+
+    local speedKts = nil
+    local altitudeFt = nil
+    local inAir = nil
+    local unitType = nil
+
+    local okVelocity, velocity = pcall(function() return unit:getVelocity() end)
+    if okVelocity and velocity and isFiniteNumber(velocity.x) and isFiniteNumber(velocity.y) and isFiniteNumber(velocity.z) then
+        local speedMps = math.sqrt((velocity.x * velocity.x) + (velocity.y * velocity.y) + (velocity.z * velocity.z))
+        if isFiniteNumber(speedMps) then
+            speedKts = speedMps * MPS_TO_KNOTS
+        end
+    end
+
+    local okPoint, point = pcall(function() return unit:getPoint() end)
+    if okPoint and point and isFiniteNumber(point.y) then
+        altitudeFt = point.y * METERS_TO_FEET
+    end
+
+    local okInAir, unitInAir = pcall(function() return unit:inAir() end)
+    if okInAir then
+        inAir = unitInAir == true
+    end
+
+    local okType, typeName = pcall(function() return unit:getTypeName() end)
+    if okType and typeName and typeName ~= "" then
+        unitType = typeName
+    end
+
+    local message = {
+        type = "flight_sample_enrichment",
+        source = "mission",
+        playerUcid = entry.playerUcid,
+        playerName = entry.playerName,
+        unitType = unitType,
+        speedKts = speedKts,
+        altitudeFt = altitudeFt,
+        inAir = inAir,
+        missionTime = now,
+    }
+
+    CheckrideMission.sendEnrichmentEvent(message)
+end
+
+function CheckrideMission.sampleTelemetryTick(_, now)
+    local cfg = CheckrideMission.FlightSample
+    if not cfg.enabled then
+        return now + (cfg.tickSeconds or 0.10)
+    end
+
+    CheckrideMission.refreshTelemetryRoster(now)
+
+    local rosterSize = #cfg.roster
+    if rosterSize > 0 then
+        if cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
+            cfg.nextPilotIndex = 1
+        end
+
+        local entry = cfg.roster[cfg.nextPilotIndex]
+        cfg.nextPilotIndex = cfg.nextPilotIndex + 1
+        if cfg.nextPilotIndex > rosterSize then
+            cfg.nextPilotIndex = 1
+        end
+
+        CheckrideMission.emitFlightSampleForEntry(entry, now)
+    end
+
+    return now + (cfg.tickSeconds or 0.10)
+end
+
+function CheckrideMission.startTelemetrySampler()
+    if not timer or not timer.scheduleFunction or not timer.getTime then
+        CheckrideMission.log("telemetry sampler unavailable: timer API missing")
+        return
+    end
+
+    local cfg = CheckrideMission.FlightSample
+    if not cfg.enabled then
+        CheckrideMission.log("telemetry sampler disabled")
+        return
+    end
+
+    timer.scheduleFunction(CheckrideMission.sampleTelemetryTick, nil, timer.getTime() + (cfg.tickSeconds or 0.10))
+    CheckrideMission.log(
+        "telemetry sampler started: tick=" .. tostring(cfg.tickSeconds or 0.10) ..
+        "s rosterRefresh=" .. tostring(cfg.rosterRefreshSeconds or 1.0) ..
+        "s maxTrackedPilots=" .. tostring(cfg.maxTrackedPilots or 64)
+    )
 end
 
 -- ============================================================================
@@ -595,4 +807,5 @@ end
 -- ============================================================================
 local worldInitStatus = CheckrideMission.ensureWorldHandler()
 CheckrideMission.log('world init status: ' .. tostring(worldInitStatus))
+CheckrideMission.startTelemetrySampler()
 checkrideMissionInfo("Loaded - DCS-Checkride Mission Script v" .. CheckrideMission.version)

@@ -31,6 +31,23 @@ Settings are saved to `%APPDATA%/checkride-client/config.json`.
 
 If making changes to the LUA, tt's recommended to create a symbolic link from `DCS-Checkride` to `Saved Games\DCS\Mods\Services` to save copying after every edit.
 
+Alternatively, deploy the Lua files directly from source without creating an installer:
+
+```
+cd app
+npm run deploy:lua
+```
+
+By default this targets the first detected Saved Games profile in this order:
+`DCS.openbeta`, `DCS.openbeta_server`, `DCS`, `DCS.server`.
+
+Optional flags:
+
+```
+npm run deploy:lua -- --all
+npm run deploy:lua -- --target "C:\\Users\\<you>\\Saved Games\\DCS.openbeta"
+```
+
 ### Checkride App
 
 To launch the Checkride Client in dev mode, simply run:

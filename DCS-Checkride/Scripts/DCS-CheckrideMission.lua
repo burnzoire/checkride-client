@@ -12,11 +12,17 @@ CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 CheckrideMission.FlightSample = {
     enabled = true,
     maxTrackedPilots = 64,
-    tickSeconds = 0.20,
+    tickSeconds = 2.0,
     rosterRefreshSeconds = 1.0,
     roster = {},
     nextPilotIndex = 1,
     lastRosterRefreshAt = 0,
+}
+
+CheckrideMission.WeaponSample = {
+    enabled = true,
+    tickSeconds = 1.0,
+    staleDataSeconds = 30,
 }
 
 -- Maps ucid (or fallback playerName) to the carrier Unit the pilot launched from.
@@ -25,6 +31,10 @@ CheckrideMission.pilotCarrierByUcid = {}
 
 CheckrideMission.TakeoffEventId = nil
 CheckrideMission.KillEventId = nil
+CheckrideMission.ShotEventId = nil
+CheckrideMission.HitEventId = nil
+CheckrideMission.activeWeaponShots = CheckrideMission.activeWeaponShots or {}
+CheckrideMission.activeMissileShots = CheckrideMission.activeWeaponShots
 
 local function checkrideMissionInfo(message)
     if log and log.write then
@@ -169,6 +179,7 @@ end
 -- ============================================================================
 local MPS_TO_KNOTS = 1.9438444924406
 local METERS_TO_FEET = 3.2808398950131
+local METERS_TO_NM = 0.00053995680345572
 
 local function isFiniteNumber(value)
     return type(value) == "number" and value == value and value > -math.huge and value < math.huge
@@ -310,12 +321,17 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
     local inAir = nil
     local unitType = nil
     local speedMps = nil
-
     local okVelocity, velocity = pcall(function() return unit:getVelocity() end)
-    if okVelocity and velocity and isFiniteNumber(velocity.x) and isFiniteNumber(velocity.y) and isFiniteNumber(velocity.z) then
-        speedMps = math.sqrt((velocity.x * velocity.x) + (velocity.y * velocity.y) + (velocity.z * velocity.z))
-        if isFiniteNumber(speedMps) then
-            speedKts = speedMps * MPS_TO_KNOTS
+    if okVelocity and velocity then
+        local vx = velocity.x
+        local vy = velocity.y
+        local vz = velocity.z
+
+        if isFiniteNumber(vx) and isFiniteNumber(vy) and isFiniteNumber(vz) then
+            speedMps = math.sqrt((vx * vx) + (vy * vy) + (vz * vz))
+            if isFiniteNumber(speedMps) then
+                speedKts = speedMps * MPS_TO_KNOTS
+            end
         end
     end
 
@@ -418,6 +434,141 @@ function CheckrideMission.startTelemetrySampler()
         "telemetry sampler started: tick=" .. tostring(cfg.tickSeconds or 0.20) ..
         "s rosterRefresh=" .. tostring(cfg.rosterRefreshSeconds or 1.0) ..
         "s maxTrackedPilots=" .. tostring(cfg.maxTrackedPilots or 64)
+    )
+end
+
+local function getObjectPoint(object)
+    if not object then
+        return nil
+    end
+
+    local ok, point = pcall(function() return object:getPoint() end)
+    if not ok or not point then
+        return nil
+    end
+
+    if not isFiniteNumber(point.x) or not isFiniteNumber(point.y) or not isFiniteNumber(point.z) then
+        return nil
+    end
+
+    return point
+end
+
+local function getObjectSpeedMps(object)
+    if not object then
+        return nil
+    end
+
+    local ok, velocity = pcall(function() return object:getVelocity() end)
+    if not ok or not velocity then
+        return nil
+    end
+
+    local vx = velocity.x
+    local vy = velocity.y
+    local vz = velocity.z
+
+    if not isFiniteNumber(vx) or not isFiniteNumber(vy) or not isFiniteNumber(vz) then
+        return nil
+    end
+
+    return math.sqrt((vx * vx) + (vy * vy) + (vz * vz))
+end
+
+function CheckrideMission.sampleActiveWeaponsTick(_, now)
+    local cfg = CheckrideMission.WeaponSample
+    if not cfg.enabled then
+        return now + (cfg.tickSeconds or 1.0)
+    end
+
+    for weaponKey, shotState in pairs(CheckrideMission.activeWeaponShots) do
+        if shotState and shotState.inFlight ~= false then
+            local firedAt = shotState.firedAt or now
+            local ageSeconds = now - firedAt
+            local lastDataAt = shotState.lastDataAt or firedAt
+            local noDataSeconds = now - lastDataAt
+
+            if noDataSeconds > (cfg.staleDataSeconds or 30) then
+                CheckrideMission.sendEnrichmentEvent({
+                    type = "weapon_sample_enrichment",
+                    source = "mission",
+                    playerUcid = shotState.playerUcid,
+                    playerName = shotState.playerName,
+                    weaponKey = shotState.weaponKey,
+                    weaponClass = shotState.weaponClass,
+                    weaponName = shotState.weaponName,
+                    weaponObjectId = shotState.weaponObjectId,
+                    targetObjectId = shotState.targetObjectId,
+                    inFlight = false,
+                    status = "expired",
+                    ageSeconds = ageSeconds,
+                    noDataSeconds = noDataSeconds,
+                    missionTime = now,
+                })
+
+                CheckrideMission.activeWeaponShots[weaponKey] = nil
+            else
+                local weaponRef = shotState.weaponRef
+                local speedMps = getObjectSpeedMps(weaponRef)
+                local speedKts = speedMps and (speedMps * MPS_TO_KNOTS) or nil
+                local position = getObjectPoint(weaponRef)
+                local speedMach = nil
+
+                if speedMps and position then
+                    local speedOfSound = speedOfSoundAtPoint(position)
+                    if isFiniteNumber(speedOfSound) and speedOfSound > 0 then
+                        speedMach = speedMps / speedOfSound
+                    end
+                end
+
+                if speedMps or position then
+                    shotState.lastDataAt = now
+                end
+
+                CheckrideMission.sendEnrichmentEvent({
+                    type = "weapon_sample_enrichment",
+                    source = "mission",
+                    playerUcid = shotState.playerUcid,
+                    playerName = shotState.playerName,
+                    weaponKey = shotState.weaponKey,
+                    weaponClass = shotState.weaponClass,
+                    weaponName = shotState.weaponName,
+                    weaponObjectId = shotState.weaponObjectId,
+                    targetObjectId = shotState.targetObjectId,
+                    inFlight = true,
+                    status = "in_flight",
+                    ageSeconds = ageSeconds,
+                    noDataSeconds = (shotState.lastDataAt and (now - shotState.lastDataAt)) or noDataSeconds,
+                    speedKts = speedKts,
+                    speedMach = speedMach,
+                    positionX = position and position.x or nil,
+                    positionY = position and position.z or nil,
+                    altitudeFt = position and (position.y * METERS_TO_FEET) or nil,
+                    missionTime = now,
+                })
+            end
+        end
+    end
+
+    return now + (cfg.tickSeconds or 1.0)
+end
+
+function CheckrideMission.startWeaponSampler()
+    if not timer or not timer.scheduleFunction or not timer.getTime then
+        CheckrideMission.log("weapon sampler unavailable: timer API missing")
+        return
+    end
+
+    local cfg = CheckrideMission.WeaponSample
+    if not cfg.enabled then
+        CheckrideMission.log("weapon sampler disabled")
+        return
+    end
+
+    timer.scheduleFunction(CheckrideMission.sampleActiveWeaponsTick, nil, timer.getTime() + (cfg.tickSeconds or 1.0))
+    CheckrideMission.log(
+        "weapon sampler started: tick=" .. tostring(cfg.tickSeconds or 1.0) ..
+        "s staleDataSeconds=" .. tostring(cfg.staleDataSeconds or 30)
     )
 end
 
@@ -554,6 +705,195 @@ function CheckrideMission.getCarrierName(place)
     return nil
 end
 
+local function getWeaponKey(weapon)
+    if not weapon then
+        return nil
+    end
+
+    return tostring(weapon)
+end
+
+local function getWeaponTypeName(weapon)
+    if not weapon then
+        return nil
+    end
+
+    local ok, typeName = pcall(function() return weapon:getTypeName() end)
+    if ok and typeName and typeName ~= "" then
+        return typeName
+    end
+
+    local okDesc, desc = pcall(function() return weapon:getDesc() end)
+    if okDesc and desc then
+        if type(desc.typeName) == "string" and desc.typeName ~= "" then
+            return desc.typeName
+        end
+        if type(desc.displayName) == "string" and desc.displayName ~= "" then
+            return desc.displayName
+        end
+        if type(desc.name) == "string" and desc.name ~= "" then
+            return desc.name
+        end
+    end
+
+    return nil
+end
+
+local function getObjectId(object)
+    if not object then
+        return nil
+    end
+
+    local ok, objectId = pcall(function() return object:getID() end)
+    if ok and objectId then
+        return objectId
+    end
+
+    return nil
+end
+
+local function isLikelyAirToAirMissile(weapon)
+    if not weapon then
+        return false
+    end
+
+    local weaponName = string.upper(getWeaponTypeName(weapon) or "")
+    if weaponName == "" then
+        return false
+    end
+
+    local patterns = {
+        "AIM%-",
+        "^R%-%d",
+        "MAGIC",
+        "MICA",
+        "SUPER%s*530",
+        "SPARROW",
+        "AMRAAM",
+        "PHOENIX",
+        "SIDEWINDER",
+        "IRIS%-T",
+        "METEOR",
+        "SKYFLASH",
+        "PL%-%d",
+        "SD%-%d",
+    }
+
+    for _, pattern in ipairs(patterns) do
+        if string.find(weaponName, pattern) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function classifyWeaponClass(weapon)
+    if not weapon then
+        return "unknown"
+    end
+
+    local weaponName = string.upper(getWeaponTypeName(weapon) or "")
+    if weaponName == "" then
+        return "unknown"
+    end
+
+    local airToAirPatterns = {
+        "AIM%-",
+        "^R%-%d",
+        "MAGIC",
+        "MICA",
+        "SUPER%s*530",
+        "SPARROW",
+        "AMRAAM",
+        "PHOENIX",
+        "SIDEWINDER",
+        "IRIS%-T",
+        "METEOR",
+        "SKYFLASH",
+        "PL%-%d",
+        "SD%-%d",
+    }
+
+    for _, pattern in ipairs(airToAirPatterns) do
+        if string.find(weaponName, pattern) then
+            return "air_to_air_missile"
+        end
+    end
+
+    if string.find(weaponName, "MAVERICK") or string.find(weaponName, "AGM") then
+        return "air_to_ground_missile"
+    end
+
+    if string.find(weaponName, "BOMB") or string.find(weaponName, "MK%-") or string.find(weaponName, "GBU") then
+        return "bomb"
+    end
+
+    if string.find(weaponName, "ROCKET") or string.find(weaponName, "HYDRA") or string.find(weaponName, "S%-8") then
+        return "rocket"
+    end
+
+    return "other"
+end
+
+local function isAirToAirMissileClass(weaponClass)
+    return weaponClass == "air_to_air_missile"
+end
+
+local function findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId)
+    local candidates = {}
+
+    for _, candidate in pairs(CheckrideMission.activeWeaponShots) do
+        if candidate.inFlight ~= false then
+            local matched = false
+
+            if candidate.weaponClass == "air_to_air_missile" then
+                if targetObjectId and candidate.targetObjectId == targetObjectId then
+                    matched = true
+                end
+            else
+                if targetObjectId and candidate.targetObjectId == targetObjectId then
+                    matched = true
+                elseif weaponKey and candidate.weaponKey == weaponKey then
+                    matched = true
+                elseif weaponObjectId and candidate.weaponObjectId == weaponObjectId then
+                    matched = true
+                end
+            end
+
+            if matched then
+                candidates[#candidates + 1] = candidate
+            end
+        end
+    end
+
+    return candidates
+end
+
+local function pickPreferredWeaponCandidate(candidates, weaponKey, weaponObjectId)
+    if #candidates == 0 then
+        return nil
+    end
+
+    if weaponKey then
+        for _, candidate in ipairs(candidates) do
+            if candidate.weaponKey == weaponKey then
+                return candidate
+            end
+        end
+    end
+
+    if weaponObjectId then
+        for _, candidate in ipairs(candidates) do
+            if candidate.weaponObjectId == weaponObjectId then
+                return candidate
+            end
+        end
+    end
+
+    return candidates[#candidates]
+end
+
 -- ============================================================================
 -- Event Handler
 -- ============================================================================
@@ -610,6 +950,8 @@ function CheckrideMission.ensureWorldHandler()
     CheckrideMission.LandingQualityEventId = world.event.S_EVENT_LANDING_QUALITY_MARK
     CheckrideMission.TakeoffEventId = world.event.S_EVENT_TAKEOFF
     CheckrideMission.KillEventId = world.event.S_EVENT_KILL
+    CheckrideMission.ShotEventId = world.event.S_EVENT_SHOT
+    CheckrideMission.HitEventId = world.event.S_EVENT_HIT
 
     -- Remove any previously registered handler before re-registering.
     -- If world identity changed (mission reload), the old handler object may still
@@ -653,6 +995,173 @@ function CheckrideMission.EventHandler:onEvent(event)
     if CheckrideMission.KillEventId and event.id == CheckrideMission.KillEventId then
         CheckrideMission.onKill(event)
     end
+
+    if CheckrideMission.ShotEventId and event.id == CheckrideMission.ShotEventId then
+        CheckrideMission.onShot(event)
+    end
+
+    if CheckrideMission.HitEventId and event.id == CheckrideMission.HitEventId then
+        CheckrideMission.onHit(event)
+    end
+end
+
+function CheckrideMission.onShot(event)
+    local initiator = event.initiator
+    local weapon = event.weapon
+    if not initiator or not weapon then return end
+
+    local playerName, _, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end
+
+    local weaponKey = getWeaponKey(weapon)
+    local weaponName = getWeaponTypeName(weapon)
+    local weaponClass = classifyWeaponClass(weapon)
+    local weaponObjectId = getObjectId(weapon)
+    local targetObjectId = getObjectId(event.target)
+    local startPoint = getObjectPoint(weapon) or getObjectPoint(initiator)
+    local speedMps = getObjectSpeedMps(weapon)
+    local speedKts = speedMps and (speedMps * MPS_TO_KNOTS) or nil
+    local speedMach = nil
+    if speedMps and startPoint then
+        local speedOfSound = speedOfSoundAtPoint(startPoint)
+        if isFiniteNumber(speedOfSound) and speedOfSound > 0 then
+            speedMach = speedMps / speedOfSound
+        end
+    end
+
+    if not weaponKey then
+        weaponKey = tostring((ucid or playerName or "unknown") .. ":" .. tostring(weaponObjectId or weaponName or "weapon") .. ":" .. tostring(event.time or 0))
+    end
+
+    if not startPoint then
+        return
+    end
+
+    CheckrideMission.activeWeaponShots[weaponKey] = {
+        weaponKey = weaponKey,
+        weaponClass = weaponClass,
+        startX = startPoint.x,
+        startY = startPoint.z,
+        startAlt = startPoint.y,
+        weaponName = weaponName,
+        weaponObjectId = weaponObjectId,
+        targetObjectId = targetObjectId,
+        inFlight = true,
+        weaponRef = weapon,
+        playerUcid = ucid,
+        playerName = playerName,
+        firedAt = event.time,
+        lastDataAt = event.time,
+    }
+
+    local message = {
+        type = "shot_enrichment",
+        source = "mission",
+        playerUcid = ucid,
+        playerName = playerName,
+        weaponKey = weaponKey,
+        weaponClass = weaponClass,
+        weaponName = weaponName,
+        weaponObjectId = weaponObjectId,
+        targetObjectId = targetObjectId,
+        inFlight = true,
+        status = "in_flight",
+        startX = startPoint.x,
+        startY = startPoint.z,
+        startAlt = startPoint.y,
+        speedKts = speedKts,
+        speedMach = speedMach,
+        missionTime = event.time,
+    }
+
+    CheckrideMission.sendEnrichmentEvent(message)
+end
+
+local function isAirTarget(target)
+    if not target then
+        return false
+    end
+
+    local okDesc, desc = pcall(function() return target:getDesc() end)
+    if not okDesc or not desc then
+        return false
+    end
+
+    return desc.category == 0 or desc.category == 1
+end
+
+function CheckrideMission.onHit(event)
+    local initiator = event.initiator
+    if not initiator then return end
+
+    local playerName, _, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end
+
+    local target = event.target
+    local weapon = event.weapon
+    local weaponKey = getWeaponKey(weapon)
+    local weaponObjectId = getObjectId(weapon)
+    local targetObjectId = getObjectId(target)
+
+    local matchingShots = findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId)
+
+    if #matchingShots == 0 then
+        return
+    end
+
+    local shotState = pickPreferredWeaponCandidate(matchingShots, weaponKey, weaponObjectId)
+    if not shotState then
+        return
+    end
+
+    if isAirToAirMissileClass(shotState.weaponClass) then
+        if not targetObjectId or not isAirTarget(target) then
+            return
+        end
+    end
+
+    weaponKey = shotState.weaponKey
+
+    local hitPoint = getObjectPoint(target) or getObjectPoint(weapon)
+    if not hitPoint then
+        return
+    end
+
+    local distanceNm = nil
+    local heightDeltaFt = nil
+    if shotState then
+        local dx = hitPoint.x - shotState.startX
+        local dy = hitPoint.z - shotState.startY
+        local distanceMeters = math.sqrt((dx * dx) + (dy * dy))
+        distanceNm = distanceMeters * METERS_TO_NM
+        heightDeltaFt = (hitPoint.y - shotState.startAlt) * METERS_TO_FEET
+    end
+
+    local message = {
+        type = "hit_enrichment",
+        source = "mission",
+        playerUcid = ucid,
+        playerName = playerName,
+        weaponKey = weaponKey,
+        weaponClass = shotState.weaponClass,
+        weaponName = (shotState and shotState.weaponName) or getWeaponTypeName(weapon),
+        weaponObjectId = weaponObjectId,
+        targetObjectId = targetObjectId,
+        inFlight = false,
+        status = "hit",
+        hitX = hitPoint.x,
+        hitY = hitPoint.z,
+        hitAlt = hitPoint.y,
+        distanceNm = distanceNm,
+        heightDeltaFt = heightDeltaFt,
+        missionTime = event.time,
+    }
+
+    if weaponKey then
+        CheckrideMission.activeWeaponShots[weaponKey] = nil
+    end
+
+    CheckrideMission.sendEnrichmentEvent(message)
 end
 
 function CheckrideMission.onLandingQualityMark(event)
@@ -865,4 +1374,5 @@ end
 local worldInitStatus = CheckrideMission.ensureWorldHandler()
 CheckrideMission.log('world init status: ' .. tostring(worldInitStatus))
 CheckrideMission.startTelemetrySampler()
+CheckrideMission.startWeaponSampler()
 checkrideMissionInfo("Loaded - DCS-Checkride Mission Script v" .. CheckrideMission.version)

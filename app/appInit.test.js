@@ -7,6 +7,7 @@ jest.mock('./config');
 jest.mock('electron-log');
 jest.mock('./services/eventProcessor');
 jest.mock('./services/healthChecker');
+jest.mock('./services/pilotStatePublisher');
 
 const { APIClient } = require('./clients/apiClient');
 const { DiscordClient } = require('./clients/discordClient');
@@ -18,9 +19,10 @@ const { initApp, attachEventPipeline } = require('./appInit');
 const log = require('electron-log');
 const { EventProcessor } = require('./services/eventProcessor');
 const { HealthChecker } = require('./services/healthChecker');
+const PilotStatePublisher = require('./services/pilotStatePublisher');
 
 describe('initApp', () => {
-  let fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, fakeDiscordWebhookPath, udpServerMock, dcsChatClientMock, processMock;
+  let fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, fakeDiscordWebhookPath, udpServerMock, dcsChatClientMock, processMock, pilotStatePublisherMock;
 
   beforeEach(() => {
     fakeUseSsl = true;
@@ -50,6 +52,13 @@ describe('initApp', () => {
       checkHealth: jest.fn(),
       stop: jest.fn(),
     }));
+
+    pilotStatePublisherMock = {
+      start: jest.fn(),
+      stop: jest.fn(),
+      publish: jest.fn().mockResolvedValue(),
+    };
+    PilotStatePublisher.mockImplementation(() => pilotStatePublisherMock);
 
     store.get.mockImplementation((key, defaultValue) => {
       switch (key) {
@@ -92,6 +101,14 @@ describe('initApp', () => {
     expect(APIClient).toHaveBeenCalledWith(fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, expect.any(String));
     expect(DiscordClient).toHaveBeenCalledWith(fakeDiscordWebhookPath);
     expect(DCSChatClient).toHaveBeenCalled();
+    expect(PilotStatePublisher).toHaveBeenCalledWith({
+      useSsl: fakeUseSsl,
+      host: fakeApiHost,
+      port: fakeApiPort,
+      token: fakeApiToken,
+      pathPrefix: fakePathPrefix,
+    });
+    expect(pilotStatePublisherMock.start).toHaveBeenCalled();
     expect(dcsChatClientMock.sendConfig).toHaveBeenCalledWith({ mission_scripting_enabled: true });
 
     expect(udpServer.onEvent).toBeDefined();
@@ -148,6 +165,89 @@ describe('initApp', () => {
     expect(log.info).toHaveBeenCalledWith(
       `State-only event (persist=false): ${JSON.stringify(event)}`
     );
+  });
+
+  it('does not log handling/state-only lines for flight sample enrichment', async () => {
+    const apiClientMock = {
+      saveAchievement: jest.fn().mockResolvedValue({ created: false }),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const pilotStatePublisher = { publish: jest.fn().mockResolvedValue() };
+
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+      buildSnapshot: jest.fn().mockReturnValue({
+        pilot_uid: 'pilot-1',
+        state: { telemetry: { inAir: true }, state: {} },
+      }),
+    };
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() },
+      pilotStatePublisher,
+      achievementEngine: achievementEngineMock,
+      publishPilotStateUpdates: true,
+    });
+
+    const event = {
+      type: 'flight_sample_enrichment',
+      persist: false,
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+    };
+
+    await udpServer.onEvent(event);
+
+    expect(log.info).not.toHaveBeenCalledWith(`Handling event: ${JSON.stringify(event)}`);
+    expect(log.info).not.toHaveBeenCalledWith(`State-only event (persist=false): ${JSON.stringify(event)}`);
+    expect(pilotStatePublisher.publish).toHaveBeenCalled();
+  });
+
+  it('logs published shot pilot state snapshot payload', async () => {
+    const snapshot = {
+      pilot_uid: 'pilot-1',
+      trigger_event_type: 'shot_enrichment',
+      state: { telemetry: { inAir: true }, state: { missiles: [] } },
+    };
+
+    const apiClientMock = {
+      saveAchievement: jest.fn().mockResolvedValue({ created: false }),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const pilotStatePublisher = { publish: jest.fn().mockResolvedValue() };
+
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+      buildSnapshot: jest.fn().mockReturnValue(snapshot),
+    };
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() },
+      pilotStatePublisher,
+      achievementEngine: achievementEngineMock,
+      publishPilotStateUpdates: true,
+    });
+
+    await udpServer.onEvent({
+      type: 'shot_enrichment',
+      persist: false,
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+    });
+
+    expect(log.info).toHaveBeenCalledWith(`Publishing shot pilot state snapshot: ${JSON.stringify(snapshot)}`);
   });
 
 

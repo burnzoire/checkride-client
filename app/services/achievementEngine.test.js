@@ -154,6 +154,116 @@ describe('AchievementEngine — core mechanics', () => {
     expect(result[0].id).toBe('refuel_achv');
   });
 
+  it('tracks missile shot/hit state and serializes longestMissileHit', () => {
+    const engine = new AchievementEngine([]);
+
+    engine.evaluate({
+      type: 'shot_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w1',
+      weaponName: 'AIM-120C',
+      targetObjectId: 999,
+      startX: 0,
+      startY: 0,
+      startAlt: 1000,
+    });
+
+    engine.evaluate({
+      type: 'hit_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w1',
+      targetObjectId: 999,
+      distanceNm: 18.2,
+      heightDeltaFt: -600,
+    });
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'hit_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.state.longestMissileHit).toBeCloseTo(18.2);
+    expect(snapshot.state.state.longestWeaponHit).toBeCloseTo(18.2);
+    expect(snapshot.state.state.weapons).toHaveLength(1);
+    expect(snapshot.state.state.missiles).toHaveLength(1);
+    expect(snapshot.state.state.missiles[0].inFlight).toBe(false);
+  });
+
+  it('serializes non-missile weapon tracks without affecting missile stats', () => {
+    const engine = new AchievementEngine([]);
+
+    engine.evaluate({
+      type: 'shot_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w2',
+      weaponName: 'GBU-12',
+      startX: 0,
+      startY: 0,
+      startAlt: 1000,
+    });
+
+    engine.evaluate({
+      type: 'hit_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w2',
+      distanceNm: 9.4,
+    });
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'hit_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.state.weapons).toHaveLength(1);
+    expect(snapshot.state.state.weapons[0].weaponClass).toBe('bomb');
+    expect(snapshot.state.state.longestWeaponHit).toBeCloseTo(9.4);
+    expect(snapshot.state.state.missiles).toHaveLength(0);
+    expect(snapshot.state.state.longestMissileHit).toBe(0);
+  });
+
+  it('applies weapon_sample_enrichment to existing weapon tracks', () => {
+    const engine = new AchievementEngine([]);
+
+    engine.evaluate({
+      type: 'shot_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w3',
+      weaponClass: 'air_to_air_missile',
+      weaponName: 'AIM-54C-Mk60',
+      targetObjectId: 1002,
+    });
+
+    engine.evaluate({
+      type: 'weapon_sample_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w3',
+      weaponClass: 'air_to_air_missile',
+      inFlight: true,
+      status: 'in_flight',
+      speedKts: 1050,
+      speedMach: 2.8,
+      ageSeconds: 3.5,
+    });
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'weapon_sample_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.state.weapons).toHaveLength(1);
+    expect(snapshot.state.state.weapons[0].status).toBe('in_flight');
+    expect(snapshot.state.state.weapons[0].speedKts).toBeCloseTo(1050);
+  });
+
   it('returns empty array when playerUcid is missing', () => {
     const engine = new AchievementEngine([]);
     expect(engine.evaluate({ type: 'grading' })).toEqual([]);

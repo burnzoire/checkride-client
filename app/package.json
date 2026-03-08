@@ -125,8 +125,8 @@
     "@babel/preset-env": "^7.29.0",
     "@types/jest": "^30.0.0",
     "babel-jest": "^30.2.0",
-    "electron-builder": "^26.8.1",
     "electron": "^40.6.1",
+    "electron-builder": "^26.8.1",
     "eslint": "^10.0.2",
     "eslint-plugin-jest": "^29.15.0",
     "jest": "^30.2.0",
@@ -136,6 +136,7 @@
   "dependencies": {
     "electron-log": "^5.4.3",
     "electron-store": "^11.0.2",
-    "uuid": "^8.3.2"
+    "uuid": "^8.3.2",
+    "ws": "^8.19.0"
   }
 }

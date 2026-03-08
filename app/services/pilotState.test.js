@@ -306,5 +306,120 @@ describe('PilotState — sortie fields', () => {
       expect(state.currentPositionX).toBeCloseTo(-241000.0);
       expect(state.currentPositionY).toBeCloseTo(524250.0);
     });
+
+    it('tracks air-to-air missile shot and hit lifecycle', () => {
+      state.applyShotEnrichment({
+        weaponKey: 'weapon-1',
+        weaponName: 'AIM-120C',
+        targetObjectId: 101,
+        startX: 1000,
+        startY: 2000,
+        startAlt: 3000,
+      });
+
+      expect(state.missiles).toHaveLength(1);
+      expect(state.missiles[0].inFlight).toBe(true);
+
+      state.applyHitEnrichment({
+        weaponKey: 'weapon-1',
+        targetObjectId: 101,
+        hitX: 1000,
+        hitY: 3852,
+        hitAlt: 3152.4,
+      });
+
+      expect(state.missiles[0].inFlight).toBe(false);
+      expect(state.missiles[0].distanceNm).toBeCloseTo(1.0, 3);
+      expect(state.missiles[0].heightDeltaFt).toBeCloseTo(500.0, 1);
+      expect(state.longestMissileHit).toBeCloseTo(1.0, 3);
+    });
+
+    it('updates longestMissileHit using explicit hit distance when provided', () => {
+      state.applyShotEnrichment({
+        weaponKey: 'weapon-2',
+        weaponName: 'AIM-9X',
+        targetObjectId: 202,
+        startX: 0,
+        startY: 0,
+        startAlt: 0,
+      });
+
+      state.applyHitEnrichment({
+        weaponKey: 'weapon-2',
+        targetObjectId: 202,
+        distanceNm: 12.5,
+        heightDeltaFt: -430,
+      });
+
+      expect(state.longestMissileHit).toBeCloseTo(12.5);
+      expect(state.missiles[0].heightDeltaFt).toBeCloseTo(-430);
+    });
+
+    it('matches hit to in-flight missile by targetObjectId when weaponKey is missing', () => {
+      state.applyShotEnrichment({
+        weaponKey: 'weapon-3',
+        weaponName: 'AIM-54C-Mk60',
+        targetObjectId: 16777729,
+        startX: 0,
+        startY: 0,
+        startAlt: 0,
+      });
+
+      state.applyHitEnrichment({
+        targetObjectId: 16777729,
+        distanceNm: 21.4,
+      });
+
+      expect(state.missiles[0].inFlight).toBe(false);
+      expect(state.missiles[0].distanceNm).toBeCloseTo(21.4);
+      expect(state.longestMissileHit).toBeCloseTo(21.4);
+    });
+
+    it('tracks non-missile weapons as first-class weapon objects', () => {
+      state.applyShotEnrichment({
+        weaponKey: 'weapon-4',
+        weaponName: 'GBU-12',
+        startX: 0,
+        startY: 0,
+        startAlt: 1000,
+      });
+
+      expect(state.weapons).toHaveLength(1);
+      expect(state.weapons[0].weaponClass).toBe('bomb');
+      expect(state.missiles).toHaveLength(0);
+
+      state.applyHitEnrichment({
+        weaponKey: 'weapon-4',
+        distanceNm: 7.3,
+      });
+
+      expect(state.weapons[0].inFlight).toBe(false);
+      expect(state.weapons[0].distanceNm).toBeCloseTo(7.3);
+      expect(state.longestWeaponHit).toBeCloseTo(7.3);
+      expect(state.longestMissileHit).toBe(0);
+    });
+
+    it('updates weapon track status/speed from weapon sample enrichment', () => {
+      state.applyShotEnrichment({
+        weaponKey: 'weapon-5',
+        weaponName: 'AIM-54C-Mk60',
+        targetObjectId: 777,
+      });
+
+      state.applyWeaponSampleEnrichment({
+        weaponKey: 'weapon-5',
+        weaponClass: 'air_to_air_missile',
+        inFlight: true,
+        status: 'in_flight',
+        speedKts: 980,
+        speedMach: 2.4,
+        ageSeconds: 4.2,
+      });
+
+      expect(state.weapons[0].status).toBe('in_flight');
+      expect(state.weapons[0].speedKts).toBeCloseTo(980);
+      expect(state.weapons[0].speedMach).toBeCloseTo(2.4);
+      expect(state.missiles).toHaveLength(1);
+    });
   });
 });

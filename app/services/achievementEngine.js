@@ -57,6 +57,9 @@ class AchievementEngine {
    *   - takeoff_enrichment → state.applyTakeoffEnrichment() → (state update only, no achievements yet)
    *   - kill_enrichment    → state.applyKill()             → triggerType 'kill_enrichment' achievements
    *   - refuel_enrichment  → state.applyRefuelEnrichment() → triggerType 'refuel_enrichment' achievements
+  *   - shot_enrichment    → state.applyShotEnrichment()   → (state update only)
+  *   - hit_enrichment     → state.applyHitEnrichment()    → (state update only)
+  *   - weapon_sample_enrichment → state.applyWeaponSampleEnrichment() → (state update only)
    *   - flight_sample_enrichment → state.applyFlightSampleEnrichment() → (state update only)
    *   - change_slot        → state.applyChangeSlot()       → (state update only)
    *
@@ -78,6 +81,9 @@ class AchievementEngine {
       takeoff_enrichment:  { ucidField: 'playerUcid', stateMethod: 'applyTakeoffEnrichment' },
       kill_enrichment:     { ucidField: 'playerUcid', stateMethod: 'applyKill' },
       refuel_enrichment:   { ucidField: 'playerUcid', stateMethod: 'applyRefuelEnrichment' },
+      shot_enrichment:     { ucidField: 'playerUcid', stateMethod: 'applyShotEnrichment' },
+      hit_enrichment:      { ucidField: 'playerUcid', stateMethod: 'applyHitEnrichment' },
+      weapon_sample_enrichment: { ucidField: 'playerUcid', stateMethod: 'applyWeaponSampleEnrichment' },
       flight_sample_enrichment: { ucidField: 'playerUcid', stateMethod: 'applyFlightSampleEnrichment' },
       change_slot:         { ucidField: 'playerUcid', stateMethod: 'applyChangeSlot' },
     };
@@ -135,6 +141,7 @@ class AchievementEngine {
   serializeState(state) {
     const killsAir = state.kills.filter((k) => k.victimUnitCategory === 'air').length;
     const killsGround = state.kills.filter((k) => k.victimUnitCategory === 'ground').length;
+    const munitionsInFlight = state.weapons.filter((weaponTrack) => weaponTrack.inFlight === true).length;
 
     return {
       telemetry: {
@@ -167,6 +174,11 @@ class AchievementEngine {
         lastRefuelFuelGain: state.lastRefuelFuelGain,
         lastRefuelContactDurationSeconds: state.lastRefuelContactDurationSeconds,
         longestRefuelContactSeconds: state.longestRefuelContactSeconds,
+        weapons: state.weapons,
+        munitionsInFlight,
+        longestWeaponHit: state.longestWeaponHit,
+        missiles: state.missiles,
+        longestMissileHit: state.longestMissileHit,
       },
     };
   }

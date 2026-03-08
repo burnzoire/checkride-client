@@ -497,6 +497,7 @@ function CheckrideMission.sampleActiveWeaponsTick(_, now)
                     weaponKey = shotState.weaponKey,
                     weaponClass = shotState.weaponClass,
                     weaponName = shotState.weaponName,
+                    weaponDisplayName = shotState.weaponDisplayName,
                     weaponObjectId = shotState.weaponObjectId,
                     targetObjectId = shotState.targetObjectId,
                     inFlight = false,
@@ -533,6 +534,7 @@ function CheckrideMission.sampleActiveWeaponsTick(_, now)
                     weaponKey = shotState.weaponKey,
                     weaponClass = shotState.weaponClass,
                     weaponName = shotState.weaponName,
+                    weaponDisplayName = shotState.weaponDisplayName,
                     weaponObjectId = shotState.weaponObjectId,
                     targetObjectId = shotState.targetObjectId,
                     inFlight = true,
@@ -739,6 +741,24 @@ local function getWeaponTypeName(weapon)
     return nil
 end
 
+local function getWeaponDisplayName(weapon)
+    if not weapon then
+        return nil
+    end
+
+    local okDesc, desc = pcall(function() return weapon:getDesc() end)
+    if okDesc and desc then
+        if type(desc.displayName) == "string" and desc.displayName ~= "" then
+            return desc.displayName
+        end
+        if type(desc.name) == "string" and desc.name ~= "" then
+            return desc.name
+        end
+    end
+
+    return getWeaponTypeName(weapon)
+end
+
 local function getObjectId(object)
     if not object then
         return nil
@@ -763,8 +783,8 @@ local function isLikelyAirToAirMissile(weapon)
     end
 
     local patterns = {
-        "AIM%-",
-        "^R%-%d",
+        "AIM[_%-]",
+        "^R[_%-]%d",
         "MAGIC",
         "MICA",
         "SUPER%s*530",
@@ -799,8 +819,8 @@ local function classifyWeaponClass(weapon)
     end
 
     local airToAirPatterns = {
-        "AIM%-",
-        "^R%-%d",
+        "AIM[_%-]",
+        "^R[_%-]%d",
         "MAGIC",
         "MICA",
         "SUPER%s*530",
@@ -849,6 +869,10 @@ local function findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObj
 
             if candidate.weaponClass == "air_to_air_missile" then
                 if targetObjectId and candidate.targetObjectId == targetObjectId then
+                    matched = true
+                elseif weaponKey and candidate.weaponKey == weaponKey then
+                    matched = true
+                elseif weaponObjectId and candidate.weaponObjectId == weaponObjectId then
                     matched = true
                 end
             else
@@ -1015,6 +1039,7 @@ function CheckrideMission.onShot(event)
 
     local weaponKey = getWeaponKey(weapon)
     local weaponName = getWeaponTypeName(weapon)
+    local weaponDisplayName = getWeaponDisplayName(weapon)
     local weaponClass = classifyWeaponClass(weapon)
     local weaponObjectId = getObjectId(weapon)
     local targetObjectId = getObjectId(event.target)
@@ -1044,6 +1069,7 @@ function CheckrideMission.onShot(event)
         startY = startPoint.z,
         startAlt = startPoint.y,
         weaponName = weaponName,
+        weaponDisplayName = weaponDisplayName,
         weaponObjectId = weaponObjectId,
         targetObjectId = targetObjectId,
         inFlight = true,
@@ -1062,6 +1088,7 @@ function CheckrideMission.onShot(event)
         weaponKey = weaponKey,
         weaponClass = weaponClass,
         weaponName = weaponName,
+        weaponDisplayName = weaponDisplayName,
         weaponObjectId = weaponObjectId,
         targetObjectId = targetObjectId,
         inFlight = true,
@@ -1115,7 +1142,7 @@ function CheckrideMission.onHit(event)
     end
 
     if isAirToAirMissileClass(shotState.weaponClass) then
-        if not targetObjectId or not isAirTarget(target) then
+        if target and not isAirTarget(target) then
             return
         end
     end
@@ -1145,6 +1172,7 @@ function CheckrideMission.onHit(event)
         weaponKey = weaponKey,
         weaponClass = shotState.weaponClass,
         weaponName = (shotState and shotState.weaponName) or getWeaponTypeName(weapon),
+        weaponDisplayName = (shotState and shotState.weaponDisplayName) or getWeaponDisplayName(weapon),
         weaponObjectId = weaponObjectId,
         targetObjectId = targetObjectId,
         inFlight = false,

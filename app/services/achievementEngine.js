@@ -173,12 +173,17 @@ class AchievementEngine {
         refuelStartFuelState: state.refuelStartFuelState,
         lastRefuelFuelGain: state.lastRefuelFuelGain,
         lastRefuelContactDurationSeconds: state.lastRefuelContactDurationSeconds,
-        longestRefuelContactSeconds: state.longestRefuelContactSeconds,
         weapons: state.weapons,
         munitionsInFlight,
-        longestWeaponHit: state.longestWeaponHit,
         missiles: state.missiles,
-        longestMissileHit: state.longestMissileHit,
+      },
+      gauges: {
+        longest_refuel_contact_seconds: state.longestRefuelContactSeconds,
+        longest_weapon_hit_nm: state.longestWeaponHit,
+        longest_missile_hit_nm: state.longestMissileHit,
+        highest_speed_kts: state.highestSpeedKts,
+        highest_speed_mach: state.highestSpeedMach,
+        highest_altitude_ft: state.highestAltitudeFt,
       },
     };
   }

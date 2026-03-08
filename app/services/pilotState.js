@@ -65,7 +65,10 @@ class PilotState {
 
     this.currentSpeedKts = null;
     this.currentSpeedMach = null;
+    this.highestSpeedKts = 0;
+    this.highestSpeedMach = 0;
     this.currentAltitudeFt = null;
+    this.highestAltitudeFt = 0;
     this.currentRadarAltitudeFt = null;
     this.currentPositionX = null;
     this.currentPositionY = null;
@@ -128,7 +131,10 @@ class PilotState {
     this.lastRefuelContactDurationSeconds = null;
     this.currentSpeedKts = null;
     this.currentSpeedMach = null;
+    this.highestSpeedKts = 0;
+    this.highestSpeedMach = 0;
     this.currentAltitudeFt = null;
+    this.highestAltitudeFt = 0;
     this.currentRadarAltitudeFt = null;
     this.currentPositionX = null;
     this.currentPositionY = null;
@@ -203,7 +209,16 @@ class PilotState {
 
     this.currentSpeedKts = typeof speed === 'number' && Number.isFinite(speed) ? speed : this.currentSpeedKts;
     this.currentSpeedMach = typeof speedMach === 'number' && Number.isFinite(speedMach) ? speedMach : this.currentSpeedMach;
+    if (typeof this.currentSpeedKts === 'number' && Number.isFinite(this.currentSpeedKts)) {
+      this.highestSpeedKts = Math.max(this.highestSpeedKts, this.currentSpeedKts);
+    }
+    if (typeof this.currentSpeedMach === 'number' && Number.isFinite(this.currentSpeedMach)) {
+      this.highestSpeedMach = Math.max(this.highestSpeedMach, this.currentSpeedMach);
+    }
     this.currentAltitudeFt = typeof altitude === 'number' && Number.isFinite(altitude) ? altitude : this.currentAltitudeFt;
+    if (typeof this.currentAltitudeFt === 'number' && Number.isFinite(this.currentAltitudeFt)) {
+      this.highestAltitudeFt = Math.max(this.highestAltitudeFt, this.currentAltitudeFt);
+    }
     this.currentRadarAltitudeFt = typeof altRadarFt === 'number' && Number.isFinite(altRadarFt)
       ? altRadarFt
       : this.currentRadarAltitudeFt;
@@ -220,12 +235,14 @@ class PilotState {
     if (!weaponKey) return;
 
     const weaponName = event.weaponName ?? event.weapon_name ?? null;
+    const weaponDisplayName = event.weaponDisplayName ?? event.weapon_display_name ?? null;
     const weaponClass = this._normalizeWeaponClass(event.weaponClass ?? event.weapon_class, weaponName);
 
     const weaponTrack = {
       weaponKey: String(weaponKey),
       weaponClass,
       weaponName,
+      weaponDisplayName,
       weaponObjectId: event.weaponObjectId ?? event.weapon_object_id ?? null,
       targetObjectId: event.targetObjectId ?? event.target_object_id ?? null,
       inFlight: true,
@@ -296,6 +313,7 @@ class PilotState {
 
     weaponTrack.speedKts = this._normalizeFiniteNumber(event.speedKts ?? event.speed_kts) ?? weaponTrack.speedKts;
     weaponTrack.speedMach = this._normalizeFiniteNumber(event.speedMach ?? event.speed_mach) ?? weaponTrack.speedMach;
+    weaponTrack.weaponDisplayName = event.weaponDisplayName ?? event.weapon_display_name ?? weaponTrack.weaponDisplayName;
     weaponTrack.hitX = this._normalizeFiniteNumber(event.positionX ?? event.position_x) ?? weaponTrack.hitX;
     weaponTrack.hitY = this._normalizeFiniteNumber(event.positionY ?? event.position_y) ?? weaponTrack.hitY;
     weaponTrack.hitAlt = this._normalizeFiniteNumber(event.altitudeFt ?? event.altitude_ft) ?? weaponTrack.hitAlt;
@@ -319,11 +337,15 @@ class PilotState {
 
     if (targetObjectId != null) {
       candidates = candidates.filter((candidate) => candidate.targetObjectId === targetObjectId);
+    } else if (weaponKey) {
+      candidates = candidates.filter((candidate) => candidate.weaponKey === String(weaponKey));
+    } else if (weaponObjectId != null) {
+      candidates = candidates.filter((candidate) => candidate.weaponObjectId === weaponObjectId);
     } else {
       candidates = candidates.filter((candidate) => candidate.weaponClass !== WEAPON_CLASS_AIR_TO_AIR_MISSILE);
     }
 
-    if (weaponKey) {
+    if (weaponKey && targetObjectId != null) {
       candidates = candidates.filter((candidate) => candidate.weaponKey === String(weaponKey));
     }
 
@@ -348,6 +370,7 @@ class PilotState {
     weaponTrack.hitAtMs = this._parseEventTimeMs(event);
     weaponTrack.completedAtMs = weaponTrack.hitAtMs;
     weaponTrack.lastSampleAtMs = weaponTrack.hitAtMs;
+    weaponTrack.weaponDisplayName = event.weaponDisplayName ?? event.weapon_display_name ?? weaponTrack.weaponDisplayName;
 
     const eventDistanceNm = this._normalizeFiniteNumber(event.distanceNm ?? event.distance_nm);
     const eventHeightDeltaFt = this._normalizeFiniteNumber(event.heightDeltaFt ?? event.height_delta_ft);
@@ -416,7 +439,10 @@ class PilotState {
     this.lastRefuelContactDurationSeconds = null;
     this.currentSpeedKts = null;
     this.currentSpeedMach = null;
+    this.highestSpeedKts = 0;
+    this.highestSpeedMach = 0;
     this.currentAltitudeFt = null;
+    this.highestAltitudeFt = 0;
     this.currentRadarAltitudeFt = null;
     this.currentPositionX = null;
     this.currentPositionY = null;
@@ -528,10 +554,11 @@ class PilotState {
 
     if (
       normalizedName.includes('AIM-') ||
+      normalizedName.includes('AIM_') ||
       normalizedName.includes('AMRAAM') ||
       normalizedName.includes('PHOENIX') ||
       normalizedName.includes('SIDEWINDER') ||
-      /^R-\d/.test(normalizedName)
+      /^R[-_]\d/.test(normalizedName)
     ) {
       return WEAPON_CLASS_AIR_TO_AIR_MISSILE;
     }

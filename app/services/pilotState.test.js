@@ -355,6 +355,47 @@ describe('PilotState — sortie fields', () => {
       expect(state.missiles[0].heightDeltaFt).toBeCloseTo(-430);
     });
 
+    it('matches missile hit by weaponKey when targetObjectId is missing', () => {
+      state.applyShotEnrichment({
+        weaponKey: 'weapon-2b',
+        weaponName: 'AIM_120C',
+        startX: 0,
+        startY: 0,
+        startAlt: 0,
+      });
+
+      state.applyHitEnrichment({
+        weaponKey: 'weapon-2b',
+        distanceNm: 18.2,
+      });
+
+      expect(state.missiles).toHaveLength(1);
+      expect(state.missiles[0].inFlight).toBe(false);
+      expect(state.missiles[0].distanceNm).toBeCloseTo(18.2);
+      expect(state.longestMissileHit).toBeCloseTo(18.2);
+    });
+
+    it('matches missile hit by weaponObjectId when targetObjectId is missing', () => {
+      state.applyShotEnrichment({
+        weaponKey: 'weapon-2c',
+        weaponName: 'AIM_54C',
+        weaponObjectId: 4555,
+        startX: 0,
+        startY: 0,
+        startAlt: 0,
+      });
+
+      state.applyHitEnrichment({
+        weaponObjectId: 4555,
+        distanceNm: 24.04,
+      });
+
+      expect(state.missiles).toHaveLength(1);
+      expect(state.missiles[0].inFlight).toBe(false);
+      expect(state.missiles[0].distanceNm).toBeCloseTo(24.04);
+      expect(state.longestMissileHit).toBeCloseTo(24.04);
+    });
+
     it('matches hit to in-flight missile by targetObjectId when weaponKey is missing', () => {
       state.applyShotEnrichment({
         weaponKey: 'weapon-3',

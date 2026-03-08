@@ -187,6 +187,84 @@ class APIClient {
     });
   }
 
+  fetchPilotGauges(playerUcid) {
+    return new Promise((resolve, reject) => {
+      const options = {
+        host: this.host,
+        path: `${this.pathPrefix}/pilot_gauges?player_ucid=${encodeURIComponent(playerUcid)}`,
+        port: this.port,
+        method: 'GET',
+        headers: this.buildHeaders(),
+      };
+
+      const req = this.httpModule.request(options, (response) => {
+        let body = [];
+        response.on('data', (chunk) => { body.push(chunk); });
+        response.on('end', () => {
+          if (response.statusCode !== 200) {
+            reject(new APIClientError(`Failed to fetch pilot gauges: ${Buffer.concat(body).toString()}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(Buffer.concat(body).toString()));
+          } catch (e) {
+            reject(new APIClientError('Failed to parse fetch pilot gauges response'));
+          }
+        });
+        response.on('error', error => reject(new APIClientError(`API request failed: ${error}`)));
+      });
+
+      req.on('error', (error) => reject(new APIClientError(`API request failed: ${error}`)));
+      req.end();
+    });
+  }
+
+  updatePilotGauge({ playerUcid, playerName, gaugeId, value, comparison = 'max' }) {
+    return new Promise((resolve, reject) => {
+      const data = JSON.stringify({
+        player_ucid: playerUcid,
+        player_name: playerName,
+        value,
+        comparison,
+      });
+
+      const options = {
+        host: this.host,
+        path: `${this.pathPrefix}/pilot_gauges/${encodeURIComponent(gaugeId)}`,
+        port: this.port,
+        method: 'PATCH',
+        headers: this.buildHeaders({
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data),
+        }),
+      };
+
+      const req = this.httpModule.request(options, (response) => {
+        let body = [];
+        response.on('data', (chunk) => { body.push(chunk); });
+        response.on('end', () => {
+          const rawBody = Buffer.concat(body).toString();
+          const ok = response.statusCode === 200;
+          if (!ok) {
+            reject(new APIClientError(`Failed to update pilot gauge: ${rawBody}`));
+            return;
+          }
+
+          try {
+            resolve(rawBody ? JSON.parse(rawBody) : {});
+          } catch (e) {
+            reject(new APIClientError('Failed to parse update pilot gauge response'));
+          }
+        });
+        response.on('error', error => reject(new APIClientError(`API request failed: ${error}`)));
+      });
+
+      req.on('error', (error) => reject(new APIClientError(`API request failed: ${error}`)));
+      req.write(data);
+      req.end();
+    });
+  }
+
   publishPilotState(pilotStateUpdate) {
     return new Promise((resolve, reject) => {
       const data = JSON.stringify({ pilot_state_update: pilotStateUpdate });

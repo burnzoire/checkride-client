@@ -8,6 +8,7 @@ jest.mock('electron-log');
 jest.mock('./services/eventProcessor');
 jest.mock('./services/healthChecker');
 jest.mock('./services/pilotStatePublisher');
+jest.mock('./services/gaugeSync');
 
 const { APIClient } = require('./clients/apiClient');
 const { DiscordClient } = require('./clients/discordClient');
@@ -20,9 +21,10 @@ const log = require('electron-log');
 const { EventProcessor } = require('./services/eventProcessor');
 const { HealthChecker } = require('./services/healthChecker');
 const PilotStatePublisher = require('./services/pilotStatePublisher');
+const GaugeSync = require('./services/gaugeSync');
 
 describe('initApp', () => {
-  let fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, fakeDiscordWebhookPath, udpServerMock, dcsChatClientMock, processMock, pilotStatePublisherMock;
+  let fakeUseSsl, fakeApiHost, fakeApiPort, fakeApiToken, fakePathPrefix, fakeDiscordWebhookPath, udpServerMock, dcsChatClientMock, processMock, pilotStatePublisherMock, gaugeSyncMock;
 
   beforeEach(() => {
     fakeUseSsl = true;
@@ -59,6 +61,11 @@ describe('initApp', () => {
       publish: jest.fn().mockResolvedValue(),
     };
     PilotStatePublisher.mockImplementation(() => pilotStatePublisherMock);
+
+    gaugeSyncMock = {
+      syncSnapshot: jest.fn(),
+    };
+    GaugeSync.mockImplementation(() => gaugeSyncMock);
 
     store.get.mockImplementation((key, defaultValue) => {
       switch (key) {
@@ -108,6 +115,7 @@ describe('initApp', () => {
       token: fakeApiToken,
       pathPrefix: fakePathPrefix,
     });
+    expect(GaugeSync).toHaveBeenCalledWith(apiClient);
     expect(pilotStatePublisherMock.start).toHaveBeenCalled();
     expect(dcsChatClientMock.sendConfig).toHaveBeenCalledWith({ mission_scripting_enabled: true });
 
@@ -173,6 +181,7 @@ describe('initApp', () => {
       fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
     };
     const pilotStatePublisher = { publish: jest.fn().mockResolvedValue() };
+    const gaugeSync = { syncSnapshot: jest.fn() };
 
     const achievementEngineMock = {
       evaluate: jest.fn().mockReturnValue([]),
@@ -191,6 +200,7 @@ describe('initApp', () => {
       discordClient: { send: jest.fn().mockResolvedValue() },
       dcsChatClient: { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() },
       pilotStatePublisher,
+      gaugeSync,
       achievementEngine: achievementEngineMock,
       publishPilotStateUpdates: true,
     });
@@ -207,6 +217,51 @@ describe('initApp', () => {
     expect(log.info).not.toHaveBeenCalledWith(`Handling event: ${JSON.stringify(event)}`);
     expect(log.info).not.toHaveBeenCalledWith(`State-only event (persist=false): ${JSON.stringify(event)}`);
     expect(pilotStatePublisher.publish).toHaveBeenCalled();
+    expect(gaugeSync.syncSnapshot).toHaveBeenCalled();
+  });
+
+  it('syncs gauges even when pilot state websocket publishing is disabled', async () => {
+    const apiClientMock = {
+      saveAchievement: jest.fn().mockResolvedValue({ created: false }),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const pilotStatePublisher = { publish: jest.fn().mockResolvedValue() };
+    const gaugeSync = { syncSnapshot: jest.fn() };
+
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+      buildSnapshot: jest.fn().mockReturnValue({
+        pilot_uid: 'pilot-1',
+        state: {
+          telemetry: { inAir: true },
+          gauges: { highest_speed_kts: 550 },
+        },
+      }),
+    };
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() },
+      pilotStatePublisher,
+      gaugeSync,
+      achievementEngine: achievementEngineMock,
+      publishPilotStateUpdates: false,
+    });
+
+    await udpServer.onEvent({
+      type: 'flight_sample_enrichment',
+      persist: false,
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+    });
+
+    expect(gaugeSync.syncSnapshot).toHaveBeenCalled();
+    expect(pilotStatePublisher.publish).not.toHaveBeenCalled();
   });
 
   it('logs published shot pilot state snapshot payload', async () => {

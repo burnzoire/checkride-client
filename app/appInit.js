@@ -2,6 +2,7 @@ const { DiscordClient } = require('./clients/discordClient');
 const { DCSChatClient, DEFAULT_DCS_CHAT_HOST } = require('./clients/dcsChatClient');
 const UDPServer = require('./services/udpServer');
 const PilotStatePublisher = require('./services/pilotStatePublisher');
+const GaugeSync = require('./services/gaugeSync');
 const { EventProcessor } = require('./services/eventProcessor');
 const AchievementEngine = require('./services/achievementEngine');
 const { EventFactory, InvalidEventTypeError } = require('./factories/eventFactory');
@@ -57,10 +58,9 @@ function sendMissionScriptingConfig(dcsChatClient, missionScriptingEnabled, sour
     .catch((error) => log.error(`Error sending mission scripting config on ${source}:`, error))
 }
 
-function publishPilotStateUpdate({ pilotStatePublisher, engine, event, unlockedAchievements }) {
+function buildPilotSnapshot({ engine, event, unlockedAchievements }) {
   if (!event?.playerUcid) return;
   if (!engine || typeof engine.buildSnapshot !== 'function') return;
-  if (!pilotStatePublisher || typeof pilotStatePublisher.publish !== 'function') return;
 
   const snapshot = engine.buildSnapshot({
     pilotUcid: event.playerUcid,
@@ -68,6 +68,13 @@ function publishPilotStateUpdate({ pilotStatePublisher, engine, event, unlockedA
     unlockedAchievements,
   });
 
+  if (!snapshot) return;
+
+  return snapshot;
+}
+
+function handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements, publishToCable = true }) {
+  const snapshot = buildPilotSnapshot({ engine, event, unlockedAchievements });
   if (!snapshot) return;
 
   if (event.type !== 'flight_sample_enrichment') {
@@ -78,6 +85,13 @@ function publishPilotStateUpdate({ pilotStatePublisher, engine, event, unlockedA
   if (event.type === 'shot_enrichment') {
     log.info(`Publishing shot pilot state snapshot: ${JSON.stringify(snapshot)}`);
   }
+
+  if (gaugeSync && typeof gaugeSync.syncSnapshot === 'function') {
+    gaugeSync.syncSnapshot(snapshot);
+  }
+
+  if (!publishToCable) return;
+  if (!pilotStatePublisher || typeof pilotStatePublisher.publish !== 'function') return;
 
   pilotStatePublisher.publish(snapshot)
     .catch((error) => log.error(`Failed to publish pilot state for ${event.playerUcid}:`, error));
@@ -103,7 +117,7 @@ function shouldPublishPilotStateUpdate(event, publishStateByPilotAndType) {
   return true;
 }
 
-function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, eventProcessor, achievementEngine, publishPilotStateUpdates = true }) {
+function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates = true }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
   const pilotStatePublishState = new Map();
@@ -130,9 +144,8 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         log.info(`State-only event (persist=false): ${JSON.stringify(event)}`)
       }
       const newlyUnlocked = engine.evaluate(event);
-      if (publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState)) {
-        publishPilotStateUpdate({ pilotStatePublisher, engine, event, unlockedAchievements: newlyUnlocked });
-      }
+      const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
+      handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements: newlyUnlocked, publishToCable: shouldPublishToCable });
       let last = Promise.resolve();
       newlyUnlocked.forEach((achievement, i) => {
         const pilotName = event.playerName || 'Unknown Pilot';
@@ -167,16 +180,14 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         if (!preparedPayload) {
           log.debug(`Skipping event with empty prepared payload: ${event.type}`);
           unlockedAchievements = engine.evaluate(event);
-          if (publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState)) {
-            publishPilotStateUpdate({ pilotStatePublisher, engine, event, unlockedAchievements });
-          }
+          const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
+          handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements, publishToCable: shouldPublishToCable });
           return null;
         }
 
         unlockedAchievements = engine.evaluate(event);
-        if (publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState)) {
-          publishPilotStateUpdate({ pilotStatePublisher, engine, event, unlockedAchievements });
-        }
+        const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
+        handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements, publishToCable: shouldPublishToCable });
         const processedPayload = processor.process(event, preparedPayload);
         return apiClient.saveEvent(processedPayload);
       })
@@ -276,6 +287,7 @@ async function initApp() {
 
   const eventProcessor = new EventProcessor()
   const achievementEngine = new AchievementEngine()
+  const gaugeSync = new GaugeSync(apiClient)
   const publishPilotStateUpdates = store.get('publish_pilot_state_updates', true)
   log.info(`Pilot state websocket publishing ${publishPilotStateUpdates ? 'enabled' : 'disabled'} (publish_pilot_state_updates=${publishPilotStateUpdates})`)
   const pilotStatePublisher = new PilotStatePublisher({
@@ -290,13 +302,13 @@ async function initApp() {
     pilotStatePublisher.start()
   }
 
-  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, eventProcessor, achievementEngine, publishPilotStateUpdates })
+  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates })
 
   // Initialize and start health checker
   const healthChecker = new HealthChecker(apiClient, store)
   healthChecker.start()
 
-  return { udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, eventProcessor, achievementEngine, healthChecker };
+  return { udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, healthChecker };
 }
 
 module.exports = { initApp, attachEventPipeline };

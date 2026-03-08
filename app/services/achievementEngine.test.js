@@ -185,8 +185,8 @@ describe('AchievementEngine — core mechanics', () => {
       unlockedAchievements: [],
     });
 
-    expect(snapshot.state.state.longestMissileHit).toBeCloseTo(18.2);
-    expect(snapshot.state.state.longestWeaponHit).toBeCloseTo(18.2);
+    expect(snapshot.state.gauges.longest_missile_hit_nm).toBeCloseTo(18.2);
+    expect(snapshot.state.gauges.longest_weapon_hit_nm).toBeCloseTo(18.2);
     expect(snapshot.state.state.weapons).toHaveLength(1);
     expect(snapshot.state.state.missiles).toHaveLength(1);
     expect(snapshot.state.state.missiles[0].inFlight).toBe(false);
@@ -222,9 +222,9 @@ describe('AchievementEngine — core mechanics', () => {
 
     expect(snapshot.state.state.weapons).toHaveLength(1);
     expect(snapshot.state.state.weapons[0].weaponClass).toBe('bomb');
-    expect(snapshot.state.state.longestWeaponHit).toBeCloseTo(9.4);
+    expect(snapshot.state.gauges.longest_weapon_hit_nm).toBeCloseTo(9.4);
     expect(snapshot.state.state.missiles).toHaveLength(0);
-    expect(snapshot.state.state.longestMissileHit).toBe(0);
+    expect(snapshot.state.gauges.longest_missile_hit_nm).toBe(0);
   });
 
   it('applies weapon_sample_enrichment to existing weapon tracks', () => {

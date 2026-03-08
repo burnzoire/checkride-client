@@ -499,6 +499,202 @@ describe('APIClient', () => {
     });
   });
 
+  describe('fetchPilotGauges', () => {
+    it('resolves with parsed JSON on 200', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+      const responseBody = { gauges: [{ gauge_id: 'highest_speed_kts', value: 650 }] };
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from(JSON.stringify(responseBody)));
+        else if (event === 'end') handler();
+      });
+
+      await expect(client.fetchPilotGauges('abc123')).resolves.toEqual(responseBody);
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'GET',
+          path: '/pilot_gauges?player_ucid=abc123',
+        }),
+        expect.any(Function)
+      );
+    });
+
+    it('rejects on non-200 status', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 500;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('Server Error'));
+        else if (event === 'end') handler();
+      });
+
+      await expect(client.fetchPilotGauges('abc123')).rejects.toThrow('Failed to fetch pilot gauges: Server Error');
+    });
+
+    it('rejects when response body cannot be parsed', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('not json'));
+        else if (event === 'end') handler();
+      });
+
+      await expect(client.fetchPilotGauges('abc123')).rejects.toThrow('Failed to parse fetch pilot gauges response');
+    });
+  });
+
+  describe('updatePilotGauge', () => {
+    it('sends PATCH and resolves parsed JSON body on 200', async () => {
+      const client = new APIClient(false, 'localhost', 3000, 'secret');
+      const responseBody = { updated: true, value: 2.1 };
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from(JSON.stringify(responseBody)));
+        else if (event === 'end') handler();
+      });
+
+      const payload = {
+        playerUcid: 'abc123',
+        playerName: 'Maverick',
+        gaugeId: 'highest_speed_mach',
+        value: 2.1,
+        comparison: 'max',
+      };
+
+      await expect(client.updatePilotGauge(payload)).resolves.toEqual(responseBody);
+
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'PATCH',
+          path: '/pilot_gauges/highest_speed_mach',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer secret',
+            'Content-Type': 'application/json',
+          }),
+        }),
+        expect.any(Function)
+      );
+
+      expect(mockReq.write).toHaveBeenCalledWith(JSON.stringify({
+        player_ucid: 'abc123',
+        player_name: 'Maverick',
+        value: 2.1,
+        comparison: 'max',
+      }));
+    });
+
+    it('resolves with empty object when response body is empty', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'end') handler();
+      });
+
+      await expect(client.updatePilotGauge({
+        playerUcid: 'abc123',
+        playerName: 'Maverick',
+        gaugeId: 'highest_altitude_ft',
+        value: 50000,
+      })).resolves.toEqual({});
+    });
+
+    it('rejects on non-200 status', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 404;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('Not Found'));
+        else if (event === 'end') handler();
+      });
+
+      await expect(client.updatePilotGauge({
+        playerUcid: 'abc123',
+        playerName: 'Maverick',
+        gaugeId: 'missing',
+        value: 1,
+      })).rejects.toThrow('Failed to update pilot gauge: Not Found');
+    });
+
+    it('rejects when response body is invalid JSON', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('{invalid'));
+        else if (event === 'end') handler();
+      });
+
+      await expect(client.updatePilotGauge({
+        playerUcid: 'abc123',
+        playerName: 'Maverick',
+        gaugeId: 'highest_speed_kts',
+        value: 650,
+      })).rejects.toThrow('Failed to parse update pilot gauge response');
+    });
+  });
+
+  describe('publishPilotState', () => {
+    it('resolves parsed payload on 202', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+      const responseBody = { queued: true };
+
+      mockResponse.statusCode = 202;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from(JSON.stringify(responseBody)));
+        else if (event === 'end') handler();
+      });
+
+      await expect(client.publishPilotState({ speed: 500 })).resolves.toEqual(responseBody);
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'POST',
+          path: '/pilot_state_updates',
+        }),
+        expect.any(Function)
+      );
+      expect(mockReq.write).toHaveBeenCalledWith(JSON.stringify({ pilot_state_update: { speed: 500 } }));
+    });
+
+    it('resolves with fallback object for 200 empty body', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'end') handler();
+      });
+
+      await expect(client.publishPilotState({ fuel: 2000 })).resolves.toEqual({ ok: true });
+    });
+
+    it('resolves with fallback object for invalid JSON body', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 200;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('not-json'));
+        else if (event === 'end') handler();
+      });
+
+      await expect(client.publishPilotState({ fuel: 2000 })).resolves.toEqual({ ok: true });
+    });
+
+    it('rejects on non-200/202 status', async () => {
+      const client = new APIClient(false, 'localhost', 3000);
+
+      mockResponse.statusCode = 503;
+      mockResponse.on = jest.fn((event, handler) => {
+        if (event === 'data') handler(Buffer.from('Service Unavailable'));
+        else if (event === 'end') handler();
+      });
+
+      await expect(client.publishPilotState({ speed: 500 })).rejects.toThrow('Failed to publish pilot state: Service Unavailable');
+    });
+  });
+
   describe('Error Classes', () => {
     it('should create APIClientError with correct name', () => {
       const error = new APIClientError('test error');

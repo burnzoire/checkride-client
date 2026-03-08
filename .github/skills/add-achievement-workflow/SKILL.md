@@ -23,7 +23,7 @@ Key files:
 
 Notes:
 - GameGUI/hook emits base events (`kill`, `landing`, `grading`, etc.).
-- Mission/game GUI can emit enrichment events (`kill_enrichment`, `hit_enrichment`, `flight_sample_enrichment`, `refuel_enrichment`, etc.).
+- Mission/game GUI can emit enrichment events (`kill_enrichment`, `hit_enrichment`, `flight_sample_enrichment`, etc.). Persisted air-to-air refueling events use `aar`.
 
 ## 2. Add unlock logic in checkride-client
 ### 2.1 Choose trigger type and required state

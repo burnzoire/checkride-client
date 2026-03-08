@@ -1,7 +1,7 @@
 const GameEvent = require('./gameEvent');
-const RefuelEvent = require('./refuelEvent');
+const AAREvent = require('./aarEvent');
 
-describe('RefuelEvent', () => {
+describe('AAREvent', () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -10,8 +10,8 @@ describe('RefuelEvent', () => {
     const occurredAt = '2026-03-07T10:00:00.000Z';
     jest.spyOn(GameEvent, 'generateOccurredAt').mockReturnValue(occurredAt);
 
-    const event = new RefuelEvent({
-      type: 'refuel_enrichment',
+    const event = new AAREvent({
+      type: 'aar',
       playerUcid: 'pilot-1',
       contactEvent: 'contact_start',
       occurredAt,
@@ -24,8 +24,8 @@ describe('RefuelEvent', () => {
     const occurredAt = '2026-03-07T10:01:10.000Z';
     jest.spyOn(GameEvent, 'generateOccurredAt').mockReturnValue(occurredAt);
 
-    const event = new RefuelEvent({
-      type: 'refuel_enrichment',
+    const event = new AAREvent({
+      type: 'aar',
       playerUcid: 'pilot-1',
       playerName: 'Maverick',
       unitType: 'F/A-18C',

@@ -5,7 +5,7 @@ const DisconnectEvent = require('../events/disconnectEvent');
 const GradingEvent = require('../events/gradingEvent');
 const KillEvent = require('../events/killEvent');
 const PilotEvent = require('../events/pilotEvent');
-const RefuelEvent = require('../events/refuelEvent');
+const AAREvent = require('../events/aarEvent');
 const SelfKillEvent = require('../events/selfKillEvent');
 
 class InvalidEventTypeError extends Error {
@@ -27,7 +27,7 @@ const eventClasses = {
   "disconnect": DisconnectEvent,
   "change_slot": ChangeSlotEvent,
   "grading": GradingEvent,
-  "refuel_enrichment": RefuelEvent
+  "aar": AAREvent
 };
 
 class EventFactory {

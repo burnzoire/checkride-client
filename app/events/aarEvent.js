@@ -1,6 +1,6 @@
 const GameEvent = require('./gameEvent');
 
-class RefuelEvent extends GameEvent {
+class AAREvent extends GameEvent {
   constructor(rawEvent) {
     super(rawEvent);
     this.playerUcid = rawEvent.playerUcid;
@@ -55,4 +55,4 @@ class RefuelEvent extends GameEvent {
   }
 }
 
-module.exports = RefuelEvent;
+module.exports = AAREvent;

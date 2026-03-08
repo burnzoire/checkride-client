@@ -14,6 +14,10 @@ const basketCase = require('./basketCase');
 const boomShakalaka = require('./boomShakalaka');
 const topUp = require('./topUp');
 const nightTanker = require('./nightTanker');
+const specialDelivery = require('./specialDelivery');
+const soHighRightNow = require('./soHighRightNow');
+const iFeelTheNeed = require('./iFeelTheNeed');
+const speedIsLife = require('./speedIsLife');
 
 const ALL_ACHIEVEMENTS = [
   carrierQualified,
@@ -28,6 +32,10 @@ const ALL_ACHIEVEMENTS = [
   boomShakalaka,
   topUp,
   nightTanker,
+  specialDelivery,
+  soHighRightNow,
+  iFeelTheNeed,
+  speedIsLife,
 ];
 
 module.exports = ALL_ACHIEVEMENTS;

@@ -33,7 +33,10 @@ CheckrideMission.TakeoffEventId = nil
 CheckrideMission.KillEventId = nil
 CheckrideMission.ShotEventId = nil
 CheckrideMission.HitEventId = nil
+CheckrideMission.RefuelingEventId = nil
+CheckrideMission.RefuelingStopEventId = nil
 CheckrideMission.activeWeaponShots = CheckrideMission.activeWeaponShots or {}
+CheckrideMission.activeRefuelByPilot = CheckrideMission.activeRefuelByPilot or {}
 
 local function checkrideMissionInfo(message)
     if log and log.write then
@@ -771,6 +774,86 @@ local function getObjectId(object)
     return nil
 end
 
+local function normalizeAARSystem(value)
+    local system = string.lower(tostring(value or ""))
+    if system == "boom" or system == "basket" then
+        return system
+    end
+    return nil
+end
+
+local function detectAARSystem(tankerUnit)
+    if not tankerUnit then
+        return nil
+    end
+
+    local okDesc, desc = pcall(function() return tankerUnit:getDesc() end)
+    if not okDesc or not desc or desc.tankerType == nil then
+        return nil
+    end
+
+    local tankerType = desc.tankerType
+    local unitRefueling = Unit and Unit.RefuelingSystem or nil
+    if not unitRefueling then
+        return nil
+    end
+
+    if unitRefueling.BOOM_AND_RECEPTACLE == nil or unitRefueling.PROBE_AND_DROGUE == nil then
+        return nil
+    end
+
+    if tankerType == unitRefueling.BOOM_AND_RECEPTACLE then
+        return "boom"
+    end
+
+    if tankerType == unitRefueling.PROBE_AND_DROGUE then
+        return "basket"
+    end
+
+    return nil
+end
+
+local function safeTypeName(unit)
+    if not unit then
+        return nil
+    end
+
+    local okType, typeName = pcall(function() return unit:getTypeName() end)
+    if okType and typeName and typeName ~= "" then
+        return typeName
+    end
+
+    return nil
+end
+
+local function safeTankerType(unit)
+    if not unit then
+        return nil
+    end
+
+    local okDesc, desc = pcall(function() return unit:getDesc() end)
+    if okDesc and desc then
+        return desc.tankerType
+    end
+
+    return nil
+end
+
+local function logUnresolvedAARSystem(phase, initiator, tanker, eventTime, playerName, ucid)
+    local receiverType = safeTypeName(initiator)
+    local tankerTypeName = safeTypeName(tanker)
+    local tankerType = safeTankerType(tanker)
+    CheckrideMission.log(
+        "aar system unresolved: phase=" .. tostring(phase) ..
+        " player=" .. tostring(playerName) ..
+        " ucid=" .. tostring(ucid) ..
+        " eventTime=" .. tostring(eventTime) ..
+        " receiverType=" .. tostring(receiverType) ..
+        " tankerTypeName=" .. tostring(tankerTypeName) ..
+        " tankerType=" .. tostring(tankerType)
+    )
+end
+
 local function isLikelyAirToAirMissile(weapon)
     if not weapon then
         return false
@@ -975,6 +1058,8 @@ function CheckrideMission.ensureWorldHandler()
     CheckrideMission.KillEventId = world.event.S_EVENT_KILL
     CheckrideMission.ShotEventId = world.event.S_EVENT_SHOT
     CheckrideMission.HitEventId = world.event.S_EVENT_HIT
+    CheckrideMission.RefuelingEventId = world.event.S_EVENT_REFUELING or world.event.S_EVENT_REFUELING_START
+    CheckrideMission.RefuelingStopEventId = world.event.S_EVENT_REFUELING_STOP or world.event.S_EVENT_REFUELING_END
 
     -- Remove any previously registered handler before re-registering.
     -- If world identity changed (mission reload), the old handler object may still
@@ -1026,6 +1111,137 @@ function CheckrideMission.EventHandler:onEvent(event)
     if CheckrideMission.HitEventId and event.id == CheckrideMission.HitEventId then
         CheckrideMission.onHit(event)
     end
+
+    if CheckrideMission.RefuelingEventId and event.id == CheckrideMission.RefuelingEventId then
+        CheckrideMission.onRefuelingStart(event)
+    end
+
+    if CheckrideMission.RefuelingStopEventId and event.id == CheckrideMission.RefuelingStopEventId then
+        CheckrideMission.onRefuelingStop(event)
+    end
+end
+
+function CheckrideMission.onRefuelingStart(event)
+    local initiator = event.initiator
+    if not initiator then return end
+
+    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end
+
+    local tanker = event.target
+    local system = detectAARSystem(tanker)
+    if not system then
+        logUnresolvedAARSystem("contact_start", initiator, tanker, event.time, playerName, ucid)
+    end
+    local fuelState = nil
+    local okFuel, value = pcall(function() return initiator:getFuel() end)
+    if okFuel and isFiniteNumber(value) then
+        fuelState = value
+    end
+
+    local night = CheckrideMission.isNight(event.time)
+    local pilotKey = ucid or playerName
+
+    CheckrideMission.activeRefuelByPilot[pilotKey] = {
+        startedAtMissionTime = event.time,
+        startFuelState = fuelState,
+        system = system,
+        night = night,
+    }
+
+    CheckrideMission.sendEnrichmentEvent({
+        type = "refuel_enrichment",
+        source = "mission",
+        playerUcid = ucid,
+        playerName = playerName,
+        unitType = unitType,
+        system = system,
+        contactEvent = "contact_start",
+        fuelState = fuelState,
+        night = night,
+        missionTime = event.time,
+    })
+end
+
+function CheckrideMission.onRefuelingStop(event)
+    local initiator = event.initiator
+    if not initiator then return end
+
+    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end
+
+    local tanker = event.target
+    local pilotKey = ucid or playerName
+    local active = CheckrideMission.activeRefuelByPilot[pilotKey]
+    local system = normalizeAARSystem(active and active.system) or detectAARSystem(tanker)
+    if not system then
+        logUnresolvedAARSystem("contact_end", initiator, tanker, event.time, playerName, ucid)
+    end
+
+    local fuelState = nil
+    local okFuel, value = pcall(function() return initiator:getFuel() end)
+    if okFuel and isFiniteNumber(value) then
+        fuelState = value
+    end
+
+    local startFuelState = active and active.startFuelState or nil
+    local fuelGain = nil
+    if isFiniteNumber(startFuelState) and isFiniteNumber(fuelState) then
+        fuelGain = math.max(0, fuelState - startFuelState)
+    end
+
+    local durationSeconds = nil
+    if active and isFiniteNumber(active.startedAtMissionTime) and isFiniteNumber(event.time) then
+        durationSeconds = math.max(0, event.time - active.startedAtMissionTime)
+    end
+
+    local night = (active and type(active.night) == "boolean") and active.night or CheckrideMission.isNight(event.time)
+
+    local payload = {
+        source = "mission",
+        playerUcid = ucid,
+        playerName = playerName,
+        unitType = unitType,
+        system = system,
+        contactEvent = "contact_end",
+        fuelState = fuelState,
+        fuelGain = fuelGain,
+        contactDurationSeconds = durationSeconds,
+        night = night,
+        missionTime = event.time,
+    }
+
+    CheckrideMission.sendEnrichmentEvent({
+        type = "refuel_enrichment",
+        source = payload.source,
+        playerUcid = payload.playerUcid,
+        playerName = payload.playerName,
+        unitType = payload.unitType,
+        system = payload.system,
+        contactEvent = payload.contactEvent,
+        fuelState = payload.fuelState,
+        fuelGain = payload.fuelGain,
+        contactDurationSeconds = payload.contactDurationSeconds,
+        night = payload.night,
+        missionTime = payload.missionTime,
+    })
+
+    CheckrideMission.sendEvent({
+        type = "aar",
+        source = payload.source,
+        playerUcid = payload.playerUcid,
+        playerName = payload.playerName,
+        unitType = payload.unitType,
+        system = payload.system,
+        contactEvent = payload.contactEvent,
+        fuelState = payload.fuelState,
+        fuelGain = payload.fuelGain,
+        contactDurationSeconds = payload.contactDurationSeconds,
+        night = payload.night,
+        missionTime = payload.missionTime,
+    })
+
+    CheckrideMission.activeRefuelByPilot[pilotKey] = nil
 end
 
 function CheckrideMission.onShot(event)

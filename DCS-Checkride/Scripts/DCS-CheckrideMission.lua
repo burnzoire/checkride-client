@@ -782,35 +782,42 @@ local function normalizeAARSystem(value)
     return nil
 end
 
-local function detectAARSystem(tankerUnit)
-    if not tankerUnit then
+local function getRefuelingSystem(unit)
+    if not unit then
         return nil
     end
 
-    local okDesc, desc = pcall(function() return tankerUnit:getDesc() end)
-    if not okDesc or not desc or desc.tankerType == nil then
+    local okExist, exists = pcall(function() return unit:isExist() end)
+    if not okExist or not exists then
         return nil
     end
 
-    local tankerType = desc.tankerType
+    local okDesc, desc = pcall(function() return unit:getDesc() end)
+    if not okDesc or not desc then
+        return nil
+    end
+
+    return desc.tankerType
+end
+
+local function getRefuelingSystemName(unit)
+    local system = getRefuelingSystem(unit)
+    if system == nil then
+        return nil
+    end
+
     local unitRefueling = Unit and Unit.RefuelingSystem or nil
     if not unitRefueling then
         return nil
     end
 
-    if unitRefueling.BOOM_AND_RECEPTACLE == nil or unitRefueling.PROBE_AND_DROGUE == nil then
-        return nil
-    end
-
-    if tankerType == unitRefueling.BOOM_AND_RECEPTACLE then
+    if system == unitRefueling.BOOM_AND_RECEPTACLE then
         return "boom"
-    end
-
-    if tankerType == unitRefueling.PROBE_AND_DROGUE then
+    elseif system == unitRefueling.PROBE_AND_DROGUE then
         return "basket"
     end
 
-    return nil
+    return normalizeAARSystem(system)
 end
 
 local function safeTypeName(unit)
@@ -826,32 +833,49 @@ local function safeTypeName(unit)
     return nil
 end
 
-local function safeTankerType(unit)
-    if not unit then
-        return nil
-    end
-
-    local okDesc, desc = pcall(function() return unit:getDesc() end)
-    if okDesc and desc then
-        return desc.tankerType
-    end
-
-    return nil
+local function safeReceiverRefuelingType(unit)
+    return getRefuelingSystem(unit)
 end
 
-local function logUnresolvedAARSystem(phase, initiator, tanker, eventTime, playerName, ucid)
+local function logUnresolvedAARSystem(phase, initiator, eventTime, playerName, ucid, receiverSystem)
     local receiverType = safeTypeName(initiator)
-    local tankerTypeName = safeTypeName(tanker)
-    local tankerType = safeTankerType(tanker)
+    local receiverRefuelingType = safeReceiverRefuelingType(initiator)
     CheckrideMission.log(
         "aar system unresolved: phase=" .. tostring(phase) ..
         " player=" .. tostring(playerName) ..
         " ucid=" .. tostring(ucid) ..
         " eventTime=" .. tostring(eventTime) ..
         " receiverType=" .. tostring(receiverType) ..
-        " tankerTypeName=" .. tostring(tankerTypeName) ..
-        " tankerType=" .. tostring(tankerType)
+        " receiverSystem=" .. tostring(receiverSystem) ..
+        " receiverRefuelingType=" .. tostring(receiverRefuelingType)
     )
+end
+
+local function logAARRefuelEvent(unit, systemName)
+    if not env or not env.info then
+        return
+    end
+
+    local unitName = nil
+    local unitType = nil
+    if unit then
+        local okName, name = pcall(function() return unit:getName() end)
+        if okName and name and name ~= "" then
+            unitName = name
+        end
+
+        local okType, typeName = pcall(function() return unit:getTypeName() end)
+        if okType and typeName and typeName ~= "" then
+            unitType = typeName
+        end
+    end
+
+    env.info(string.format(
+        "[AAR] unit=%s type=%s system=%s",
+        tostring(unitName or "unknown"),
+        tostring(unitType or "unknown"),
+        tostring(systemName or "unknown")
+    ))
 end
 
 local function isLikelyAirToAirMissile(weapon)
@@ -1128,10 +1152,11 @@ function CheckrideMission.onRefuelingStart(event)
     local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
     if not playerName then return end
 
-    local tanker = event.target
-    local system = detectAARSystem(tanker)
+    local receiverSystem = getRefuelingSystemName(initiator)
+    local system = receiverSystem
+    logAARRefuelEvent(initiator, system)
     if not system then
-        logUnresolvedAARSystem("contact_start", initiator, tanker, event.time, playerName, ucid)
+        logUnresolvedAARSystem("contact_start", initiator, event.time, playerName, ucid, receiverSystem)
     end
     local fuelState = nil
     local okFuel, value = pcall(function() return initiator:getFuel() end)
@@ -1170,12 +1195,13 @@ function CheckrideMission.onRefuelingStop(event)
     local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
     if not playerName then return end
 
-    local tanker = event.target
     local pilotKey = ucid or playerName
     local active = CheckrideMission.activeRefuelByPilot[pilotKey]
-    local system = normalizeAARSystem(active and active.system) or detectAARSystem(tanker)
+    local receiverSystem = getRefuelingSystemName(initiator)
+    local system = normalizeAARSystem(active and active.system) or receiverSystem
+    logAARRefuelEvent(initiator, system)
     if not system then
-        logUnresolvedAARSystem("contact_end", initiator, tanker, event.time, playerName, ucid)
+        logUnresolvedAARSystem("contact_end", initiator, event.time, playerName, ucid, receiverSystem)
     end
 
     local fuelState = nil

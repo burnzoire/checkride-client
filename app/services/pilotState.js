@@ -32,6 +32,7 @@ const METERS_TO_FEET = 3.2808398950131;
 const WEAPON_CLASS_AIR_TO_AIR_MISSILE = 'air_to_air_missile';
 const WEAPON_COMPLETED_TTL_MS = 60 * 1000;
 const WEAPON_MAX_TRACKS = 100;
+const MIN_REFUEL_CONTACT_SECONDS = 5;
 
 class PilotState {
   constructor() {
@@ -161,6 +162,15 @@ class PilotState {
 
     if (this.refuelContactStartedAtMs !== null && occurredAtMs !== null) {
       const durationSeconds = Math.max(0, (occurredAtMs - this.refuelContactStartedAtMs) / 1000);
+      if (durationSeconds < MIN_REFUEL_CONTACT_SECONDS) {
+        event.persist = false;
+        this.lastRefuelContactDurationSeconds = null;
+        this.lastRefuelFuelGain = null;
+        this.refuelContactStartedAtMs = null;
+        this.refuelStartFuelState = null;
+        return;
+      }
+
       this.lastRefuelContactDurationSeconds = durationSeconds;
       this.longestRefuelContactSeconds = Math.max(this.longestRefuelContactSeconds, durationSeconds);
     } else {

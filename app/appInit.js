@@ -189,6 +189,14 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         unlockedAchievements = engine.evaluate(event);
         const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
         handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements, publishToCable: shouldPublishToCable });
+
+        if (event.persist === false) {
+          if (event.type !== 'flight_sample_enrichment') {
+            log.info(`Skipping API save after evaluation (persist=false): ${JSON.stringify(event)}`);
+          }
+          return null;
+        }
+
         const processedPayload = processor.process(event, preparedPayload);
         return apiClient.saveEvent(processedPayload);
       })

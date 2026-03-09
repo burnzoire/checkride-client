@@ -210,6 +210,83 @@ describe('PilotState — sortie fields', () => {
       expect(state.longestRefuelContactSeconds).toBe(0);
       expect(state.lastRefuelFuelGain).toBeCloseTo(0.15);
     });
+
+    it('discards contact_end when total contact is shorter than 5 seconds', () => {
+      state.applyRefuelEnrichment({
+        contactEvent: 'contact_start',
+        missionTime: 120.0,
+        fuelState: 0.40,
+      });
+
+      const endEvent = {
+        contactEvent: 'contact_end',
+        missionTime: 123.0,
+        fuelState: 0.55,
+      };
+      state.applyRefuelEnrichment(endEvent);
+
+      expect(state.lastRefuelContactDurationSeconds).toBeNull();
+      expect(state.lastRefuelFuelGain).toBeNull();
+      expect(state.longestRefuelContactSeconds).toBe(0);
+      expect(state.refuelContactStartedAtMs).toBeNull();
+      expect(state.refuelStartFuelState).toBeNull();
+      expect(endEvent.persist).toBe(false);
+    });
+
+    it('ignores a short contact before a later valid long contact', () => {
+      state.applyRefuelEnrichment({
+        contactEvent: 'contact_start',
+        missionTime: 120.0,
+        fuelState: 0.40,
+      });
+
+      const shortEndEvent = {
+        contactEvent: 'contact_end',
+        missionTime: 123.0,
+        fuelState: 0.45,
+      };
+      state.applyRefuelEnrichment(shortEndEvent);
+
+      state.applyRefuelEnrichment({
+        contactEvent: 'contact_start',
+        missionTime: 200.0,
+        fuelState: 0.50,
+      });
+
+      const longEndEvent = {
+        contactEvent: 'contact_end',
+        missionTime: 212.0,
+        fuelState: 0.64,
+      };
+      state.applyRefuelEnrichment(longEndEvent);
+
+      expect(shortEndEvent.persist).toBe(false);
+      expect(longEndEvent.persist).toBeUndefined();
+      expect(state.lastRefuelContactDurationSeconds).toBe(12);
+      expect(state.lastRefuelFuelGain).toBeCloseTo(0.14);
+      expect(state.longestRefuelContactSeconds).toBe(12);
+    });
+
+    it('ignores multiple short contacts and computes from the first valid long contact', () => {
+      state.applyRefuelEnrichment({ contactEvent: 'contact_start', missionTime: 120.0, fuelState: 0.30 });
+      const shortEndOne = { contactEvent: 'contact_end', missionTime: 123.0, fuelState: 0.34 };
+      state.applyRefuelEnrichment(shortEndOne);
+
+      state.applyRefuelEnrichment({ contactEvent: 'contact_start', missionTime: 150.0, fuelState: 0.36 });
+      const shortEndTwo = { contactEvent: 'contact_end', missionTime: 154.5, fuelState: 0.40 };
+      state.applyRefuelEnrichment(shortEndTwo);
+
+      state.applyRefuelEnrichment({ contactEvent: 'contact_start', missionTime: 180.0, fuelState: 0.42 });
+      const longEnd = { contactEvent: 'contact_end', missionTime: 195.0, fuelState: 0.57 };
+      state.applyRefuelEnrichment(longEnd);
+
+      expect(shortEndOne.persist).toBe(false);
+      expect(shortEndTwo.persist).toBe(false);
+      expect(longEnd.persist).toBeUndefined();
+      expect(state.lastRefuelContactDurationSeconds).toBe(15);
+      expect(state.lastRefuelFuelGain).toBeCloseTo(0.15);
+      expect(state.longestRefuelContactSeconds).toBe(15);
+    });
   });
 
   describe('inAir tracking', () => {

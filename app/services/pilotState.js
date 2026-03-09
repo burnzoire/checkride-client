@@ -119,31 +119,11 @@ class PilotState {
    *   { launchedFromCarrier: boolean, takeoffLocation: string|null }
    */
   applyTakeoffEnrichment(event) {
+    this._resetSortieState();
     this.launchedFromCarrier = event.launchedFromCarrier === true;
     this.takeoffLocation = event.takeoffLocation ?? null;
-    this.kills = [];
     this.lastTakeoffAtMs = this._parseOccurredAt(event);
     this.inAir = true;
-
-    this.refuelContactStartedAtMs = null;
-    this.refuelStartFuelState = null;
-    this.lastRefuelFuelGain = null;
-    this.lastRefuelContactDurationSeconds = null;
-    this.currentSpeedKts = null;
-    this.currentSpeedMach = null;
-    this.highestSpeedKts = 0;
-    this.highestSpeedMach = 0;
-    this.currentAltitudeFt = null;
-    this.highestAltitudeFt = 0;
-    this.currentRadarAltitudeFt = null;
-    this.currentPositionX = null;
-    this.currentPositionY = null;
-    this.currentFuelState = null;
-
-    this.weapons = [];
-    this.missiles = [];
-    this.longestWeaponHit = 0;
-    this.longestMissileHit = 0;
   }
 
   /**
@@ -429,28 +409,7 @@ class PilotState {
       nextSlotId !== null &&
       String(previousSlotId) !== String(nextSlotId);
 
-    this.kills = [];
-    this.lastTakeoffAtMs = null;
-    this.takeoffLocation = null;
-    this.launchedFromCarrier = false;
-    this.refuelContactStartedAtMs = null;
-    this.refuelStartFuelState = null;
-    this.lastRefuelFuelGain = null;
-    this.lastRefuelContactDurationSeconds = null;
-    this.currentSpeedKts = null;
-    this.currentSpeedMach = null;
-    this.highestSpeedKts = 0;
-    this.highestSpeedMach = 0;
-    this.currentAltitudeFt = null;
-    this.highestAltitudeFt = 0;
-    this.currentRadarAltitudeFt = null;
-    this.currentPositionX = null;
-    this.currentPositionY = null;
-    this.currentFuelState = null;
-    this.weapons = [];
-    this.missiles = [];
-    this.longestWeaponHit = 0;
-    this.longestMissileHit = 0;
+    this._resetSortieState();
     this.currentSlotId = nextSlotId;
 
     if (typeof inAir === 'boolean') {
@@ -498,6 +457,35 @@ class PilotState {
 
   _normalizeFiniteNumber(value) {
     return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  _resetSortieState() {
+    this.kills = [];
+    this.lastTakeoffAtMs = null;
+    this.takeoffLocation = null;
+    this.launchedFromCarrier = false;
+
+    this.refuelContactStartedAtMs = null;
+    this.refuelStartFuelState = null;
+    this.lastRefuelFuelGain = null;
+    this.lastRefuelContactDurationSeconds = null;
+    this.longestRefuelContactSeconds = 0;
+
+    this.currentSpeedKts = null;
+    this.currentSpeedMach = null;
+    this.highestSpeedKts = 0;
+    this.highestSpeedMach = 0;
+    this.currentAltitudeFt = null;
+    this.highestAltitudeFt = 0;
+    this.currentRadarAltitudeFt = null;
+    this.currentPositionX = null;
+    this.currentPositionY = null;
+    this.currentFuelState = null;
+
+    this.weapons = [];
+    this.missiles = [];
+    this.longestWeaponHit = 0;
+    this.longestMissileHit = 0;
   }
 
   _computeMissileDistanceNm(missile) {

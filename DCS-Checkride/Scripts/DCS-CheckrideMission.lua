@@ -1113,7 +1113,7 @@ local function isAirTarget(target)
         return false
     end
 
-    return desc.category == 0 or desc.category == 1
+    return desc.category == Unit.Category.AIRPLANE or desc.category == Unit.Category.HELICOPTER
 end
 
 function CheckrideMission.onHit(event)
@@ -1262,10 +1262,9 @@ function CheckrideMission.onTakeoff(event)
     -- Object category for Airbase is BASE (4) so this is mainly diagnostic.
     local okCategory, placeCategory = pcall(function() return place:getCategory() end)
 
-    -- Airbase descriptor category for ship decks is 2.
-    local SHIP_AIRBASE_DESC_CATEGORY = 2
+    -- Airbase descriptor category for ship decks.
     local ok, desc = pcall(function() return place:getDesc() end)
-    if ok and desc and desc.category == SHIP_AIRBASE_DESC_CATEGORY then
+    if ok and desc and desc.category == Airbase.Category.SHIP then
         isCarrier = true
     end
 
@@ -1327,11 +1326,11 @@ function CheckrideMission.onKill(event)
     end
 
     local victimUnitCategory = "other"
-    if victimCategory == 0 or victimCategory == 1 then
+    if victimCategory == Unit.Category.AIRPLANE or victimCategory == Unit.Category.HELICOPTER then
         victimUnitCategory = "air"
-    elseif victimCategory == 2 then
+    elseif victimCategory == Unit.Category.GROUND_UNIT then
         victimUnitCategory = "ground"
-    elseif victimCategory == 3 then
+    elseif victimCategory == Unit.Category.SHIP then
         victimUnitCategory = "ship"
     end
 
@@ -1341,7 +1340,7 @@ function CheckrideMission.onKill(event)
     pcall(function() killerCoal = initiator:getCoalition() end)
     pcall(function() victimCoal  = target:getCoalition()  end)
     local isEnemy = killerCoal and victimCoal and
-                    killerCoal ~= victimCoal and victimCoal ~= 0
+                    killerCoal ~= victimCoal and victimCoal ~= coalition.side.NEUTRAL
 
     -- Distance from pilot's carrier
     local carrierKey = ucid or playerName

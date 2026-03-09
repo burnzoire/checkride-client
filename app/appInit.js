@@ -26,6 +26,7 @@ const EVENT_EMOJIS = {
   kill: ':dart: ',
   takeoff: ':airplane_departure: ',
   landing: ':airplane_arriving: ',
+  aar: ':fuelpump: ',
   connect: ':link: ',
   disconnect: ':broken_chain: ',
   change_slot: ':repeat: ',

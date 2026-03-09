@@ -143,7 +143,7 @@ class PilotState {
 
   applyRefuelEnrichment(event) {
     const contactEvent = event.contactEvent ?? event.contact_event ?? event.contact ?? null;
-    const occurredAtMs = this._parseOccurredAt(event);
+    const occurredAtMs = this._parseMissionTimeMs(event);
 
     if (contactEvent === 'contact_start') {
       this.refuelContactStartedAtMs = occurredAtMs;
@@ -445,6 +445,15 @@ class PilotState {
 
     const ms = Date.parse(candidate);
     return Number.isFinite(ms) ? ms : null;
+  }
+
+  _parseMissionTimeMs(event) {
+    const missionTime = event?.missionTime ?? event?.mission_time;
+    if (typeof missionTime === 'number' && Number.isFinite(missionTime)) {
+      return missionTime * 1000;
+    }
+
+    return null;
   }
 
   _parseEventTimeMs(event) {

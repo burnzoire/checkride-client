@@ -155,18 +155,45 @@ describe('PilotState — sortie fields', () => {
   });
 
   describe('applyRefuelEnrichment', () => {
-    it('stores refuel contact start timestamp and fuel state on contact_start', () => {
+    it('stores refuel contact start timestamp from missionTime and fuel state on contact_start', () => {
       state.applyRefuelEnrichment({
         contactEvent: 'contact_start',
-        occurredAt: '2026-03-07T10:00:00.000Z',
+        missionTime: 120.0,
         fuelState: 0.4,
       });
 
-      expect(state.refuelContactStartedAtMs).toBe(Date.parse('2026-03-07T10:00:00.000Z'));
+      expect(state.refuelContactStartedAtMs).toBe(120000);
       expect(state.refuelStartFuelState).toBe(0.4);
     });
 
-    it('computes contact duration and fuel gain on contact_end', () => {
+    it('computes contact duration and fuel gain on contact_end from missionTime', () => {
+      state.applyRefuelEnrichment({
+        contactEvent: 'contact_start',
+        missionTime: 120.0,
+        fuelState: 0.45,
+      });
+
+      state.applyRefuelEnrichment({
+        contactEvent: 'contact_end',
+        missionTime: 195.0,
+        fuelState: 0.60,
+      });
+
+      expect(state.lastRefuelContactDurationSeconds).toBe(75);
+      expect(state.lastRefuelFuelGain).toBeCloseTo(0.15);
+      expect(state.longestRefuelContactSeconds).toBe(75);
+    });
+
+    it('tracks longest contact across multiple refuels', () => {
+      state.applyRefuelEnrichment({ contactEvent: 'contact_start', missionTime: 120.0, fuelState: 0.3 });
+      state.applyRefuelEnrichment({ contactEvent: 'contact_end', missionTime: 150.0, fuelState: 0.35 });
+      state.applyRefuelEnrichment({ contactEvent: 'contact_start', missionTime: 240.0, fuelState: 0.35 });
+      state.applyRefuelEnrichment({ contactEvent: 'contact_end', missionTime: 330.0, fuelState: 0.50 });
+
+      expect(state.longestRefuelContactSeconds).toBe(90);
+    });
+
+    it('does not compute contact duration when missionTime is missing', () => {
       state.applyRefuelEnrichment({
         contactEvent: 'contact_start',
         occurredAt: '2026-03-07T10:00:00.000Z',
@@ -179,18 +206,9 @@ describe('PilotState — sortie fields', () => {
         fuelState: 0.60,
       });
 
-      expect(state.lastRefuelContactDurationSeconds).toBe(75);
+      expect(state.lastRefuelContactDurationSeconds).toBeNull();
+      expect(state.longestRefuelContactSeconds).toBe(0);
       expect(state.lastRefuelFuelGain).toBeCloseTo(0.15);
-      expect(state.longestRefuelContactSeconds).toBe(75);
-    });
-
-    it('tracks longest contact across multiple refuels', () => {
-      state.applyRefuelEnrichment({ contactEvent: 'contact_start', occurredAt: '2026-03-07T10:00:00.000Z', fuelState: 0.3 });
-      state.applyRefuelEnrichment({ contactEvent: 'contact_end', occurredAt: '2026-03-07T10:00:30.000Z', fuelState: 0.35 });
-      state.applyRefuelEnrichment({ contactEvent: 'contact_start', occurredAt: '2026-03-07T10:02:00.000Z', fuelState: 0.35 });
-      state.applyRefuelEnrichment({ contactEvent: 'contact_end', occurredAt: '2026-03-07T10:03:30.000Z', fuelState: 0.50 });
-
-      expect(state.longestRefuelContactSeconds).toBe(90);
     });
   });
 

@@ -14,6 +14,7 @@ const basketCase = require('./basketCase');
 const boomShakalaka = require('./boomShakalaka');
 const topUp = require('./topUp');
 const nightTanker = require('./nightTanker');
+const transferComplete = require('./transferComplete');
 const specialDelivery = require('./specialDelivery');
 const soHighRightNow = require('./soHighRightNow');
 const iFeelTheNeed = require('./iFeelTheNeed');
@@ -32,6 +33,7 @@ const ALL_ACHIEVEMENTS = [
   boomShakalaka,
   topUp,
   nightTanker,
+  transferComplete,
   specialDelivery,
   soHighRightNow,
   iFeelTheNeed,

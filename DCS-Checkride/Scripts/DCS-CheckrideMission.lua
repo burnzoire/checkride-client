@@ -34,7 +34,6 @@ CheckrideMission.KillEventId = nil
 CheckrideMission.ShotEventId = nil
 CheckrideMission.HitEventId = nil
 CheckrideMission.activeWeaponShots = CheckrideMission.activeWeaponShots or {}
-CheckrideMission.activeMissileShots = CheckrideMission.activeWeaponShots
 
 local function checkrideMissionInfo(message)
     if log and log.write then

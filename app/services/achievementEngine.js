@@ -178,6 +178,8 @@ class AchievementEngine {
         missiles: state.missiles,
       },
       gauges: {
+        most_ground_kills_in_sortie: killsGround,
+        most_air_kills_in_sortie: killsAir,
         longest_refuel_contact_seconds: state.longestRefuelContactSeconds,
         longest_weapon_hit_nm: state.longestWeaponHit,
         longest_missile_hit_nm: state.longestMissileHit,

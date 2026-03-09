@@ -143,6 +143,49 @@ describe('AchievementEngine — core mechanics', () => {
     expect(result[0].id).toBe('kill_achv');
   });
 
+  it('serializes per-sortie kill gauges from current sortie state', () => {
+    const engine = new AchievementEngine([]);
+
+    engine.evaluate({
+      type: 'takeoff_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      launchedFromCarrier: true,
+      occurredAt: '2026-03-07T10:00:00.000Z',
+    });
+
+    engine.evaluate({
+      type: 'kill_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      victimUnitCategory: 'air',
+      carrierDistanceNm: 12,
+    });
+    engine.evaluate({
+      type: 'kill_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      victimUnitCategory: 'ground',
+      carrierDistanceNm: null,
+    });
+    engine.evaluate({
+      type: 'kill_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      victimUnitCategory: 'ground',
+      carrierDistanceNm: null,
+    });
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'kill_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.gauges.most_air_kills_in_sortie).toBe(1);
+    expect(snapshot.state.gauges.most_ground_kills_in_sortie).toBe(2);
+  });
+
   it('passes refuel_enrichment event to achievements registered with triggerType refuel_enrichment', () => {
     const refuelAchievement = new StubAchievement('refuel_achv', () => true);
     refuelAchievement.triggerType = 'refuel_enrichment';

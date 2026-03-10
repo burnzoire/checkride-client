@@ -124,7 +124,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   const pilotStatePublishState = new Map();
   udpServer.onEvent = (event) => {
     if (event.type !== 'flight_sample_enrichment') {
-      log.info(`Handling event: ${JSON.stringify(event)}`)
+      log.debug(`Handling event: ${JSON.stringify(event)}`)
     }
 
     if (event.type === 'ready') {
@@ -142,7 +142,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     // Events with persist: false update pilot state and fire achievements but are never saved to the API.
     if (event.persist === false) {
       if (event.type !== 'flight_sample_enrichment') {
-        log.info(`State-only event (persist=false): ${JSON.stringify(event)}`)
+        log.debug(`State-only event (persist=false): ${JSON.stringify(event)}`)
       }
       const newlyUnlocked = engine.evaluate(event);
       const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
@@ -192,7 +192,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
         if (event.persist === false) {
           if (event.type !== 'flight_sample_enrichment') {
-            log.info(`Skipping API save after evaluation (persist=false): ${JSON.stringify(event)}`);
+            log.debug(`Skipping API save after evaluation (persist=false): ${JSON.stringify(event)}`);
           }
           return null;
         }

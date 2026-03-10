@@ -123,7 +123,7 @@ class PilotState {
     this._resetSortieState();
     this.launchedFromCarrier = event.launchedFromCarrier === true;
     this.takeoffLocation = event.takeoffLocation ?? null;
-    this.lastTakeoffAtMs = this._parseOccurredAt(event);
+    this.lastTakeoffAtMs = this._parseMissionTimeMs(event) ?? this._parseOccurredAt(event);
     this.inAir = true;
   }
 
@@ -458,7 +458,7 @@ class PilotState {
   }
 
   _parseMissionTimeMs(event) {
-    const missionTime = event?.missionTime ?? event?.mission_time;
+    const missionTime = event?.missionTime ?? event?.mission_time ?? event?.time;
     if (typeof missionTime === 'number' && Number.isFinite(missionTime)) {
       return missionTime * 1000;
     }

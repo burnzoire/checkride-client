@@ -23,7 +23,7 @@ class UDPServer {
       const event = JSON.parse(msg.toString())
 
       if (event?.type !== 'flight_sample_enrichment') {
-        log.info(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
+        log.debug(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
       }
 
       if (this.onEventCallback) {

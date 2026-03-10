@@ -170,7 +170,7 @@ describe('initApp', () => {
 
     await udpServer.onEvent(event);
 
-    expect(log.info).toHaveBeenCalledWith(
+    expect(log.debug).toHaveBeenCalledWith(
       `State-only event (persist=false): ${JSON.stringify(event)}`
     );
   });

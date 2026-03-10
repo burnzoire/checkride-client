@@ -3,7 +3,9 @@
     "Lua.diagnostics.globals": [
         "net",
         "lfs",
-        "DCS"
+        "DCS",
+        "timer",
+        "CheckrideLookupUCID"
     ],
     "yaml.customTags": [
         "!And",

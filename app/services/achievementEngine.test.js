@@ -26,6 +26,27 @@ function waveOffEvent(overrides = {}) {
   return grading({ lsoGrade: 'WO', wire: null, ...overrides });
 }
 
+function refuel(overrides = {}) {
+  return {
+    type: 'refuel_enrichment',
+    playerUcid: 'pilot-1',
+    playerName: 'Maverick',
+    contactEvent: 'contact_start',
+    system: 'basket',
+    occurredAt: '2026-03-07T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function changeSlot(overrides = {}) {
+  return {
+    type: 'change_slot',
+    playerUcid: 'pilot-1',
+    playerName: 'Maverick',
+    ...overrides,
+  };
+}
+
 // Minimal stub achievement for testing engine mechanics
 class StubAchievement extends Achievement {
   constructor(id, evaluateFn) {
@@ -43,7 +64,45 @@ describe('AchievementEngine — core mechanics', () => {
   it('returns empty array for unknown event types', () => {
     const engine = new AchievementEngine([]);
     expect(engine.evaluate({ type: 'kill', playerUcid: 'p1' })).toEqual([]);
-    expect(engine.evaluate({ type: 'landing', playerUcid: 'p1' })).toEqual([]);
+    expect(engine.evaluate({ type: 'totally_unknown', playerUcid: 'p1' })).toEqual([]);
+  });
+
+  it('tracks inAir true/false from core lifecycle events', () => {
+    const engine = new AchievementEngine([]);
+
+    engine.evaluate({ type: 'takeoff', playerUcid: 'pilot-1', playerName: 'Maverick', occurredAt: '2026-03-07T10:00:00.000Z' });
+    let snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'takeoff', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+    expect(snapshot.state.telemetry.inAir).toBe(true);
+
+    engine.evaluate({ type: 'landing', playerUcid: 'pilot-1', playerName: 'Maverick' });
+    snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'landing', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+    expect(snapshot.state.telemetry.inAir).toBe(false);
+  });
+
+  it('creates pilot state for change_slot so a snapshot can be published', () => {
+    const engine = new AchievementEngine([]);
+
+    const unlocked = engine.evaluate(changeSlot());
+    expect(unlocked).toEqual([]);
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: changeSlot(),
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot).not.toBeNull();
+    expect(snapshot.state).toHaveProperty('telemetry');
+    expect(snapshot.state).toHaveProperty('state');
+    expect(snapshot.trigger_event_type).toBe('change_slot');
   });
 
   it('processes takeoff_enrichment without triggering grading achievements', () => {
@@ -82,6 +141,168 @@ describe('AchievementEngine — core mechanics', () => {
     });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('kill_achv');
+  });
+
+  it('serializes per-sortie kill gauges from current sortie state', () => {
+    const engine = new AchievementEngine([]);
+
+    engine.evaluate({
+      type: 'takeoff_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      launchedFromCarrier: true,
+      occurredAt: '2026-03-07T10:00:00.000Z',
+    });
+
+    engine.evaluate({
+      type: 'kill_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      victimUnitCategory: 'air',
+      carrierDistanceNm: 12,
+    });
+    engine.evaluate({
+      type: 'kill_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      victimUnitCategory: 'ground',
+      carrierDistanceNm: null,
+    });
+    engine.evaluate({
+      type: 'kill_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      victimUnitCategory: 'ground',
+      carrierDistanceNm: null,
+    });
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'kill_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.gauges.most_air_kills_in_sortie).toBe(1);
+    expect(snapshot.state.gauges.most_ground_kills_in_sortie).toBe(2);
+  });
+
+  it('passes refuel_enrichment event to achievements registered with triggerType refuel_enrichment', () => {
+    const refuelAchievement = new StubAchievement('refuel_achv', () => true);
+    refuelAchievement.triggerType = 'refuel_enrichment';
+    const engine = new AchievementEngine([refuelAchievement]);
+
+    const result = engine.evaluate(refuel());
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('refuel_achv');
+  });
+
+  it('tracks missile shot/hit state and serializes longestMissileHit', () => {
+    const engine = new AchievementEngine([]);
+
+    engine.evaluate({
+      type: 'shot_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w1',
+      weaponName: 'AIM-120C',
+      targetObjectId: 999,
+      startX: 0,
+      startY: 0,
+      startAlt: 1000,
+    });
+
+    engine.evaluate({
+      type: 'hit_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w1',
+      targetObjectId: 999,
+      distanceNm: 18.2,
+      heightDeltaFt: -600,
+    });
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'hit_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.gauges.longest_missile_hit_nm).toBeCloseTo(18.2);
+    expect(snapshot.state.state.weapons).toHaveLength(1);
+    expect(snapshot.state.state.missiles).toHaveLength(1);
+    expect(snapshot.state.state.missiles[0].inFlight).toBe(false);
+  });
+
+  it('serializes non-missile weapon tracks without affecting missile stats', () => {
+    const engine = new AchievementEngine([]);
+
+    engine.evaluate({
+      type: 'shot_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w2',
+      weaponName: 'GBU-12',
+      startX: 0,
+      startY: 0,
+      startAlt: 1000,
+    });
+
+    engine.evaluate({
+      type: 'hit_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w2',
+      distanceNm: 9.4,
+    });
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'hit_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.state.weapons).toHaveLength(1);
+    expect(snapshot.state.state.weapons[0].weaponClass).toBe('bomb');
+    expect(snapshot.state.state.missiles).toHaveLength(0);
+    expect(snapshot.state.gauges.longest_missile_hit_nm).toBe(0);
+  });
+
+  it('applies weapon_sample_enrichment to existing weapon tracks', () => {
+    const engine = new AchievementEngine([]);
+
+    engine.evaluate({
+      type: 'shot_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w3',
+      weaponClass: 'air_to_air_missile',
+      weaponName: 'AIM-54C-Mk60',
+      targetObjectId: 1002,
+    });
+
+    engine.evaluate({
+      type: 'weapon_sample_enrichment',
+      playerUcid: 'pilot-1',
+      playerName: 'Maverick',
+      weaponKey: 'w3',
+      weaponClass: 'air_to_air_missile',
+      inFlight: true,
+      status: 'in_flight',
+      speedKts: 1050,
+      speedMach: 2.8,
+      ageSeconds: 3.5,
+    });
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'weapon_sample_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.state.weapons).toHaveLength(1);
+    expect(snapshot.state.state.weapons[0].status).toBe('in_flight');
+    expect(snapshot.state.state.weapons[0].speedKts).toBeCloseTo(1050);
   });
 
   it('returns empty array when playerUcid is missing', () => {

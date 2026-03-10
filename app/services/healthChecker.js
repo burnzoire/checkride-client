@@ -27,12 +27,19 @@ class HealthChecker {
   }
 
   async checkHealth() {
+    const wasHealthy = this.isHealthy;
+
     try {
       await this.apiClient.healthcheck();
       this.updateStatus(true);
+      if (!wasHealthy) {
+        log.info('API health check recovered');
+      }
     } catch (error) {
       this.updateStatus(false);
-      log.warn('API health check failed:', error.message);
+      if (wasHealthy) {
+        log.warn('API health check failed:', error.message);
+      }
     }
   }
 

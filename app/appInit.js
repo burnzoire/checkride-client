@@ -1,6 +1,8 @@
 const { DiscordClient } = require('./clients/discordClient');
 const { DCSChatClient, DEFAULT_DCS_CHAT_HOST } = require('./clients/dcsChatClient');
 const UDPServer = require('./services/udpServer');
+const PilotStatePublisher = require('./services/pilotStatePublisher');
+const GaugeSync = require('./services/gaugeSync');
 const { EventProcessor } = require('./services/eventProcessor');
 const AchievementEngine = require('./services/achievementEngine');
 const { EventFactory, InvalidEventTypeError } = require('./factories/eventFactory');
@@ -14,11 +16,17 @@ const store = require('./config');
 
 const DEFAULT_UDP_PORT = 41234;
 const DEFAULT_DCS_CHAT_UDP_PORT = 41235;
+const PILOT_STATE_SAMPLE_PUBLISH_MIN_INTERVAL_MS = 5000;
+const PILOT_STATE_THROTTLED_EVENT_TYPES = new Set([
+  'flight_sample_enrichment',
+  'weapon_sample_enrichment',
+]);
 // Emoji enrichment utility for Discord summaries
 const EVENT_EMOJIS = {
   kill: ':dart: ',
   takeoff: ':airplane_departure: ',
   landing: ':airplane_arriving: ',
+  aar: ':fuelpump: ',
   connect: ':link: ',
   disconnect: ':broken_chain: ',
   change_slot: ':repeat: ',
@@ -51,11 +59,73 @@ function sendMissionScriptingConfig(dcsChatClient, missionScriptingEnabled, sour
     .catch((error) => log.error(`Error sending mission scripting config on ${source}:`, error))
 }
 
-function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, eventProcessor, achievementEngine }) {
+function buildPilotSnapshot({ engine, event, unlockedAchievements }) {
+  if (!event?.playerUcid) return;
+  if (!engine || typeof engine.buildSnapshot !== 'function') return;
+
+  const snapshot = engine.buildSnapshot({
+    pilotUcid: event.playerUcid,
+    triggerEvent: event,
+    unlockedAchievements,
+  });
+
+  if (!snapshot) return;
+
+  return snapshot;
+}
+
+function handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements, publishToCable = true }) {
+  const snapshot = buildPilotSnapshot({ engine, event, unlockedAchievements });
+  if (!snapshot) return;
+
+  if (event.type !== 'flight_sample_enrichment') {
+    const snapshotInAir = snapshot.state?.telemetry?.inAir ?? snapshot.state?.now?.inAir;
+    log.debug(`Pilot state snapshot: pilot=${event.playerUcid} trigger=${event.type} inAir=${snapshotInAir}`);
+  }
+
+  if (event.type === 'shot_enrichment') {
+    log.info(`Publishing shot pilot state snapshot: ${JSON.stringify(snapshot)}`);
+  }
+
+  if (gaugeSync && typeof gaugeSync.syncSnapshot === 'function') {
+    gaugeSync.syncSnapshot(snapshot);
+  }
+
+  if (!publishToCable) return;
+  if (!pilotStatePublisher || typeof pilotStatePublisher.publish !== 'function') return;
+
+  pilotStatePublisher.publish(snapshot)
+    .catch((error) => log.error(`Failed to publish pilot state for ${event.playerUcid}:`, error));
+}
+
+function shouldPublishPilotStateUpdate(event, publishStateByPilotAndType) {
+  if (!event?.playerUcid || !event?.type) {
+    return false;
+  }
+
+  if (!PILOT_STATE_THROTTLED_EVENT_TYPES.has(event.type)) {
+    return true;
+  }
+
+  const key = `${event.playerUcid}:${event.type}`;
+  const nowMs = Date.now();
+  const lastPublishedAtMs = publishStateByPilotAndType.get(key) || 0;
+  if ((nowMs - lastPublishedAtMs) < PILOT_STATE_SAMPLE_PUBLISH_MIN_INTERVAL_MS) {
+    return false;
+  }
+
+  publishStateByPilotAndType.set(key, nowMs);
+  return true;
+}
+
+function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates = true }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
+  const pilotStatePublishState = new Map();
   udpServer.onEvent = (event) => {
-    log.info(`Handling event: ${JSON.stringify(event)}`)
+    if (event.type !== 'flight_sample_enrichment') {
+      log.debug(`Handling event: ${JSON.stringify(event)}`)
+    }
 
     if (event.type === 'ready') {
       log.info('GameGUI ready signal received, sending config')
@@ -71,8 +141,12 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
     // Events with persist: false update pilot state and fire achievements but are never saved to the API.
     if (event.persist === false) {
-      log.info(`State-only event (persist=false): ${JSON.stringify(event)}`)
+      if (event.type !== 'flight_sample_enrichment') {
+        log.debug(`State-only event (persist=false): ${JSON.stringify(event)}`)
+      }
       const newlyUnlocked = engine.evaluate(event);
+      const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
+      handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements: newlyUnlocked, publishToCable: shouldPublishToCable });
       let last = Promise.resolve();
       newlyUnlocked.forEach((achievement, i) => {
         const pilotName = event.playerName || 'Unknown Pilot';
@@ -106,10 +180,23 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         const preparedPayload = gameEvent.prepare();
         if (!preparedPayload) {
           log.debug(`Skipping event with empty prepared payload: ${event.type}`);
+          unlockedAchievements = engine.evaluate(event);
+          const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
+          handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements, publishToCable: shouldPublishToCable });
           return null;
         }
 
         unlockedAchievements = engine.evaluate(event);
+        const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
+        handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements, publishToCable: shouldPublishToCable });
+
+        if (event.persist === false) {
+          if (event.type !== 'flight_sample_enrichment') {
+            log.debug(`Skipping API save after evaluation (persist=false): ${JSON.stringify(event)}`);
+          }
+          return null;
+        }
+
         const processedPayload = processor.process(event, preparedPayload);
         return apiClient.saveEvent(processedPayload);
       })
@@ -209,14 +296,28 @@ async function initApp() {
 
   const eventProcessor = new EventProcessor()
   const achievementEngine = new AchievementEngine()
+  const gaugeSync = new GaugeSync(apiClient)
+  const publishPilotStateUpdates = store.get('publish_pilot_state_updates', true)
+  log.info(`Pilot state websocket publishing ${publishPilotStateUpdates ? 'enabled' : 'disabled'} (publish_pilot_state_updates=${publishPilotStateUpdates})`)
+  const pilotStatePublisher = new PilotStatePublisher({
+    useSsl,
+    host: apiHost,
+    port: apiPort,
+    token: apiToken,
+    pathPrefix,
+  })
 
-  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, eventProcessor, achievementEngine })
+  if (publishPilotStateUpdates) {
+    pilotStatePublisher.start()
+  }
+
+  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates })
 
   // Initialize and start health checker
   const healthChecker = new HealthChecker(apiClient, store)
   healthChecker.start()
 
-  return { udpServer, apiClient, discordClient, dcsChatClient, eventProcessor, achievementEngine, healthChecker };
+  return { udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, healthChecker };
 }
 
 module.exports = { initApp, attachEventPipeline };

@@ -6,6 +6,7 @@
  *   - name            human-readable short title
  *   - description     one-sentence description of how to earn it (used in notifications)
  *   - triggerType     event type that triggers evaluation: 'grading' | 'kill_enrichment'
+ *                     | 'refuel_enrichment'
  *                     (defaults to 'grading' for backwards compatibility)
  *   - iconHint        brief phrase describing the intended icon concept (for asset generation)
  *   - iconDescription detailed visual description of the icon for image-generation prompts

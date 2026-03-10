@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime": {
+    "version": "Lua 5.1"
+  },
+  "diagnostics": {
+    "globals": [
+      "DCS",
+      "net",
+      "world",
+      "land",
+      "coalition",
+      "Unit",
+      "Airbase",
+      "atmosphere",
+      "timer",
+      "env",
+      "log",
+      "lfs",
+      "trigger",
+      "CheckrideLookupUCID",
+      "CheckridePlayers"
+    ]
+  }
+}

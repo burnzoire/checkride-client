@@ -27,6 +27,7 @@ jest.mock('dgram', () => {
 jest.mock('electron-log', () => {
   return {
     error: jest.fn(),
+    debug: jest.fn(),
     info: jest.fn(),
   };
 });
@@ -60,6 +61,30 @@ describe('UDPServer', () => {
   });
 
   describe('onEvent', () => {
+    it('logs received non-flight sample events at debug level', () => {
+      const fakeEvent = { type: 'event' };
+      const messageCallback = udpServer.server.on.mock.calls[1][1];
+      const rinfoMock = { address: 'localhost', port: 41234 };
+
+      messageCallback(Buffer.from(JSON.stringify(fakeEvent)), rinfoMock);
+
+      expect(log.debug).toHaveBeenCalledWith(
+        `server got: ${JSON.stringify(fakeEvent)} from ${rinfoMock.address}:${rinfoMock.port}`
+      );
+    });
+
+    it('does not log received flight_sample_enrichment events', () => {
+      const fakeEvent = { type: 'flight_sample_enrichment' };
+      const messageCallback = udpServer.server.on.mock.calls[1][1];
+      const rinfoMock = { address: 'localhost', port: 41234 };
+
+      messageCallback(Buffer.from(JSON.stringify(fakeEvent)), rinfoMock);
+
+      expect(log.debug).not.toHaveBeenCalledWith(
+        expect.stringContaining('server got:')
+      );
+    });
+
     it('should call onEvent callback when a message is received', async () => {
       const fakeEvent = { type: 'event' };
       const callback = jest.fn().mockResolvedValue();

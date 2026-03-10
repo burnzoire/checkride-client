@@ -6,6 +6,7 @@ const DisconnectEvent = require('../events/disconnectEvent');
 const GradingEvent = require('../events/gradingEvent');
 const KillEvent = require('../events/killEvent');
 const PilotEvent = require('../events/pilotEvent');
+const AAREvent = require('../events/aarEvent');
 const SelfKillEvent = require('../events/selfKillEvent');
 
 describe('EventFactory', () => {
@@ -21,7 +22,8 @@ describe('EventFactory', () => {
     { type: 'connect', expectedClass: ConnectEvent },
     { type: 'disconnect', expectedClass: DisconnectEvent },
     { type: 'change_slot', expectedClass: ChangeSlotEvent },
-    { type: 'grading', expectedClass: GradingEvent }
+    { type: 'grading', expectedClass: GradingEvent },
+    { type: 'aar', expectedClass: AAREvent }
   ])('creates an instance of the correct event class based on event type', ({ type, expectedClass }) => {
 
     it(`returns an instance of ${expectedClass.name} when type is ${type}`, async () => {
@@ -33,11 +35,21 @@ describe('EventFactory', () => {
     });
 
     it(`prepares payload for instance of ${expectedClass}`, async () => {
-      const eventData = { type, otherData: 'other' };
+      const baseEventData = {
+        type,
+        playerUcid: 'pilot-1',
+        playerName: 'Maverick',
+      };
+
+      const eventData =
+        type === 'aar'
+          ? { ...baseEventData, contactEvent: 'contact_end' }
+          : { ...baseEventData, otherData: 'other' };
 
       const result = await EventFactory.create(eventData);
 
-      expect(result.prepare().event.event_type).toEqual(type);
+      const expectedType = type;
+      expect(result.prepare().event.event_type).toEqual(expectedType);
     })
   });
 

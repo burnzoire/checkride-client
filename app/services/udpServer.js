@@ -20,8 +20,11 @@ class UDPServer {
     })
 
     this.server.on('message', (msg, rinfo) => {
-      log.info(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
       const event = JSON.parse(msg.toString())
+
+      if (event?.type !== 'flight_sample_enrichment') {
+        log.debug(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`)
+      }
 
       if (this.onEventCallback) {
         Promise.resolve()

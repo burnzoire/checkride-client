@@ -43,30 +43,34 @@ function CheckrideCallbackRouter.pollMissionEventBridge()
         return
     end
 
-    local t0 = DCS.getRealTime()
-    local encodedEvent, ok = net.dostring_in(CHECKRIDE_MISSION_STATE, [[
-        if CheckrideMissionPopEvent then
-            return CheckrideMissionPopEvent()
+    local maxPerPoll = CheckrideCallbackRouter.MissionBridgeMaxEventsPerPoll or 8
+    for _ = 1, maxPerPoll do
+        local t0 = DCS.getRealTime()
+        local encodedEvent, ok = net.dostring_in(CHECKRIDE_MISSION_STATE, [[
+            if CheckrideMissionPopEvent then
+                return CheckrideMissionPopEvent()
+            end
+            return ''
+        ]])
+        local elapsed = DCS.getRealTime() - t0
+        if elapsed > 0.005 then
+            checkrideLogError('Mission bridge poll slow: ' .. string.format('%.1fms', elapsed * 1000))
         end
-        return ''
-    ]])
-    local elapsed = DCS.getRealTime() - t0
-    if elapsed > 0.005 then
-        checkrideLogError('Mission bridge poll slow: ' .. string.format('%.1fms', elapsed * 1000))
-    end
 
-    if not ok then
-        checkrideLogError('Mission bridge poll failed: ' .. tostring(encodedEvent))
-        return
-    end
+        if not ok then
+            checkrideLogError('Mission bridge poll failed: ' .. tostring(encodedEvent))
+            return
+        end
 
-    if not encodedEvent or encodedEvent == '' then
-        return
-    end
+        if not encodedEvent or encodedEvent == '' then
+            return
+        end
 
-    local forwardOk, forwardErr = pcall(Checkride.sendEncodedEvent, encodedEvent)
-    if not forwardOk then
-        checkrideLogError('Mission bridge sendEncodedEvent failed: ' .. tostring(forwardErr))
+        local forwardOk, forwardErr = pcall(Checkride.sendEncodedEvent, encodedEvent)
+        if not forwardOk then
+            checkrideLogError('Mission bridge sendEncodedEvent failed: ' .. tostring(forwardErr))
+            return
+        end
     end
 end
 
@@ -206,7 +210,8 @@ function CheckrideCallbackRouter.onPlayerDisconnect(id)
     forwardToCheckride('onPlayerDisconnect', id)
 end
 
-CheckrideCallbackRouter.MissionBridgePollInterval = 1.0
+CheckrideCallbackRouter.MissionBridgePollInterval = 0.1
+CheckrideCallbackRouter.MissionBridgeMaxEventsPerPoll = 8
 CheckrideCallbackRouter._lastBridgePoll = 0
 
 function CheckrideCallbackRouter.onSimulationFrame()

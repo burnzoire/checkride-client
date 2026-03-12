@@ -25,6 +25,11 @@ CheckrideMission.WeaponSample = {
     staleDataSeconds = 30,
 }
 
+CheckrideMission.RefuelDetection = {
+    enabled = true,
+    minFuelGainStep = 0.0005,
+}
+
 -- Maps ucid (or fallback playerName) to the carrier Unit the pilot launched from.
 -- Reset each time a takeoff_enrichment is emitted; used to compute distance on kill.
 CheckrideMission.pilotCarrierByUcid = {}
@@ -33,8 +38,6 @@ CheckrideMission.TakeoffEventId = nil
 CheckrideMission.KillEventId = nil
 CheckrideMission.ShotEventId = nil
 CheckrideMission.HitEventId = nil
-CheckrideMission.RefuelingEventId = nil
-CheckrideMission.RefuelingStopEventId = nil
 CheckrideMission.activeWeaponShots = CheckrideMission.activeWeaponShots or {}
 CheckrideMission.activeRefuelByPilot = CheckrideMission.activeRefuelByPilot or {}
 
@@ -390,6 +393,7 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
         missionTime = now,
     }
 
+    CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuelState, inAir, now)
     CheckrideMission.sendEnrichmentEvent(message)
 end
 
@@ -820,38 +824,7 @@ local function getRefuelingSystemName(unit)
     return normalizeAARSystem(system)
 end
 
-local function safeTypeName(unit)
-    if not unit then
-        return nil
-    end
-
-    local okType, typeName = pcall(function() return unit:getTypeName() end)
-    if okType and typeName and typeName ~= "" then
-        return typeName
-    end
-
-    return nil
-end
-
-local function safeReceiverRefuelingType(unit)
-    return getRefuelingSystem(unit)
-end
-
-local function logUnresolvedAARSystem(phase, initiator, eventTime, playerName, ucid, receiverSystem)
-    local receiverType = safeTypeName(initiator)
-    local receiverRefuelingType = safeReceiverRefuelingType(initiator)
-    CheckrideMission.log(
-        "aar system unresolved: phase=" .. tostring(phase) ..
-        " player=" .. tostring(playerName) ..
-        " ucid=" .. tostring(ucid) ..
-        " eventTime=" .. tostring(eventTime) ..
-        " receiverType=" .. tostring(receiverType) ..
-        " receiverSystem=" .. tostring(receiverSystem) ..
-        " receiverRefuelingType=" .. tostring(receiverRefuelingType)
-    )
-end
-
-local function logAARRefuelEvent(unit, systemName)
+local function logAARRefuelEvent(unit, systemName, fuelGain, durationSeconds)
     if not env or not env.info then
         return
     end
@@ -871,47 +844,168 @@ local function logAARRefuelEvent(unit, systemName)
     end
 
     env.info(string.format(
-        "[AAR] unit=%s type=%s system=%s",
+        "[AAR] unit=%s type=%s system=%s fuelGain=%.5f duration=%.2f",
         tostring(unitName or "unknown"),
         tostring(unitType or "unknown"),
-        tostring(systemName or "unknown")
+        tostring(systemName or "unknown"),
+        tonumber(fuelGain) or 0,
+        tonumber(durationSeconds) or 0
     ))
 end
 
-local function isLikelyAirToAirMissile(weapon)
-    if not weapon then
-        return false
+local function finalizeRefuelSegment(session, playerUcid, playerName, unitType)
+    if not session then
+        return
     end
 
-    local weaponName = string.upper(getWeaponTypeName(weapon) or "")
-    if weaponName == "" then
-        return false
+    if not isFiniteNumber(session.accumulatedFuelGain) or session.accumulatedFuelGain <= 0 then
+        return
     end
 
-    local patterns = {
-        "AIM[_%-]",
-        "^R[_%-]%d",
-        "MAGIC",
-        "MICA",
-        "SUPER%s*530",
-        "SPARROW",
-        "AMRAAM",
-        "PHOENIX",
-        "SIDEWINDER",
-        "IRIS%-T",
-        "METEOR",
-        "SKYFLASH",
-        "PL%-%d",
-        "SD%-%d",
+    if not isFiniteNumber(session.segmentStartedAt) or not isFiniteNumber(session.lastGainAt) then
+        return
+    end
+
+    local payload = {
+        source = "mission",
+        playerUcid = playerUcid,
+        playerName = playerName,
+        unitType = unitType,
+        system = session.system,
+        fuelState = session.lastFuelState,
+        fuelGain = session.accumulatedFuelGain,
+        durationSeconds = math.max(0, session.lastGainAt - session.segmentStartedAt),
+        night = session.night,
+        missionTime = session.lastGainAt,
     }
 
-    for _, pattern in ipairs(patterns) do
-        if string.find(weaponName, pattern) then
-            return true
-        end
+    logAARRefuelEvent(session.unitRef, payload.system, payload.fuelGain, payload.durationSeconds)
+
+    CheckrideMission.sendEnrichmentEvent({
+        type = "refuel_enrichment",
+        source = payload.source,
+        playerUcid = payload.playerUcid,
+        playerName = payload.playerName,
+        unitType = payload.unitType,
+        refuelStatus = "completed",
+        startedAtMissionTime = session.segmentStartedAt,
+        system = payload.system,
+        fuelState = payload.fuelState,
+        fuelGain = payload.fuelGain,
+        durationSeconds = payload.durationSeconds,
+        night = payload.night,
+        missionTime = payload.missionTime,
+    })
+
+    CheckrideMission.sendEvent({
+        type = "aar",
+        source = payload.source,
+        playerUcid = payload.playerUcid,
+        playerName = payload.playerName,
+        unitType = payload.unitType,
+        refuelStatus = "completed",
+        startedAtMissionTime = session.segmentStartedAt,
+        system = payload.system,
+        fuelState = payload.fuelState,
+        fuelGain = payload.fuelGain,
+        durationSeconds = payload.durationSeconds,
+        night = payload.night,
+        missionTime = payload.missionTime,
+    })
+end
+
+function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuelState, inAir, now)
+    if not entry then
+        return
     end
 
-    return false
+    local playerName = entry.playerName
+    local playerUcid = entry.playerUcid
+    if not playerName then
+        return
+    end
+
+    local pilotKey = playerUcid or playerName
+    local active = CheckrideMission.activeRefuelByPilot[pilotKey]
+
+    if not (inAir == true and isFiniteNumber(currentFuelState)) then
+        if active then
+            finalizeRefuelSegment(active, playerUcid, playerName, unitType)
+            CheckrideMission.activeRefuelByPilot[pilotKey] = nil
+        end
+        return
+    end
+
+    if not active then
+        CheckrideMission.activeRefuelByPilot[pilotKey] = {
+            lastSampleTime = now,
+            lastFuelState = currentFuelState,
+            accumulatedFuelGain = 0,
+            segmentStartedAt = nil,
+            lastGainAt = nil,
+            system = getRefuelingSystemName(entry.unit),
+            night = nil,
+            unitRef = entry.unit,
+        }
+        return
+    end
+
+    local fuelDelta = currentFuelState - (active.lastFuelState or currentFuelState)
+    local minFuelGainStep = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minFuelGainStep) or 0.0005
+    local gainedFuelThisSample = fuelDelta > minFuelGainStep
+
+    if gainedFuelThisSample then
+        if not isFiniteNumber(active.segmentStartedAt) then
+            active.segmentStartedAt = active.lastSampleTime or now
+            active.night = CheckrideMission.isNight(active.segmentStartedAt)
+
+            CheckrideMission.sendEnrichmentEvent({
+                type = "refuel_enrichment",
+                source = "mission",
+                playerUcid = playerUcid,
+                playerName = playerName,
+                unitType = unitType,
+                refuelStatus = "started",
+                startedAtMissionTime = active.segmentStartedAt,
+                missionTime = active.segmentStartedAt,
+                system = active.system,
+                fuelState = currentFuelState,
+                fuelGain = fuelDelta,
+                night = active.night,
+            })
+        end
+
+        active.accumulatedFuelGain = math.max(0, (active.accumulatedFuelGain or 0) + fuelDelta)
+        active.lastGainAt = now
+        active.lastSampleTime = now
+        active.lastFuelState = currentFuelState
+        active.unitRef = entry.unit or active.unitRef
+
+        local currentSystem = getRefuelingSystemName(entry.unit)
+        if currentSystem then
+            active.system = currentSystem
+        end
+        return
+    end
+
+    if isFiniteNumber(active.accumulatedFuelGain) and active.accumulatedFuelGain > 0 then
+        finalizeRefuelSegment(active, playerUcid, playerName, unitType)
+        CheckrideMission.activeRefuelByPilot[pilotKey] = {
+            lastSampleTime = now,
+            lastFuelState = currentFuelState,
+            accumulatedFuelGain = 0,
+            segmentStartedAt = nil,
+            lastGainAt = nil,
+            system = getRefuelingSystemName(entry.unit),
+            night = nil,
+            unitRef = entry.unit,
+        }
+        return
+    end
+
+    active.lastSampleTime = now
+    active.lastFuelState = currentFuelState
+    active.unitRef = entry.unit or active.unitRef
 end
 
 local function classifyWeaponClass(weapon)
@@ -1082,8 +1176,6 @@ function CheckrideMission.ensureWorldHandler()
     CheckrideMission.KillEventId = world.event.S_EVENT_KILL
     CheckrideMission.ShotEventId = world.event.S_EVENT_SHOT
     CheckrideMission.HitEventId = world.event.S_EVENT_HIT
-    CheckrideMission.RefuelingEventId = world.event.S_EVENT_REFUELING or world.event.S_EVENT_REFUELING_START
-    CheckrideMission.RefuelingStopEventId = world.event.S_EVENT_REFUELING_STOP or world.event.S_EVENT_REFUELING_END
 
     -- Remove any previously registered handler before re-registering.
     -- If world identity changed (mission reload), the old handler object may still
@@ -1135,139 +1227,6 @@ function CheckrideMission.EventHandler:onEvent(event)
     if CheckrideMission.HitEventId and event.id == CheckrideMission.HitEventId then
         CheckrideMission.onHit(event)
     end
-
-    if CheckrideMission.RefuelingEventId and event.id == CheckrideMission.RefuelingEventId then
-        CheckrideMission.onRefuelingStart(event)
-    end
-
-    if CheckrideMission.RefuelingStopEventId and event.id == CheckrideMission.RefuelingStopEventId then
-        CheckrideMission.onRefuelingStop(event)
-    end
-end
-
-function CheckrideMission.onRefuelingStart(event)
-    local initiator = event.initiator
-    if not initiator then return end
-
-    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
-    if not playerName then return end
-
-    local receiverSystem = getRefuelingSystemName(initiator)
-    local system = receiverSystem
-    logAARRefuelEvent(initiator, system)
-    if not system then
-        logUnresolvedAARSystem("contact_start", initiator, event.time, playerName, ucid, receiverSystem)
-    end
-    local fuelState = nil
-    local okFuel, value = pcall(function() return initiator:getFuel() end)
-    if okFuel and isFiniteNumber(value) then
-        fuelState = value
-    end
-
-    local night = CheckrideMission.isNight(event.time)
-    local pilotKey = ucid or playerName
-
-    CheckrideMission.activeRefuelByPilot[pilotKey] = {
-        startedAtMissionTime = event.time,
-        startFuelState = fuelState,
-        system = system,
-        night = night,
-    }
-
-    CheckrideMission.sendEnrichmentEvent({
-        type = "refuel_enrichment",
-        source = "mission",
-        playerUcid = ucid,
-        playerName = playerName,
-        unitType = unitType,
-        system = system,
-        contactEvent = "contact_start",
-        fuelState = fuelState,
-        night = night,
-        missionTime = event.time,
-    })
-end
-
-function CheckrideMission.onRefuelingStop(event)
-    local initiator = event.initiator
-    if not initiator then return end
-
-    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
-    if not playerName then return end
-
-    local pilotKey = ucid or playerName
-    local active = CheckrideMission.activeRefuelByPilot[pilotKey]
-    local receiverSystem = getRefuelingSystemName(initiator)
-    local system = normalizeAARSystem(active and active.system) or receiverSystem
-    logAARRefuelEvent(initiator, system)
-    if not system then
-        logUnresolvedAARSystem("contact_end", initiator, event.time, playerName, ucid, receiverSystem)
-    end
-
-    local fuelState = nil
-    local okFuel, value = pcall(function() return initiator:getFuel() end)
-    if okFuel and isFiniteNumber(value) then
-        fuelState = value
-    end
-
-    local startFuelState = active and active.startFuelState or nil
-    local fuelGain = nil
-    if isFiniteNumber(startFuelState) and isFiniteNumber(fuelState) then
-        fuelGain = math.max(0, fuelState - startFuelState)
-    end
-
-    local durationSeconds = nil
-    if active and isFiniteNumber(active.startedAtMissionTime) and isFiniteNumber(event.time) then
-        durationSeconds = math.max(0, event.time - active.startedAtMissionTime)
-    end
-
-    local night = (active and type(active.night) == "boolean") and active.night or CheckrideMission.isNight(event.time)
-
-    local payload = {
-        source = "mission",
-        playerUcid = ucid,
-        playerName = playerName,
-        unitType = unitType,
-        system = system,
-        contactEvent = "contact_end",
-        fuelState = fuelState,
-        fuelGain = fuelGain,
-        contactDurationSeconds = durationSeconds,
-        night = night,
-        missionTime = event.time,
-    }
-
-    CheckrideMission.sendEnrichmentEvent({
-        type = "refuel_enrichment",
-        source = payload.source,
-        playerUcid = payload.playerUcid,
-        playerName = payload.playerName,
-        unitType = payload.unitType,
-        system = payload.system,
-        contactEvent = payload.contactEvent,
-        fuelState = payload.fuelState,
-        fuelGain = payload.fuelGain,
-        contactDurationSeconds = payload.contactDurationSeconds,
-        night = payload.night,
-        missionTime = payload.missionTime,
-    })
-
-    CheckrideMission.sendEvent({
-        type = "aar",
-        source = payload.source,
-        playerUcid = payload.playerUcid,
-        playerName = payload.playerName,
-        unitType = payload.unitType,
-        system = payload.system,
-        contactEvent = payload.contactEvent,
-        fuelState = payload.fuelState,
-        fuelGain = payload.fuelGain,
-        contactDurationSeconds = payload.contactDurationSeconds,
-        night = payload.night,
-        missionTime = payload.missionTime,
-    })
-
-    CheckrideMission.activeRefuelByPilot[pilotKey] = nil
 end
 
 function CheckrideMission.onShot(event)

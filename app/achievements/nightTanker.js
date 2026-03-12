@@ -15,8 +15,9 @@ class NightTanker extends Achievement {
   }
 
   evaluate(event, state) {
-    const contactEvent = event.contactEvent ?? event.contact_event ?? event.contact;
-    if (contactEvent !== 'contact_end') return false;
+    if (event.refuelStatus !== 'completed') return false;
+    const fuelGain = event.fuelGain ?? event.fuel_gain;
+    if (!(typeof fuelGain === 'number' && Number.isFinite(fuelGain) && fuelGain > 0)) return false;
     if (event.night !== true) return false;
 
     return Number.isFinite(state.lastRefuelFuelGain) && state.lastRefuelFuelGain >= MIN_FUEL_GAIN;

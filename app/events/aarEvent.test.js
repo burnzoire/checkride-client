@@ -6,21 +6,20 @@ describe('AAREvent', () => {
     jest.restoreAllMocks();
   });
 
-  it('returns null for contact_start (state-only event)', () => {
+  it('returns null when fuel gain is missing', () => {
     const occurredAt = '2026-03-07T10:00:00.000Z';
     jest.spyOn(GameEvent, 'generateOccurredAt').mockReturnValue(occurredAt);
 
     const event = new AAREvent({
       type: 'aar',
       playerUcid: 'pilot-1',
-      contactEvent: 'contact_start',
       occurredAt,
     });
 
     expect(event.prepare()).toBeNull();
   });
 
-  it('serializes contact_end as event_type aar', () => {
+  it('serializes positive fuel gain as event_type aar', () => {
     const occurredAt = '2026-03-07T10:01:10.000Z';
     jest.spyOn(GameEvent, 'generateOccurredAt').mockReturnValue(occurredAt);
 
@@ -29,10 +28,9 @@ describe('AAREvent', () => {
       playerUcid: 'pilot-1',
       playerName: 'Maverick',
       unitType: 'F/A-18C',
-      contactEvent: 'contact_end',
       system: 'basket',
       night: true,
-      contactDurationSeconds: 65,
+      durationSeconds: 65,
       fuelState: 0.72,
       fuelGain: 0.14,
       occurredAt,
@@ -48,12 +46,11 @@ describe('AAREvent', () => {
           player_ucid: 'pilot-1',
           player_name: 'Maverick',
           unit_type: 'F/A-18C',
-          contact_event: 'contact_end',
           aar_system: 'basket',
+          fuel_gain: 0.14,
           night: true,
           duration_seconds: 65,
           fuel_state: 0.72,
-          fuel_gain: 0.14,
         }
       }
     });

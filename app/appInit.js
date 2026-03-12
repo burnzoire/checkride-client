@@ -118,6 +118,18 @@ function shouldPublishPilotStateUpdate(event, publishStateByPilotAndType) {
   return true;
 }
 
+function shouldRefreshPilotSession(event) {
+  if (!event?.playerUcid) {
+    return false;
+  }
+
+  if (event.type === 'connect') {
+    return true;
+  }
+
+  return event.type === 'change_slot' && event.flyable === true;
+}
+
 function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates = true }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
@@ -133,7 +145,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
       return sendMissionScriptingConfig(dcsChatClient, missionScriptingEnabled, 'ready')
     }
 
-    if (event.type === 'connect' && event.playerUcid) {
+    if (shouldRefreshPilotSession(event)) {
       engine.resetPilot(event.playerUcid);
       engine.loadAchievementsFromApi(event.playerUcid, apiClient)
         .catch((error) => log.error(`Failed to load achievements for pilot ${event.playerUcid}:`, error))

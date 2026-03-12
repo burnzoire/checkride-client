@@ -11,18 +11,23 @@ describe('BasketCase — metadata', () => {
 });
 
 describe('BasketCase — evaluate', () => {
-  it('returns true on basket contact_start', () => {
-    const result = basketCase.evaluate({ type: 'refuel_enrichment', contactEvent: 'contact_start', system: 'basket' }, {});
+  it('returns true on basket refuel start with positive fuel gain', () => {
+    const result = basketCase.evaluate({ type: 'refuel_enrichment', refuelStatus: 'started', fuelGain: 0.04, system: 'basket' }, {});
     expect(result).toBe(true);
   });
 
-  it('returns false on basket contact_end', () => {
-    const result = basketCase.evaluate({ type: 'refuel_enrichment', contactEvent: 'contact_end', system: 'basket' }, {});
+  it('returns false for completed basket refuel events', () => {
+    const result = basketCase.evaluate({ type: 'refuel_enrichment', refuelStatus: 'completed', fuelGain: 0.04, system: 'basket' }, {});
     expect(result).toBe(false);
   });
 
-  it('returns false for boom contact_start', () => {
-    const result = basketCase.evaluate({ type: 'refuel_enrichment', contactEvent: 'contact_start', system: 'boom' }, {});
+  it('returns false for basket event without positive fuel gain', () => {
+    const result = basketCase.evaluate({ type: 'refuel_enrichment', refuelStatus: 'started', fuelGain: 0, system: 'basket' }, {});
+    expect(result).toBe(false);
+  });
+
+  it('returns false for boom refuel', () => {
+    const result = basketCase.evaluate({ type: 'refuel_enrichment', refuelStatus: 'started', fuelGain: 0.03, system: 'boom' }, {});
     expect(result).toBe(false);
   });
 });

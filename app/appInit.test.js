@@ -377,7 +377,7 @@ describe('initApp', () => {
   it('does not save event when evaluate marks persist=false', async () => {
     const fakeEvent = { type: 'refuel_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick' };
     const gameEvent = {
-      prepare: jest.fn().mockReturnValue({ event: { event_type: 'aar', event_data: { contact_event: 'contact_end' } } }),
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'aar', event_data: { fuel_gain: 0.08 } } }),
     };
     const achievementEngineMock = {
       evaluate: jest.fn().mockImplementation((event) => {
@@ -788,6 +788,82 @@ describe('initApp', () => {
 
     expect(achievementEngineMock.resetPilot).toHaveBeenCalledWith('ucid-1');
     expect(achievementEngineMock.loadAchievementsFromApi).toHaveBeenCalledWith('ucid-1', apiClientMock);
+  });
+
+  it('loads achievements from API on flyable change_slot event', async () => {
+    const changeSlotEvent = {
+      type: 'change_slot',
+      playerUcid: 'ucid-1',
+      playerName: 'Maverick',
+      flyable: true,
+    };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'change_slot', event_data: {} } }),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() },
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(changeSlotEvent);
+
+    expect(achievementEngineMock.resetPilot).toHaveBeenCalledWith('ucid-1');
+    expect(achievementEngineMock.loadAchievementsFromApi).toHaveBeenCalledWith('ucid-1', apiClientMock);
+  });
+
+  it('does not reload achievements for non-flyable change_slot event', async () => {
+    const changeSlotEvent = {
+      type: 'change_slot',
+      playerUcid: 'ucid-1',
+      playerName: 'Maverick',
+      flyable: false,
+    };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'change_slot', event_data: {} } }),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() },
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(changeSlotEvent);
+
+    expect(achievementEngineMock.resetPilot).not.toHaveBeenCalled();
+    expect(achievementEngineMock.loadAchievementsFromApi).not.toHaveBeenCalled();
   });
 
 });

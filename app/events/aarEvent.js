@@ -8,15 +8,14 @@ class AAREvent extends GameEvent {
     this.unitType = rawEvent.unitType;
     this.system = rawEvent.system;
     this.night = rawEvent.night;
-    this.contactEvent = rawEvent.contactEvent ?? rawEvent.contact_event ?? rawEvent.contact;
-    this.contactDurationSeconds = rawEvent.contactDurationSeconds ?? rawEvent.contact_duration_seconds;
+    this.durationSeconds = rawEvent.durationSeconds ?? rawEvent.duration_seconds ?? rawEvent.contactDurationSeconds ?? rawEvent.contact_duration_seconds;
     this.fuelState = rawEvent.fuelState;
     this.fuelGain = rawEvent.fuelGain ?? rawEvent.fuel_gain;
     this.source = rawEvent.source || 'mission';
   }
 
   prepare() {
-    if (this.contactEvent !== 'contact_end') {
+    if (!(typeof this.fuelGain === 'number' && Number.isFinite(this.fuelGain) && this.fuelGain > 0)) {
       return null;
     }
 
@@ -24,24 +23,20 @@ class AAREvent extends GameEvent {
       player_ucid: this.playerUcid,
       player_name: this.playerName,
       unit_type: this.unitType,
-      contact_event: this.contactEvent,
       aar_system: this.system,
+      fuel_gain: this.fuelGain,
     };
 
     if (typeof this.night === 'boolean') {
       eventData.night = this.night;
     }
 
-    if (typeof this.contactDurationSeconds === 'number' && Number.isFinite(this.contactDurationSeconds)) {
-      eventData.duration_seconds = this.contactDurationSeconds;
+    if (typeof this.durationSeconds === 'number' && Number.isFinite(this.durationSeconds)) {
+      eventData.duration_seconds = this.durationSeconds;
     }
 
     if (typeof this.fuelState === 'number' && Number.isFinite(this.fuelState)) {
       eventData.fuel_state = this.fuelState;
-    }
-
-    if (typeof this.fuelGain === 'number' && Number.isFinite(this.fuelGain)) {
-      eventData.fuel_gain = this.fuelGain;
     }
 
     return {

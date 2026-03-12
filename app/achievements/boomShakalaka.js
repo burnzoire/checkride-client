@@ -13,8 +13,9 @@ class BoomShakalaka extends Achievement {
   }
 
   evaluate(event) {
-    const contactEvent = event.contactEvent ?? event.contact_event ?? event.contact;
-    if (contactEvent !== 'contact_start') return false;
+    if (event.refuelStatus !== 'started') return false;
+    const fuelGain = event.fuelGain ?? event.fuel_gain;
+    if (!(typeof fuelGain === 'number' && Number.isFinite(fuelGain) && fuelGain > 0)) return false;
 
     const system = String(event.system || '').toLowerCase();
     return system === 'boom';

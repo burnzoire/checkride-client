@@ -43,7 +43,7 @@ describe('EventFactory', () => {
 
       const eventData =
         type === 'aar'
-          ? { ...baseEventData, contactEvent: 'contact_end' }
+          ? { ...baseEventData, fuelGain: 0.05 }
           : { ...baseEventData, otherData: 'other' };
 
       const result = await EventFactory.create(eventData);

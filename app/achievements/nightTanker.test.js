@@ -11,21 +11,27 @@ describe('NightTanker — metadata', () => {
 });
 
 describe('NightTanker — evaluate', () => {
-  it('returns true on night contact_end with >=10% fuel gain', () => {
+  it('returns true on night refuel with >=10% fuel gain', () => {
     const state = { lastRefuelFuelGain: 0.10 };
-    const result = nightTanker.evaluate({ contactEvent: 'contact_end', night: true }, state);
+    const result = nightTanker.evaluate({ refuelStatus: 'completed', fuelGain: 0.10, night: true }, state);
     expect(result).toBe(true);
   });
 
   it('returns false when fuel gain is below threshold', () => {
     const state = { lastRefuelFuelGain: 0.09 };
-    const result = nightTanker.evaluate({ contactEvent: 'contact_end', night: true }, state);
+    const result = nightTanker.evaluate({ refuelStatus: 'completed', fuelGain: 0.09, night: true }, state);
+    expect(result).toBe(false);
+  });
+
+  it('returns false for started refuel events', () => {
+    const state = { lastRefuelFuelGain: 0.15 };
+    const result = nightTanker.evaluate({ refuelStatus: 'started', fuelGain: 0.15, night: true }, state);
     expect(result).toBe(false);
   });
 
   it('returns false when not a night event', () => {
     const state = { lastRefuelFuelGain: 0.15 };
-    const result = nightTanker.evaluate({ contactEvent: 'contact_end', night: false }, state);
+    const result = nightTanker.evaluate({ refuelStatus: 'completed', fuelGain: 0.15, night: false }, state);
     expect(result).toBe(false);
   });
 });

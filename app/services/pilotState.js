@@ -32,8 +32,6 @@ const METERS_TO_FEET = 3.2808398950131;
 const WEAPON_CLASS_AIR_TO_AIR_MISSILE = 'air_to_air_missile';
 const WEAPON_COMPLETED_TTL_MS = 60 * 1000;
 const WEAPON_MAX_TRACKS = 100;
-const MIN_REFUEL_CONTACT_SECONDS = 5;
-
 class PilotState {
   constructor() {
     // ── Grading state ──────────────────────────────────────────────────────────
@@ -53,8 +51,7 @@ class PilotState {
     this.kills = [];              // array of { victimUnitCategory, carrierDistanceNm }
     this.lastTakeoffAtMs = null;
 
-    this.refuelContactStartedAtMs = null;
-    this.refuelStartFuelState = null;
+    this.lastRefuelDetectedAtMs = null;
     this.lastRefuelFuelGain = null;
     this.lastRefuelContactDurationSeconds = null;
     this.longestRefuelContactSeconds = 0;
@@ -143,48 +140,33 @@ class PilotState {
   }
 
   applyRefuelEnrichment(event) {
-    const contactEvent = event.contactEvent ?? event.contact_event ?? event.contact ?? null;
-    const occurredAtMs = this._parseMissionTimeMs(event);
+    if (event.refuelStatus === 'started') {
+      return;
+    }
 
-    if (contactEvent === 'contact_start') {
-      this.refuelContactStartedAtMs = occurredAtMs;
-      this.refuelStartFuelState = this._normalizeFuelState(event.fuelState);
+    const occurredAtMs = this._parseMissionTimeMs(event) ?? this._parseOccurredAt(event);
+    const fuelGain = this._normalizeFiniteNumber(event.fuelGain ?? event.fuel_gain);
+    const durationSeconds = this._normalizeFiniteNumber(
+      event.durationSeconds ?? event.duration_seconds ?? event.contactDurationSeconds ?? event.contact_duration_seconds
+    );
+
+    if (!(typeof fuelGain === 'number' && Number.isFinite(fuelGain) && fuelGain > 0)) {
+      event.persist = false;
       this.lastRefuelFuelGain = null;
       this.lastRefuelContactDurationSeconds = null;
       return;
     }
 
-    if (contactEvent !== 'contact_end') {
-      return;
-    }
+    this.lastRefuelDetectedAtMs = occurredAtMs;
+    this.lastRefuelFuelGain = fuelGain;
 
-    const endFuelState = this._normalizeFuelState(event.fuelState);
-
-    if (this.refuelContactStartedAtMs !== null && occurredAtMs !== null) {
-      const durationSeconds = Math.max(0, (occurredAtMs - this.refuelContactStartedAtMs) / 1000);
-      if (durationSeconds < MIN_REFUEL_CONTACT_SECONDS) {
-        event.persist = false;
-        this.lastRefuelContactDurationSeconds = null;
-        this.lastRefuelFuelGain = null;
-        this.refuelContactStartedAtMs = null;
-        this.refuelStartFuelState = null;
-        return;
-      }
-
-      this.lastRefuelContactDurationSeconds = durationSeconds;
-      this.longestRefuelContactSeconds = Math.max(this.longestRefuelContactSeconds, durationSeconds);
+    if (typeof durationSeconds === 'number' && Number.isFinite(durationSeconds)) {
+      const normalizedDuration = Math.max(0, durationSeconds);
+      this.lastRefuelContactDurationSeconds = normalizedDuration;
+      this.longestRefuelContactSeconds = Math.max(this.longestRefuelContactSeconds, normalizedDuration);
     } else {
       this.lastRefuelContactDurationSeconds = null;
     }
-
-    if (this.refuelStartFuelState !== null && endFuelState !== null) {
-      this.lastRefuelFuelGain = Math.max(0, endFuelState - this.refuelStartFuelState);
-    } else {
-      this.lastRefuelFuelGain = null;
-    }
-
-    this.refuelContactStartedAtMs = null;
-    this.refuelStartFuelState = null;
   }
 
   applyFlightSampleEnrichment(event) {
@@ -484,8 +466,7 @@ class PilotState {
     this.takeoffLocation = null;
     this.launchedFromCarrier = false;
 
-    this.refuelContactStartedAtMs = null;
-    this.refuelStartFuelState = null;
+    this.lastRefuelDetectedAtMs = null;
     this.lastRefuelFuelGain = null;
     this.lastRefuelContactDurationSeconds = null;
     this.longestRefuelContactSeconds = 0;

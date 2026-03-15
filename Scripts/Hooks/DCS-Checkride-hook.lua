@@ -8,8 +8,13 @@ local function checkrideLogError(message)
     log.write('DCS-Checkride-Hook', log.ERROR, tostring(message))
 end
 
-local CHECKRIDE_HOOK_BUILD = '2026-02-26-server-only'
-checkrideLogInfo('Hook build: ' .. CHECKRIDE_HOOK_BUILD)
+local function checkrideLogWarn(message)
+    local warningLevel = log.WARNING or log.WARN or log.INFO
+    log.write('DCS-Checkride-Hook', warningLevel, tostring(message))
+end
+
+local CHECKRIDE_CLIENT_VERSION = '__CHECKRIDE_CLIENT_VERSION__'
+checkrideLogInfo('Hook version: ' .. CHECKRIDE_CLIENT_VERSION)
 
 local status, result = pcall(function() local dcsSr=require('lfs');dofile(dcsSr.writedir()..[[Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideGameGUI.lua]]); end,nil)
 
@@ -17,6 +22,10 @@ if not status then
 	checkrideLogError('Failed to load GameGUI: ' .. tostring(result))
 else
     checkrideLogInfo('Loaded Checkride GameGUI hook entrypoint')
+    local loadedVersion = Checkride and Checkride.clientVersion
+    if loadedVersion and tostring(loadedVersion) ~= CHECKRIDE_CLIENT_VERSION then
+        checkrideLogWarn('Client version mismatch (hook=' .. CHECKRIDE_CLIENT_VERSION .. ', gamegui=' .. tostring(loadedVersion) .. ')')
+    end
 end
 
 -- Inject mission script on mission load
@@ -86,6 +95,21 @@ function CheckrideCallbackRouter.onMissionLoadEnd()
             return ''
         ]])
 
+        checkrideLogInfo('Using sandbox state: ' .. CHECKRIDE_MISSION_STATE)
+
+        -- Export a UCID resolver into the selected env.
+        -- Mission scripting cannot access net.*, so we maintain a
+        -- name→UCID table synced on player connect/disconnect.
+        net.dostring_in(CHECKRIDE_MISSION_STATE, [[
+            CheckridePlayers = CheckridePlayers or {}
+            function CheckrideLookupUCID(playerName)
+                return CheckridePlayers[playerName]
+            end
+        ]])
+
+        -- Always refresh the mission-side map for currently connected pilots.
+        CheckrideCallbackRouter.syncAllPlayers()
+
         if existingMissionOk and string.find(tostring(existingMissionStatus), '__CHECKRIDE_MISSION_PRESENT__', 1, true) then
             checkrideLogInfo('Mission script already loaded, skipping reinjection: ' .. tostring(existingMissionStatus))
             return
@@ -112,21 +136,6 @@ function CheckrideCallbackRouter.onMissionLoadEnd()
             return
         end
 
-        checkrideLogInfo('Using sandbox state: ' .. CHECKRIDE_MISSION_STATE)
-
-        -- Export a UCID resolver into the selected env.
-        -- Mission scripting cannot access net.*, so we maintain a
-        -- name→UCID table synced on player connect/disconnect.
-        net.dostring_in(CHECKRIDE_MISSION_STATE, [[
-            CheckridePlayers = CheckridePlayers or {}
-            function CheckrideLookupUCID(playerName)
-                return CheckridePlayers[playerName]
-            end
-        ]])
-
-        -- Seed with any players already connected
-        CheckrideCallbackRouter.syncAllPlayers()
-
         local code = string.format([[local __checkride_src = %q
 local __checkride_loader = loadstring or load
 if not __checkride_loader then
@@ -147,7 +156,7 @@ if not CheckrideMission then
     return '__CHECKRIDE_MISSION_ERROR__:CheckrideMission global missing after execution'
 end
 
-return '__CHECKRIDE_MISSION_OK__:' .. tostring(CheckrideMission.version or 'unknown')]], scriptSource)
+return '__CHECKRIDE_MISSION_OK__:' .. tostring(CheckrideMission.version or 'unknown') .. ':client=' .. tostring(CheckrideMission.clientVersion or 'unknown')]], scriptSource)
 
         local result, loadErr = net.dostring_in(CHECKRIDE_MISSION_STATE, code)
         local resultText = tostring(result)
@@ -155,6 +164,10 @@ return '__CHECKRIDE_MISSION_OK__:' .. tostring(CheckrideMission.version or 'unkn
 
         if string.find(resultText, '__CHECKRIDE_MISSION_OK__', 1, true) then
             checkrideLogInfo('Mission script injected successfully: ' .. resultText)
+            local missionClientVersion = string.match(resultText, ':client=(.+)$')
+            if missionClientVersion and missionClientVersion ~= CHECKRIDE_CLIENT_VERSION then
+                checkrideLogWarn('Client version mismatch (hook=' .. CHECKRIDE_CLIENT_VERSION .. ', mission=' .. tostring(missionClientVersion) .. ')')
+            end
         else
             checkrideLogError('Mission script injection failed. result=' .. resultText .. ' loadErr=' .. loadErrText)
         end

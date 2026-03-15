@@ -6,7 +6,8 @@
 -- Queues encoded events for retrieval via net.dostring_in from GameGUI/hook.
 -- ============================================================================
 CheckrideMission = {}
-CheckrideMission.version = "0.1.0"
+CheckrideMission.clientVersion = "__CHECKRIDE_CLIENT_VERSION__"
+CheckrideMission.version = CheckrideMission.clientVersion
 CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 
 CheckrideMission.FlightSample = {
@@ -48,6 +49,7 @@ local function checkrideMissionInfo(message)
 end
 
 checkrideMissionInfo("Loading - DCS-Checkride Mission Script v" .. CheckrideMission.version)
+checkrideMissionInfo("Checkride client version " .. CheckrideMission.clientVersion)
 
 -- ============================================================================
 -- Logging

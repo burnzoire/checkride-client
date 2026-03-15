@@ -83,6 +83,8 @@ describe('initApp', () => {
           return fakeDiscordWebhookPath;
         case 'mission_scripting_enabled':
           return true;
+        case 'publish_pilot_state_updates':
+          return false;
         default:
           return defaultValue;
       }
@@ -116,10 +118,39 @@ describe('initApp', () => {
       pathPrefix: fakePathPrefix,
     });
     expect(GaugeSync).toHaveBeenCalledWith(apiClient);
-    expect(pilotStatePublisherMock.start).toHaveBeenCalled();
+    expect(pilotStatePublisherMock.start).not.toHaveBeenCalled();
     expect(dcsChatClientMock.sendConfig).toHaveBeenCalledWith({ mission_scripting_enabled: true });
 
     expect(udpServer.onEvent).toBeDefined();
+  });
+
+  it('starts pilot state publisher when publishing is enabled in config', async () => {
+    store.get.mockImplementation((key, defaultValue) => {
+      if (key === 'publish_pilot_state_updates') return true;
+
+      switch (key) {
+        case 'use_ssl':
+          return fakeUseSsl;
+        case 'server_host':
+          return fakeApiHost;
+        case 'server_port':
+          return fakeApiPort;
+        case 'api_token':
+          return fakeApiToken;
+        case 'path_prefix':
+          return fakePathPrefix;
+        case 'discord_webhook_path':
+          return fakeDiscordWebhookPath;
+        case 'mission_scripting_enabled':
+          return true;
+        default:
+          return defaultValue;
+      }
+    });
+
+    await initApp();
+
+    expect(pilotStatePublisherMock.start).toHaveBeenCalled();
   });
 
   it('sends config when a ready event arrives from GameGUI', async () => {
@@ -132,6 +163,56 @@ describe('initApp', () => {
 
     expect(dcsChatClientMock.sendConfig).toHaveBeenCalledWith({ mission_scripting_enabled: false });
     expect(EventFactory.create).not.toHaveBeenCalledWith({ type: 'ready' });
+  });
+
+  it('invokes mismatch warning callback when ready reports mismatched Lua version', async () => {
+    const onLuaVersionMismatch = jest.fn().mockResolvedValue();
+    const { udpServer } = await initApp({ onLuaVersionMismatch });
+
+    dcsChatClientMock.sendConfig.mockClear();
+
+    await udpServer.onEvent({ type: 'ready', luaClientVersion: '0.9.9' });
+
+    expect(onLuaVersionMismatch).toHaveBeenCalledWith(expect.objectContaining({
+      luaClientVersion: '0.9.9',
+      clientVersion: expect.any(String),
+      eventType: 'ready',
+    }));
+    expect(dcsChatClientMock.sendConfig).toHaveBeenCalled();
+  });
+
+  it('warns only once per mismatch pair for repeated ready events', async () => {
+    const onLuaVersionMismatch = jest.fn().mockResolvedValue();
+    const { udpServer } = await initApp({ onLuaVersionMismatch });
+
+    await udpServer.onEvent({ type: 'ready', luaClientVersion: '0.9.9' });
+    await udpServer.onEvent({ type: 'ready', luaClientVersion: '0.9.9' });
+
+    expect(onLuaVersionMismatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns when ready event omits Lua version metadata', async () => {
+    const onLuaVersionMismatch = jest.fn().mockResolvedValue();
+    const { udpServer } = await initApp({ onLuaVersionMismatch });
+
+    await udpServer.onEvent({ type: 'ready' });
+
+    expect(onLuaVersionMismatch).toHaveBeenCalledWith(expect.objectContaining({
+      luaClientVersion: null,
+      clientVersion: expect.any(String),
+      eventType: 'ready',
+    }));
+  });
+
+  it('does not invoke mismatch warning callback when ready versions match', async () => {
+    const onLuaVersionMismatch = jest.fn().mockResolvedValue();
+    const { udpServer, apiClient } = await initApp({ onLuaVersionMismatch });
+
+    const clientVersion = APIClient.mock.calls.find((call) => call[0] === fakeUseSsl)?.[5];
+    await udpServer.onEvent({ type: 'ready', luaClientVersion: clientVersion });
+
+    expect(apiClient).toBeDefined();
+    expect(onLuaVersionMismatch).not.toHaveBeenCalled();
   });
 
   it('does not crash when ready arrives without a DCS chat client', async () => {

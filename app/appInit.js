@@ -130,10 +130,56 @@ function shouldRefreshPilotSession(event) {
   return event.type === 'change_slot' && event.flyable === true;
 }
 
-function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates = true }) {
+function extractLuaClientVersion(event) {
+  if (!event || typeof event !== 'object') return null;
+
+  const candidates = [
+    event.luaClientVersion,
+    event.lua_version,
+    event.clientVersion,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim() !== '') {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
+function maybeWarnLuaVersionMismatch({ event, onLuaVersionMismatch, warnedMismatchKeys }) {
+  if (typeof onLuaVersionMismatch !== 'function') {
+    return Promise.resolve();
+  }
+
+  const luaClientVersion = extractLuaClientVersion(event);
+  const mismatch = luaClientVersion !== CLIENT_VERSION;
+  if (!mismatch) {
+    return Promise.resolve();
+  }
+
+  const mismatchKey = `${luaClientVersion || 'unknown'}->${CLIENT_VERSION}`;
+  if (warnedMismatchKeys.has(mismatchKey)) {
+    return Promise.resolve();
+  }
+
+  warnedMismatchKeys.add(mismatchKey);
+  log.warn(`Lua/client version mismatch detected: lua=${luaClientVersion || 'unknown'} client=${CLIENT_VERSION}`);
+
+  return Promise.resolve(onLuaVersionMismatch({
+    luaClientVersion,
+    clientVersion: CLIENT_VERSION,
+    eventType: event?.type,
+  }))
+    .catch((error) => log.error('Failed to handle Lua version mismatch warning:', error));
+}
+
+function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates = true, onLuaVersionMismatch }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
   const pilotStatePublishState = new Map();
+  const warnedMismatchKeys = new Set();
   udpServer.onEvent = (event) => {
     if (event.type !== 'flight_sample_enrichment') {
       log.debug(`Handling event: ${JSON.stringify(event)}`)
@@ -142,7 +188,8 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     if (event.type === 'ready') {
       log.info('GameGUI ready signal received, sending config')
       const missionScriptingEnabled = store.get('mission_scripting_enabled')
-      return sendMissionScriptingConfig(dcsChatClient, missionScriptingEnabled, 'ready')
+      return maybeWarnLuaVersionMismatch({ event, onLuaVersionMismatch, warnedMismatchKeys })
+        .then(() => sendMissionScriptingConfig(dcsChatClient, missionScriptingEnabled, 'ready'))
     }
 
     if (shouldRefreshPilotSession(event)) {
@@ -288,7 +335,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   }
 }
 
-async function initApp() {
+async function initApp({ onLuaVersionMismatch } = {}) {
   const useSsl = store.get("use_ssl")
   const apiHost = store.get("server_host")
   const apiPort = store.get("server_port")
@@ -323,7 +370,7 @@ async function initApp() {
     pilotStatePublisher.start()
   }
 
-  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates })
+  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates, onLuaVersionMismatch })
 
   // Initialize and start health checker
   const healthChecker = new HealthChecker(apiClient, store)

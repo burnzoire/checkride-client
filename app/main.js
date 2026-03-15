@@ -1,4 +1,4 @@
-const { Menu, Tray, app, globalShortcut, ipcMain, nativeImage } = require('electron');
+const { Menu, Tray, app, globalShortcut, ipcMain, nativeImage, dialog } = require('electron');
 const path = require('path');
 const contextMenuTemplate = require('./tray/contextMenuTemplate');
 const { initApp, attachEventPipeline } = require('./appInit');
@@ -143,8 +143,32 @@ function setApplicationMenu() {
   Menu.setApplicationMenu(menu);
 }
 
+function showLuaVersionMismatchDialog({ luaClientVersion, clientVersion }) {
+  const luaLabel = luaClientVersion || 'unknown';
+
+  return dialog.showMessageBox({
+    type: 'warning',
+    title: 'Checkride: Lua Scripts Out of Date',
+    message: 'Checkride detected a Lua/client version mismatch',
+    detail: [
+      'Checkride Client detected a version mismatch with DCS Lua scripts.',
+      '',
+      `Client version: ${clientVersion}`,
+      `Lua version: ${luaLabel}`,
+      '',
+      'DCS is likely still running older Lua scripts.',
+      'Restart the DCS server after client installation so events and achievements remain reliable.',
+    ].join('\n'),
+    buttons: ['OK'],
+    defaultId: 0,
+    noLink: true,
+  });
+}
+
 async function bootstrap() {
-  const appInitResult = await initApp();
+  const appInitResult = await initApp({
+    onLuaVersionMismatch: showLuaVersionMismatchDialog,
+  });
   udpServer = appInitResult.udpServer;
   apiClient = appInitResult.apiClient;
   discordClient = appInitResult.discordClient;

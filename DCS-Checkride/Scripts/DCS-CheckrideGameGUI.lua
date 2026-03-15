@@ -2,10 +2,12 @@
 -- DCS-Checkride Game Event Tracker
 -- ============================================================================
 Checkride = {}
-Checkride.version = "0.4.0"
+Checkride.clientVersion = "__CHECKRIDE_CLIENT_VERSION__"
+Checkride.version = Checkride.clientVersion
 Checkride.clients = {}
 
 net.log("Loading - DCS-Checkride v" .. Checkride.version)
+net.log("DCS-Checkride client version " .. Checkride.clientVersion)
 
 -- ============================================================================
 -- Logging
@@ -506,4 +508,7 @@ net.log("Loaded - DCS-Checkride GameGUI")
 
 Checkride.log("Checkride loaded v" .. Checkride.version)
 
-Checkride.sendEvent({ type = "ready" })
+Checkride.sendEvent({
+    type = "ready",
+    luaClientVersion = Checkride.clientVersion,
+})

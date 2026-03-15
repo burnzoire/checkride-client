@@ -134,6 +134,56 @@ describe('initApp', () => {
     expect(EventFactory.create).not.toHaveBeenCalledWith({ type: 'ready' });
   });
 
+  it('invokes mismatch warning callback when ready reports mismatched Lua version', async () => {
+    const onLuaVersionMismatch = jest.fn().mockResolvedValue();
+    const { udpServer } = await initApp({ onLuaVersionMismatch });
+
+    dcsChatClientMock.sendConfig.mockClear();
+
+    await udpServer.onEvent({ type: 'ready', luaClientVersion: '0.9.9' });
+
+    expect(onLuaVersionMismatch).toHaveBeenCalledWith(expect.objectContaining({
+      luaClientVersion: '0.9.9',
+      clientVersion: expect.any(String),
+      eventType: 'ready',
+    }));
+    expect(dcsChatClientMock.sendConfig).toHaveBeenCalled();
+  });
+
+  it('warns only once per mismatch pair for repeated ready events', async () => {
+    const onLuaVersionMismatch = jest.fn().mockResolvedValue();
+    const { udpServer } = await initApp({ onLuaVersionMismatch });
+
+    await udpServer.onEvent({ type: 'ready', luaClientVersion: '0.9.9' });
+    await udpServer.onEvent({ type: 'ready', luaClientVersion: '0.9.9' });
+
+    expect(onLuaVersionMismatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns when ready event omits Lua version metadata', async () => {
+    const onLuaVersionMismatch = jest.fn().mockResolvedValue();
+    const { udpServer } = await initApp({ onLuaVersionMismatch });
+
+    await udpServer.onEvent({ type: 'ready' });
+
+    expect(onLuaVersionMismatch).toHaveBeenCalledWith(expect.objectContaining({
+      luaClientVersion: null,
+      clientVersion: expect.any(String),
+      eventType: 'ready',
+    }));
+  });
+
+  it('does not invoke mismatch warning callback when ready versions match', async () => {
+    const onLuaVersionMismatch = jest.fn().mockResolvedValue();
+    const { udpServer, apiClient } = await initApp({ onLuaVersionMismatch });
+
+    const clientVersion = APIClient.mock.calls.find((call) => call[0] === fakeUseSsl)?.[5];
+    await udpServer.onEvent({ type: 'ready', luaClientVersion: clientVersion });
+
+    expect(apiClient).toBeDefined();
+    expect(onLuaVersionMismatch).not.toHaveBeenCalled();
+  });
+
   it('does not crash when ready arrives without a DCS chat client', async () => {
     const udpServer = {};
     const apiClientMock = { saveEvent: jest.fn(), saveAchievement: jest.fn() };

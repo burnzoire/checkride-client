@@ -3,24 +3,35 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execFileSync } = require('child_process');
 
 const APP_DIR = path.resolve(__dirname, '..');
 const REPO_DIR = path.resolve(APP_DIR, '..');
 
+const VERSIONED_LUA_ROOT = path.join(APP_DIR, 'build', 'lua-versioned');
+
 const LUA_FILES = [
   {
-    src: path.join(REPO_DIR, 'Scripts', 'Hooks', 'DCS-Checkride-hook.lua'),
+    src: path.join(VERSIONED_LUA_ROOT, 'Scripts', 'Hooks', 'DCS-Checkride-hook.lua'),
     relDest: path.join('Scripts', 'Hooks', 'DCS-Checkride-hook.lua'),
   },
   {
-    src: path.join(REPO_DIR, 'DCS-Checkride', 'Scripts', 'DCS-CheckrideGameGUI.lua'),
+    src: path.join(VERSIONED_LUA_ROOT, 'Mods', 'Services', 'DCS-Checkride', 'Scripts', 'DCS-CheckrideGameGUI.lua'),
     relDest: path.join('Mods', 'Services', 'DCS-Checkride', 'Scripts', 'DCS-CheckrideGameGUI.lua'),
   },
   {
-    src: path.join(REPO_DIR, 'DCS-Checkride', 'Scripts', 'DCS-CheckrideMission.lua'),
+    src: path.join(VERSIONED_LUA_ROOT, 'Mods', 'Services', 'DCS-Checkride', 'Scripts', 'DCS-CheckrideMission.lua'),
     relDest: path.join('Mods', 'Services', 'DCS-Checkride', 'Scripts', 'DCS-CheckrideMission.lua'),
   },
 ];
+
+function prepareVersionedLuaArtifacts() {
+  const prepareScript = path.join(APP_DIR, 'scripts', 'prepare-lua-version.js');
+  execFileSync(process.execPath, [prepareScript], {
+    cwd: APP_DIR,
+    stdio: 'inherit',
+  });
+}
 
 const KNOWN_SAVED_GAMES_DIRS = [
   'DCS.openbeta',
@@ -92,6 +103,8 @@ function copyFileToTarget(targetRoot, file) {
 }
 
 function main() {
+  prepareVersionedLuaArtifacts();
+
   const args = parseArgs(process.argv.slice(2));
   const targets = resolveTargets(args);
 

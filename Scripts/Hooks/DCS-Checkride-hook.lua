@@ -95,6 +95,21 @@ function CheckrideCallbackRouter.onMissionLoadEnd()
             return ''
         ]])
 
+        checkrideLogInfo('Using sandbox state: ' .. CHECKRIDE_MISSION_STATE)
+
+        -- Export a UCID resolver into the selected env.
+        -- Mission scripting cannot access net.*, so we maintain a
+        -- name→UCID table synced on player connect/disconnect.
+        net.dostring_in(CHECKRIDE_MISSION_STATE, [[
+            CheckridePlayers = CheckridePlayers or {}
+            function CheckrideLookupUCID(playerName)
+                return CheckridePlayers[playerName]
+            end
+        ]])
+
+        -- Always refresh the mission-side map for currently connected pilots.
+        CheckrideCallbackRouter.syncAllPlayers()
+
         if existingMissionOk and string.find(tostring(existingMissionStatus), '__CHECKRIDE_MISSION_PRESENT__', 1, true) then
             checkrideLogInfo('Mission script already loaded, skipping reinjection: ' .. tostring(existingMissionStatus))
             return
@@ -120,21 +135,6 @@ function CheckrideCallbackRouter.onMissionLoadEnd()
             checkrideLogError('Mission script injection failed. Script file is empty: ' .. scriptPath)
             return
         end
-
-        checkrideLogInfo('Using sandbox state: ' .. CHECKRIDE_MISSION_STATE)
-
-        -- Export a UCID resolver into the selected env.
-        -- Mission scripting cannot access net.*, so we maintain a
-        -- name→UCID table synced on player connect/disconnect.
-        net.dostring_in(CHECKRIDE_MISSION_STATE, [[
-            CheckridePlayers = CheckridePlayers or {}
-            function CheckrideLookupUCID(playerName)
-                return CheckridePlayers[playerName]
-            end
-        ]])
-
-        -- Seed with any players already connected
-        CheckrideCallbackRouter.syncAllPlayers()
 
         local code = string.format([[local __checkride_src = %q
 local __checkride_loader = loadstring or load

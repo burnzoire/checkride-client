@@ -83,6 +83,8 @@ describe('initApp', () => {
           return fakeDiscordWebhookPath;
         case 'mission_scripting_enabled':
           return true;
+        case 'publish_pilot_state_updates':
+          return false;
         default:
           return defaultValue;
       }
@@ -116,10 +118,39 @@ describe('initApp', () => {
       pathPrefix: fakePathPrefix,
     });
     expect(GaugeSync).toHaveBeenCalledWith(apiClient);
-    expect(pilotStatePublisherMock.start).toHaveBeenCalled();
+    expect(pilotStatePublisherMock.start).not.toHaveBeenCalled();
     expect(dcsChatClientMock.sendConfig).toHaveBeenCalledWith({ mission_scripting_enabled: true });
 
     expect(udpServer.onEvent).toBeDefined();
+  });
+
+  it('starts pilot state publisher when publishing is enabled in config', async () => {
+    store.get.mockImplementation((key, defaultValue) => {
+      if (key === 'publish_pilot_state_updates') return true;
+
+      switch (key) {
+        case 'use_ssl':
+          return fakeUseSsl;
+        case 'server_host':
+          return fakeApiHost;
+        case 'server_port':
+          return fakeApiPort;
+        case 'api_token':
+          return fakeApiToken;
+        case 'path_prefix':
+          return fakePathPrefix;
+        case 'discord_webhook_path':
+          return fakeDiscordWebhookPath;
+        case 'mission_scripting_enabled':
+          return true;
+        default:
+          return defaultValue;
+      }
+    });
+
+    await initApp();
+
+    expect(pilotStatePublisherMock.start).toHaveBeenCalled();
   });
 
   it('sends config when a ready event arrives from GameGUI', async () => {

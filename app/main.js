@@ -22,6 +22,9 @@ let apiClient;
 let discordClient;
 let dcsChatClient;
 let eventProcessor;
+let pilotStatePublisher;
+let gaugeSync;
+let achievementEngine;
 let demoController;
 let healthChecker;
 let isQuitting = false;
@@ -174,6 +177,9 @@ async function bootstrap() {
   discordClient = appInitResult.discordClient;
   dcsChatClient = appInitResult.dcsChatClient;
   eventProcessor = appInitResult.eventProcessor;
+  pilotStatePublisher = appInitResult.pilotStatePublisher;
+  gaugeSync = appInitResult.gaugeSync;
+  achievementEngine = appInitResult.achievementEngine;
   healthChecker = appInitResult.healthChecker;
 
   demoController = new DemoController();
@@ -213,6 +219,7 @@ ipcMain.handle('settings:load', () => {
     discord_webhook_path: store.get('discord_webhook_path'),
     api_token: store.get('api_token'),
     mission_scripting_enabled: store.get('mission_scripting_enabled'),
+    publish_pilot_state_updates: store.get('publish_pilot_state_updates'),
   };
 });
 
@@ -225,6 +232,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
     discord_webhook_path: payload.discord_webhook_path?.trim() || '',
     api_token: payload.api_token?.trim() || '',
     mission_scripting_enabled: Boolean(payload.mission_scripting_enabled),
+    publish_pilot_state_updates: Boolean(payload.publish_pilot_state_updates),
   };
 
   store.set('server_host', nextConfig.server_host);
@@ -234,12 +242,21 @@ ipcMain.handle('settings:save', async (_event, payload) => {
   store.set('discord_webhook_path', nextConfig.discord_webhook_path);
   store.set('api_token', nextConfig.api_token);
   store.set('mission_scripting_enabled', nextConfig.mission_scripting_enabled);
+  store.set('publish_pilot_state_updates', nextConfig.publish_pilot_state_updates);
 
   if (dcsChatClient?.sendConfig) {
     const log = require('electron-log');
     log.info(`Sending mission scripting config on settings save: mission_scripting_enabled=${nextConfig.mission_scripting_enabled}`);
     dcsChatClient.sendConfig({ mission_scripting_enabled: nextConfig.mission_scripting_enabled })
       .catch((error) => log.error('Error sending config on settings save:', error));
+  }
+
+  if (pilotStatePublisher) {
+    if (nextConfig.publish_pilot_state_updates) {
+      pilotStatePublisher.start();
+    } else {
+      pilotStatePublisher.stop();
+    }
   }
 
   if (apiClient?.update) {
@@ -257,7 +274,17 @@ ipcMain.handle('settings:save', async (_event, payload) => {
   }
 
   if (udpServer && apiClient && discordClient) {
-    attachEventPipeline({ udpServer, apiClient, discordClient, eventProcessor });
+    attachEventPipeline({
+      udpServer,
+      apiClient,
+      discordClient,
+      dcsChatClient,
+      pilotStatePublisher,
+      gaugeSync,
+      eventProcessor,
+      achievementEngine,
+      publishPilotStateUpdates: nextConfig.publish_pilot_state_updates,
+    });
   }
 
   if (healthChecker?.checkHealth) {

@@ -356,7 +356,7 @@ async function initApp({ onLuaVersionMismatch } = {}) {
   const eventProcessor = new EventProcessor()
   const achievementEngine = new AchievementEngine()
   const gaugeSync = new GaugeSync(apiClient)
-  const publishPilotStateUpdates = store.get('publish_pilot_state_updates', true)
+  const publishPilotStateUpdates = store.get('publish_pilot_state_updates', false)
   log.info(`Pilot state websocket publishing ${publishPilotStateUpdates ? 'enabled' : 'disabled'} (publish_pilot_state_updates=${publishPilotStateUpdates})`)
   const pilotStatePublisher = new PilotStatePublisher({
     useSsl,

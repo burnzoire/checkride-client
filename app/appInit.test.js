@@ -871,6 +871,59 @@ describe('initApp', () => {
     expect(achievementEngineMock.loadAchievementsFromApi).toHaveBeenCalledWith('ucid-1', apiClientMock);
   });
 
+  it('backfills missing playerUcid on flight samples from known player name mapping', async () => {
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+      buildSnapshot: jest.fn().mockReturnValue({
+        pilot_uid: 'ucid-1',
+        state: { telemetry: { inAir: true }, gauges: { highest_speed_mach: 1.02, highest_altitude_ft: 32500 } },
+      }),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() },
+      pilotStatePublisher: { publish: jest.fn().mockResolvedValue() },
+      gaugeSync: { syncSnapshot: jest.fn() },
+      achievementEngine: achievementEngineMock,
+      publishPilotStateUpdates: true,
+    });
+
+    await udpServer.onEvent({
+      type: 'connect',
+      persist: false,
+      playerUcid: 'ucid-1',
+      playerName: 'Maverick',
+    });
+
+    await udpServer.onEvent({
+      type: 'flight_sample_enrichment',
+      persist: false,
+      playerName: 'Maverick',
+      speedMach: 1.02,
+      altitudeFt: 32500,
+    });
+
+    expect(achievementEngineMock.evaluate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        type: 'flight_sample_enrichment',
+        playerName: 'Maverick',
+        playerUcid: 'ucid-1',
+      })
+    );
+  });
+
   it('loads achievements from API on flyable change_slot event', async () => {
     const changeSlotEvent = {
       type: 'change_slot',

@@ -130,6 +130,28 @@ function shouldRefreshPilotSession(event) {
   return event.type === 'change_slot' && event.flyable === true;
 }
 
+function normalizePilotIdentity(event, pilotUcidByName) {
+  if (!event || typeof event !== 'object' || !pilotUcidByName) {
+    return;
+  }
+
+  const playerName = typeof event.playerName === 'string' ? event.playerName.trim() : '';
+  const playerUcid = typeof event.playerUcid === 'string' ? event.playerUcid.trim() : '';
+
+  if (playerName && playerUcid) {
+    pilotUcidByName.set(playerName, playerUcid);
+    event.playerUcid = playerUcid;
+    return;
+  }
+
+  if (!playerUcid && playerName) {
+    const knownUcid = pilotUcidByName.get(playerName);
+    if (knownUcid) {
+      event.playerUcid = knownUcid;
+    }
+  }
+}
+
 function extractLuaClientVersion(event) {
   if (!event || typeof event !== 'object') return null;
 
@@ -180,7 +202,10 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   const engine = achievementEngine || new AchievementEngine();
   const pilotStatePublishState = new Map();
   const warnedMismatchKeys = new Set();
+  const pilotUcidByName = new Map();
   udpServer.onEvent = (event) => {
+    normalizePilotIdentity(event, pilotUcidByName);
+
     if (event.type !== 'flight_sample_enrichment') {
       log.debug(`Handling event: ${JSON.stringify(event)}`)
     }

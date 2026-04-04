@@ -338,4 +338,39 @@ describe('GaugeSync', () => {
 
     jest.useRealTimers();
   });
+
+  it('still writes gauge updates when the initial pilot gauge load fails', async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+
+    const apiClient = {
+      fetchPilotGauges: jest.fn().mockRejectedValue(new Error('API unavailable')),
+      updatePilotGauge: jest.fn().mockResolvedValue({ value: 80000, updated_at: '2026-03-08T00:00:00Z' }),
+    };
+
+    const sync = new GaugeSync(apiClient);
+
+    sync.syncSnapshot({
+      pilot_uid: 'ucid-8',
+      pilot_name: 'Darkstar',
+      trigger_event_type: 'flight_sample_enrichment',
+      state: { gauges: { highest_altitude_ft: 80000 } },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    jest.advanceTimersByTime(6000);
+    await flushPromises();
+
+    expect(apiClient.updatePilotGauge).toHaveBeenCalledTimes(1);
+    expect(apiClient.updatePilotGauge).toHaveBeenCalledWith({
+      playerUcid: 'ucid-8',
+      playerName: 'Darkstar',
+      gaugeId: 'highest_altitude_ft',
+      value: 80000,
+      comparison: 'max',
+    });
+
+    jest.useRealTimers();
+  });
 });

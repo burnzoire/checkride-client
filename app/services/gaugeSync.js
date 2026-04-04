@@ -57,7 +57,7 @@ class GaugeSync {
         });
       })
       .catch((error) => {
-        log.warn(`GaugeSync failed to load gauges for ${playerUcid}:`, error?.message || error);
+        log.warn(`GaugeSync unexpected error syncing snapshot for ${playerUcid}:`, error?.message || error);
       });
   }
 
@@ -164,6 +164,11 @@ class GaugeSync {
         const gauges = response?.gauges && typeof response.gauges === 'object' ? response.gauges : {};
         this.gaugesByPilot.set(playerUcid, gauges);
         return gauges;
+      })
+      .catch((error) => {
+        log.warn(`GaugeSync failed to load gauges for ${playerUcid}, proceeding with empty state:`, error?.message || error);
+        this.gaugesByPilot.set(playerUcid, {});
+        return {};
       })
       .finally(() => {
         this.loadingByPilot.delete(playerUcid);

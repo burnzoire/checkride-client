@@ -120,6 +120,7 @@ class GaugeSync {
   submitGaugeUpdate({ playerUcid, playerName, gaugeId, value }) {
     const inflightKey = `${playerUcid}:${gaugeId}`;
     if (this.inflightByGauge.has(inflightKey)) {
+      this.handleSettlingGauge({ playerUcid, playerName, gaugeId, value, settleForMs: DEFAULT_SETTLE_FOR_MS, flushNow: false });
       return;
     }
 
@@ -132,9 +133,11 @@ class GaugeSync {
       comparison: 'max',
     })
       .then((response) => {
+        const serverValue = this.normalizeNumber(response?.value);
+        const bestKnownValue = (serverValue !== null && serverValue > value) ? serverValue : value;
         const nextPilotGauges = this.gaugesByPilot.get(playerUcid) || {};
         nextPilotGauges[gaugeId] = {
-          value: this.normalizeNumber(response?.value) ?? value,
+          value: bestKnownValue,
           updated_at: response?.updated_at || null,
         };
         this.gaugesByPilot.set(playerUcid, nextPilotGauges);

@@ -216,4 +216,126 @@ describe('GaugeSync', () => {
 
     jest.useRealTimers();
   });
+
+  it('re-queues and eventually writes the peak value when an inflight collision occurs at flush time', async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+
+    let resolveFirstUpdate;
+    const firstUpdatePromise = new Promise((resolve) => {
+      resolveFirstUpdate = resolve;
+    });
+
+    const apiClient = {
+      fetchPilotGauges: jest.fn().mockResolvedValue({ gauges: {} }),
+      updatePilotGauge: jest.fn()
+        .mockReturnValueOnce(firstUpdatePromise)
+        .mockResolvedValue({ value: 2.1, updated_at: '2026-03-08T00:00:00Z' }),
+    };
+
+    const sync = new GaugeSync(apiClient);
+
+    // First sample arrives, settle timer starts
+    sync.syncSnapshot({
+      pilot_uid: 'ucid-6',
+      pilot_name: 'Rooster',
+      trigger_event_type: 'flight_sample_enrichment',
+      state: { gauges: { highest_speed_mach: 1.8 } },
+    });
+
+    await flushPromises();
+
+    // Advance timer partially so first settle fires, sending the 1.8 API call (still in-flight)
+    jest.advanceTimersByTime(6000);
+    await flushPromises();
+
+    expect(apiClient.updatePilotGauge).toHaveBeenCalledTimes(1);
+    expect(apiClient.updatePilotGauge).toHaveBeenCalledWith(
+      expect.objectContaining({ value: 1.8 }),
+    );
+
+    // A higher sample (2.1) arrives while the first API call is still in-flight
+    sync.syncSnapshot({
+      pilot_uid: 'ucid-6',
+      pilot_name: 'Rooster',
+      trigger_event_type: 'flight_sample_enrichment',
+      state: { gauges: { highest_speed_mach: 2.1 } },
+    });
+
+    await flushPromises();
+
+    // The settle timer for 2.1 fires — but the first call is still in-flight
+    jest.advanceTimersByTime(6000);
+    await flushPromises();
+
+    // 2.1 should have been re-queued, not dropped; still only 1 call so far
+    expect(apiClient.updatePilotGauge).toHaveBeenCalledTimes(1);
+
+    // Now resolve the first in-flight call
+    resolveFirstUpdate({ value: 1.8, updated_at: '2026-03-08T00:00:00Z' });
+    await flushPromises();
+
+    // After the in-flight call resolves, the re-queued 2.1 settle timer fires
+    jest.advanceTimersByTime(6000);
+    await flushPromises();
+
+    // 2.1 must eventually be written
+    expect(apiClient.updatePilotGauge).toHaveBeenCalledTimes(2);
+    expect(apiClient.updatePilotGauge).toHaveBeenLastCalledWith(
+      expect.objectContaining({ value: 2.1 }),
+    );
+
+    jest.useRealTimers();
+  });
+
+  it('does not suppress a new PB write when the server returns a higher existing value', async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+
+    const apiClient = {
+      fetchPilotGauges: jest.fn().mockResolvedValue({ gauges: {} }),
+      updatePilotGauge: jest.fn()
+        // First call: server responds with a higher pre-existing value (2.0)
+        .mockResolvedValueOnce({ value: 2.0, updated_at: '2026-03-08T00:00:00Z' })
+        // Second call: resolves normally
+        .mockResolvedValueOnce({ value: 2.1, updated_at: '2026-03-08T00:00:00Z' }),
+    };
+
+    const sync = new GaugeSync(apiClient);
+
+    // Client sends 1.8, server responds with 2.0
+    sync.syncSnapshot({
+      pilot_uid: 'ucid-7',
+      pilot_name: 'Phoenix',
+      trigger_event_type: 'flight_sample_enrichment',
+      state: { gauges: { highest_speed_mach: 1.8 } },
+    });
+
+    await flushPromises();
+    jest.advanceTimersByTime(6000);
+    await flushPromises();
+
+    expect(apiClient.updatePilotGauge).toHaveBeenCalledTimes(1);
+
+    // Server response resolves with a higher value (2.0) — cache must not suppress 2.1
+    await flushPromises();
+
+    // Pilot then reaches 2.1
+    sync.syncSnapshot({
+      pilot_uid: 'ucid-7',
+      pilot_name: 'Phoenix',
+      trigger_event_type: 'flight_sample_enrichment',
+      state: { gauges: { highest_speed_mach: 2.1 } },
+    });
+
+    await flushPromises();
+    jest.advanceTimersByTime(6000);
+    await flushPromises();
+
+    // 2.1 must NOT be suppressed — it should be written
+    expect(apiClient.updatePilotGauge).toHaveBeenCalledTimes(2);
+    expect(apiClient.updatePilotGauge).toHaveBeenLastCalledWith(
+      expect.objectContaining({ value: 2.1 }),
+    );
+
+    jest.useRealTimers();
+  });
 });

@@ -158,5 +158,8 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # macos
 .DS_Store

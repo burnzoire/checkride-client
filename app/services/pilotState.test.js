@@ -139,7 +139,7 @@ describe('PilotState — sortie fields', () => {
     it('appends a kill entry with victimUnitCategory and carrierDistanceNm', () => {
       state.applyKill({ victimUnitCategory: 'air', carrierDistanceNm: 30 });
       expect(state.kills).toHaveLength(1);
-      expect(state.kills[0]).toEqual({ victimUnitCategory: 'air', carrierDistanceNm: 30 });
+      expect(state.kills[0]).toMatchObject({ victimUnitCategory: 'air', carrierDistanceNm: 30 });
     });
 
     it('accumulates multiple kills within the same sortie', () => {

@@ -32,47 +32,17 @@ const METERS_TO_FEET = 3.2808398950131;
 const WEAPON_CLASS_AIR_TO_AIR_MISSILE = 'air_to_air_missile';
 const WEAPON_COMPLETED_TTL_MS = 60 * 1000;
 const WEAPON_MAX_TRACKS = 100;
+const INBOUND_MISSILE_TTL_MS = 60 * 1000;
 class PilotState {
   constructor() {
-    // ── Grading state ──────────────────────────────────────────────────────────
-    // Chronological record of every grading pass this session. All per-pass
-    // counters and flags are derived from this array via getters so there is
-    // no duplicated or stale incremental state to maintain.
+    // ── Session state — survives across sorties ────────────────────────────────
     /** @type {GradingEvent[]} */
     this.passes = [];
-
-    // ── Sortie state (reset on each takeoff) ───────────────────────────────────
-    // Set by applyTakeoffEnrichment when the mission script confirms where the
-    // pilot launched from. Cleared and re-set on every new takeoff so an old
-    // carrier sortie never bleeds into a land-base sortie.
-    this.launchedFromCarrier = false;
-    this.takeoffLocation = null;  // carrier/airdrome name, or null
-    /** @type {Kill[]} */
-    this.kills = [];              // array of { victimUnitCategory, carrierDistanceNm }
-    this.lastTakeoffAtMs = null;
-
-    this.lastRefuelDetectedAtMs = null;
-    this.lastRefuelFuelGain = null;
-    this.lastRefuelContactDurationSeconds = null;
-    this.longestRefuelContactSeconds = 0;
-
-    this.weapons = [];
-    this.missiles = [];
-    this.longestWeaponHit = 0;
-    this.longestMissileHit = 0;
-
-    this.currentSpeedKts = null;
-    this.currentSpeedMach = null;
-    this.highestSpeedKts = 0;
-    this.highestSpeedMach = 0;
-    this.currentAltitudeFt = null;
-    this.highestAltitudeFt = 0;
-    this.currentRadarAltitudeFt = null;
-    this.currentPositionX = null;
-    this.currentPositionY = null;
-    this.currentFuelState = null;
-    this.inAir = false;
     this.currentSlotId = null;
+    this.inAir = false;
+
+    // ── Sortie state — reset on each takeoff or slot change ────────────────────
+    this._resetSortieState();
   }
 
   // ── Derived grading state ──────────────────────────────────────────────────
@@ -134,8 +104,19 @@ class PilotState {
    */
   applyKill(event) {
     this.kills.push({
-      victimUnitCategory: event.victimUnitCategory ?? null,
-      carrierDistanceNm: typeof event.carrierDistanceNm === 'number' ? event.carrierDistanceNm : null,
+      victimUnitCategory:  event.victimUnitCategory ?? null,
+      carrierDistanceNm:   typeof event.carrierDistanceNm === 'number' ? event.carrierDistanceNm : null,
+      killedAtMs:          event.killedAtMs ?? null,
+      victimRoles:         Array.isArray(event.victimRoles) ? event.victimRoles : [],
+      weaponGuidance:      event.weaponGuidance ?? null,
+      victimPositionX:     event.victimPositionX ?? null,
+      victimPositionY:     event.victimPositionY ?? null,
+      pilotAltitudeFt:     this.currentAltitudeFt,
+      pilotSpeedMach:      this.currentSpeedMach,
+      night:               event.night ?? null,
+      killerUnitCategory:  event.killerUnitCategory ?? null,
+      victimTypeName:      event.victimTypeName ?? null,
+      victimObjectId:      event.victimObjectId ?? null,
     });
   }
 
@@ -200,6 +181,7 @@ class PilotState {
       ? currentFuelState
       : this.currentFuelState;
     this.inAir = typeof inAir === 'boolean' ? inAir : this.inAir;
+    if (event.unitCategory != null) this.currentUnitCategory = event.unitCategory;
   }
 
   applyShotEnrichment(event = {}) {
@@ -301,6 +283,9 @@ class PilotState {
   }
 
   applyHitEnrichment(event = {}) {
+    if (event.roleCoalition) {
+      this.hitCounters[event.roleCoalition] = (this.hitCounters[event.roleCoalition] ?? 0) + 1;
+    }
     const weaponKey = event.weaponKey ?? event.weapon_key;
     const targetObjectId = event.targetObjectId ?? event.target_object_id;
     const weaponObjectId = event.weaponObjectId ?? event.weapon_object_id;
@@ -431,6 +416,61 @@ class PilotState {
     this.passes.push(event);
   }
 
+  applyInboundMissile(event) {
+    const weaponKey = event.weaponKey;
+    if (!weaponKey) return;
+
+    this.inboundMissiles.push({
+      weaponKey:         String(weaponKey),
+      weaponName:        event.weaponName ?? null,
+      weaponGuidance:    event.weaponGuidance ?? null,
+      initiatorRole:     event.initiatorRole ?? null,
+      initiatorObjectId: event.initiatorObjectId ?? null,
+      inFlight:          true,
+      status:            'in_flight',
+      launchedAtMs:      this._parseMissionTimeMs(event) ?? this._parseEventTimeMs(event),
+      completedAtMs:     null,
+    });
+    this._pruneInboundMissiles();
+  }
+
+  applyInboundMissileHit(event) {
+    const weaponKey = event.weaponKey ? String(event.weaponKey) : null;
+    if (!weaponKey) return;
+    const track = this.inboundMissiles.find(m => m.weaponKey === weaponKey && m.inFlight);
+    if (!track) return;
+    track.inFlight = false;
+    track.status = 'hit';
+    track.completedAtMs = this._parseMissionTimeMs(event) ?? this._parseEventTimeMs(event);
+    this._pruneInboundMissiles();
+  }
+
+  applyInboundMissileMiss(event) {
+    const weaponKey = event.weaponKey ? String(event.weaponKey) : null;
+    if (!weaponKey) return;
+    const track = this.inboundMissiles.find(m => m.weaponKey === weaponKey && m.inFlight);
+    if (!track) return;
+    track.inFlight = false;
+    track.status = 'evaded';
+    track.completedAtMs = this._parseMissionTimeMs(event) ?? this._parseEventTimeMs(event);
+    this._pruneInboundMissiles();
+  }
+
+  applyGunBurstStart(event) {
+    this.gunBurstStartAtMs = event.startAtMs ?? this._parseMissionTimeMs(event);
+  }
+
+  applyGunBurstEnd(event) {
+    if (this.gunBurstStartAtMs == null) return;
+    const endAtMs = event.endAtMs ?? this._parseMissionTimeMs(event);
+    if (endAtMs == null) return;
+    const durationSeconds = (endAtMs - this.gunBurstStartAtMs) / 1000;
+    if (durationSeconds > this.longestGunBurstSeconds) {
+      this.longestGunBurstSeconds = durationSeconds;
+    }
+    this.gunBurstStartAtMs = null;
+  }
+
   _parseOccurredAt(event) {
     const candidate = event.occurredAt ?? event.occurred_at;
     if (typeof candidate !== 'string') return null;
@@ -486,6 +526,12 @@ class PilotState {
     this.missiles = [];
     this.longestWeaponHit = 0;
     this.longestMissileHit = 0;
+
+    this.inboundMissiles = [];
+    this.currentUnitCategory = null;
+    this.hitCounters = {};
+    this.gunBurstStartAtMs = null;
+    this.longestGunBurstSeconds = 0;
   }
 
   _computeMissileDistanceNm(missile) {
@@ -514,6 +560,15 @@ class PilotState {
 
   _syncMissileView() {
     this.missiles = this.weapons.filter((weaponTrack) => weaponTrack.weaponClass === WEAPON_CLASS_AIR_TO_AIR_MISSILE);
+  }
+
+  _pruneInboundMissiles() {
+    const nowMs = Date.now();
+    this.inboundMissiles = this.inboundMissiles.filter(track => {
+      if (track.inFlight) return true;
+      if (!Number.isFinite(track.completedAtMs)) return false;
+      return (nowMs - track.completedAtMs) <= INBOUND_MISSILE_TTL_MS;
+    });
   }
 
   _pruneCompletedWeapons() {

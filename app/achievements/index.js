@@ -19,6 +19,10 @@ const specialDelivery = require('./specialDelivery');
 const soHighRightNow = require('./soHighRightNow');
 const iFeelTheNeed = require('./iFeelTheNeed');
 const speedIsLife = require('./speedIsLife');
+const defeated = require('./defeated');
+const wanted = require('./wanted');
+const heyManNiceShot = require('./heyManNiceShot');
+const slapshot = require('./slapshot');
 
 const ALL_ACHIEVEMENTS = [
   carrierQualified,
@@ -38,6 +42,10 @@ const ALL_ACHIEVEMENTS = [
   soHighRightNow,
   iFeelTheNeed,
   speedIsLife,
+  defeated,
+  wanted,
+  heyManNiceShot,
+  slapshot,
 ];
 
 module.exports = ALL_ACHIEVEMENTS;

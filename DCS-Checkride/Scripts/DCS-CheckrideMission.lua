@@ -41,6 +41,8 @@ CheckrideMission.ShotEventId = nil
 CheckrideMission.HitEventId = nil
 CheckrideMission.activeWeaponShots = CheckrideMission.activeWeaponShots or {}
 CheckrideMission.activeRefuelByPilot = CheckrideMission.activeRefuelByPilot or {}
+CheckrideMission.pendingKillsByObjectId = CheckrideMission.pendingKillsByObjectId or {}
+CheckrideMission.activeInboundMissiles = CheckrideMission.activeInboundMissiles or {}
 
 local function checkrideMissionInfo(message)
     if log and log.write then
@@ -187,6 +189,16 @@ end
 local MPS_TO_KNOTS = 1.9438444924406
 local METERS_TO_FEET = 3.2808398950131
 local METERS_TO_NM = 0.00053995680345572
+
+local GUIDANCE_NAMES = {
+    [0]  = "NONE",
+    [4]  = "RADAR_ACTIVE",
+    [5]  = "RADAR_SEMI_ACTIVE",
+    [6]  = "RADAR_PASSIVE",
+    [7]  = "IR",
+    [8]  = "LASER",
+    [9]  = "TV",
+}
 
 local function isFiniteNumber(value)
     return type(value) == "number" and value == value and value > -math.huge and value < math.huge
@@ -378,12 +390,21 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
         unitType = typeName
     end
 
+    local unitCategory = nil
+    local okCat, catDesc = pcall(function() return unit:getDesc() end)
+    if okCat and catDesc then
+        if catDesc.category == Unit.Category.AIRPLANE then unitCategory = "AIRPLANE"
+        elseif catDesc.category == Unit.Category.HELICOPTER then unitCategory = "HELICOPTER"
+        end
+    end
+
     local message = {
         type = "flight_sample_enrichment",
         source = "mission",
         playerUcid = entry.playerUcid,
         playerName = entry.playerName,
         unitType = unitType,
+        unitCategory = unitCategory,
         speedKts = speedKts,
         speedMach = speedMach,
         altitudeFt = altitudeFt,
@@ -557,6 +578,35 @@ function CheckrideMission.sampleActiveWeaponsTick(_, now)
                     missionTime = now,
                 })
             end
+        end
+    end
+
+    -- Inbound missile expiry: if weapon ref is gone and no hit was recorded, the player evaded.
+    for weaponKey, track in pairs(CheckrideMission.activeInboundMissiles) do
+        local isValid = false
+        if track.weaponRef then
+            local okExist, exists = pcall(function() return track.weaponRef:isExist() end)
+            isValid = okExist and exists == true
+        end
+
+        local noDataSeconds = now - (track.lastDataAt or track.firedAt or now)
+
+        if not isValid or noDataSeconds > (cfg.staleDataSeconds or 30) then
+            CheckrideMission.sendEnrichmentEvent({
+                type              = "inbound_missile_miss",
+                source            = "mission",
+                playerUcid        = track.playerUcid,
+                playerName        = track.playerName,
+                weaponKey         = weaponKey,
+                weaponName        = track.weaponName,
+                weaponGuidance    = track.weaponGuidance,
+                initiatorRole     = track.initiatorRole,
+                initiatorObjectId = track.initiatorObjectId,
+                missionTime       = now,
+            })
+            CheckrideMission.activeInboundMissiles[weaponKey] = nil
+        else
+            track.lastDataAt = now
         end
     end
 
@@ -1010,6 +1060,37 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
     active.unitRef = entry.unit or active.unitRef
 end
 
+local function getRoleCoalition(target, initiatorCoalition)
+    local okDesc, desc = pcall(function() return target:getDesc() end)
+    if not okDesc or not desc then return nil end
+    local attrs = desc.attributes or {}
+
+    local role = nil
+    if attrs["SAM SR"] or attrs["SAM TR"] or attrs["SAM launcher"] then role = "sam"
+    elseif attrs["Armour"] or attrs["Tanks"] or attrs["IFV"] or attrs["APC"] then role = "armour"
+    elseif attrs["AAA"] then role = "aaa"
+    elseif attrs["Artillery"] then role = "artillery"
+    elseif attrs["MLRS"] then role = "mlrs"
+    elseif attrs["Infantry"] then role = "infantry"
+    end
+    if not role then return nil end
+
+    local targetCoal = nil
+    pcall(function() targetCoal = target:getCoalition() end)
+
+    local neutralSide = coalition and coalition.side and coalition.side.NEUTRAL or 0
+    local coalLabel = "neutral"
+    if initiatorCoalition and targetCoal then
+        if targetCoal ~= initiatorCoalition and targetCoal ~= neutralSide then
+            coalLabel = "enemy"
+        elseif targetCoal == initiatorCoalition then
+            coalLabel = "friendly"
+        end
+    end
+
+    return role .. "_" .. coalLabel
+end
+
 local function classifyWeaponClass(weapon)
     if not weapon then
         return "unknown"
@@ -1174,10 +1255,12 @@ function CheckrideMission.ensureWorldHandler()
     end
 
     CheckrideMission.LandingQualityEventId = world.event.S_EVENT_LANDING_QUALITY_MARK
-    CheckrideMission.TakeoffEventId = world.event.S_EVENT_TAKEOFF
-    CheckrideMission.KillEventId = world.event.S_EVENT_KILL
-    CheckrideMission.ShotEventId = world.event.S_EVENT_SHOT
-    CheckrideMission.HitEventId = world.event.S_EVENT_HIT
+    CheckrideMission.TakeoffEventId        = world.event.S_EVENT_TAKEOFF
+    CheckrideMission.KillEventId           = world.event.S_EVENT_KILL
+    CheckrideMission.ShotEventId           = world.event.S_EVENT_SHOT
+    CheckrideMission.HitEventId            = world.event.S_EVENT_HIT
+    CheckrideMission.ShootingStartEventId  = world.event.S_EVENT_SHOOTING_START
+    CheckrideMission.ShootingEndEventId    = world.event.S_EVENT_SHOOTING_END
 
     -- Remove any previously registered handler before re-registering.
     -- If world identity changed (mission reload), the old handler object may still
@@ -1229,6 +1312,44 @@ function CheckrideMission.EventHandler:onEvent(event)
     if CheckrideMission.HitEventId and event.id == CheckrideMission.HitEventId then
         CheckrideMission.onHit(event)
     end
+
+    if CheckrideMission.ShootingStartEventId and event.id == CheckrideMission.ShootingStartEventId then
+        CheckrideMission.onShootingStart(event)
+    end
+
+    if CheckrideMission.ShootingEndEventId and event.id == CheckrideMission.ShootingEndEventId then
+        CheckrideMission.onShootingEnd(event)
+    end
+end
+
+function CheckrideMission.onShootingStart(event)
+    local initiator = event.initiator
+    if not initiator then return end
+    local playerName, _, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end
+    CheckrideMission.sendEnrichmentEvent({
+        type       = "gun_burst_start",
+        source     = "mission",
+        playerUcid = ucid,
+        playerName = playerName,
+        startAtMs  = event.time,
+        missionTime = event.time,
+    })
+end
+
+function CheckrideMission.onShootingEnd(event)
+    local initiator = event.initiator
+    if not initiator then return end
+    local playerName, _, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end
+    CheckrideMission.sendEnrichmentEvent({
+        type       = "gun_burst_end",
+        source     = "mission",
+        playerUcid = ucid,
+        playerName = playerName,
+        endAtMs    = event.time,
+        missionTime = event.time,
+    })
 end
 
 function CheckrideMission.onShot(event)
@@ -1237,7 +1358,77 @@ function CheckrideMission.onShot(event)
     if not initiator or not weapon then return end
 
     local playerName, _, ucid = CheckrideMission.getPlayerInfo(initiator)
-    if not playerName then return end
+
+    if not playerName then
+        -- AI initiator: track guided missiles targeting a player
+        local target = event.target
+        if not target then return end
+
+        local targetPlayerName = nil
+        local okTName, tName = pcall(function() return target:getPlayerName() end)
+        if okTName and tName and tName ~= "" then targetPlayerName = tName end
+        if not targetPlayerName then return end
+
+        local okWDesc, wDesc = pcall(function() return weapon:getDesc() end)
+        if not okWDesc or not wDesc then return end
+        local guidance = wDesc.guidance
+        if not guidance or guidance == 0 then return end  -- unguided, skip
+
+        local role = nil
+        local okIDesc, iDesc = pcall(function() return initiator:getDesc() end)
+        if okIDesc and iDesc then
+            local attrs = iDesc.attributes or {}
+            if attrs["SAM SR"] or attrs["SAM TR"] or attrs["SAM launcher"] then role = "SAM"
+            elseif attrs["AAA"] then role = "AAA"
+            elseif attrs["Fighters"] or attrs["Multirole fighters"] or attrs["Bombers"] then role = "FIGHTER"
+            elseif attrs["Helicopters"] then role = "HELICOPTER"
+            elseif iDesc.category == Unit.Category.AIRPLANE then role = "FIGHTER"
+            elseif iDesc.category == Unit.Category.HELICOPTER then role = "HELICOPTER"
+            end
+        end
+        if not role then return end
+
+        local targetUcid = CheckrideLookupUCID and CheckrideLookupUCID(targetPlayerName) or nil
+        local weaponKey = getWeaponKey(weapon)
+        local weaponObjectId = getObjectId(weapon)
+        local weaponName = getWeaponTypeName(weapon)
+        local initiatorObjectId = getObjectId(initiator)
+        local weaponGuidance = GUIDANCE_NAMES[guidance] or tostring(guidance)
+
+        if not weaponKey then
+            weaponKey = "inbound:" .. tostring(targetUcid or targetPlayerName) .. ":" ..
+                        tostring(weaponObjectId or weaponName or "missile") .. ":" .. tostring(event.time or 0)
+        end
+
+        CheckrideMission.activeInboundMissiles[weaponKey] = {
+            weaponKey         = weaponKey,
+            weaponObjectId    = weaponObjectId,
+            weaponName        = weaponName,
+            weaponGuidance    = weaponGuidance,
+            initiatorRole     = role,
+            initiatorObjectId = initiatorObjectId,
+            playerUcid        = targetUcid,
+            playerName        = targetPlayerName,
+            firedAt           = event.time,
+            lastDataAt        = event.time,
+            weaponRef         = weapon,
+        }
+
+        CheckrideMission.sendEnrichmentEvent({
+            type              = "inbound_missile",
+            source            = "mission",
+            playerUcid        = targetUcid,
+            playerName        = targetPlayerName,
+            weaponKey         = weaponKey,
+            weaponName        = weaponName,
+            weaponGuidance    = weaponGuidance,
+            initiatorRole     = role,
+            initiatorObjectId = initiatorObjectId,
+            launchedAtMs      = event.time,
+            missionTime       = event.time,
+        })
+        return
+    end
 
     local weaponKey = getWeaponKey(weapon)
     local weaponName = getWeaponTypeName(weapon)
@@ -1282,6 +1473,12 @@ function CheckrideMission.onShot(event)
         lastDataAt = event.time,
     }
 
+    local weaponGuidance = nil
+    local okWDesc, wDesc = pcall(function() return weapon:getDesc() end)
+    if okWDesc and wDesc then
+        weaponGuidance = GUIDANCE_NAMES[wDesc.guidance] or (wDesc.guidance and tostring(wDesc.guidance)) or nil
+    end
+
     local message = {
         type = "shot_enrichment",
         source = "mission",
@@ -1291,6 +1488,7 @@ function CheckrideMission.onShot(event)
         weaponClass = weaponClass,
         weaponName = weaponName,
         weaponDisplayName = weaponDisplayName,
+        weaponGuidance = weaponGuidance,
         weaponObjectId = weaponObjectId,
         targetObjectId = targetObjectId,
         inFlight = true,
@@ -1321,77 +1519,172 @@ end
 
 function CheckrideMission.onHit(event)
     local initiator = event.initiator
+    local weapon    = event.weapon
+    local target    = event.target
+
+    -- ── Path A: player is the TARGET (inbound missile hit) ────────────────────
+    if target then
+        local targetPlayerName = nil
+        local okTName, tName = pcall(function() return target:getPlayerName() end)
+        if okTName and tName and tName ~= "" then targetPlayerName = tName end
+
+        if targetPlayerName then
+            local targetUcid = CheckrideLookupUCID and CheckrideLookupUCID(targetPlayerName) or nil
+            local inboundKey = getWeaponKey(weapon)
+            local inboundObjectId = getObjectId(weapon)
+
+            if inboundKey and CheckrideMission.activeInboundMissiles[inboundKey] then
+                -- found by weaponKey
+            elseif inboundObjectId then
+                inboundKey = nil
+                for k, v in pairs(CheckrideMission.activeInboundMissiles) do
+                    if v.weaponObjectId == inboundObjectId then inboundKey = k; break end
+                end
+            else
+                inboundKey = nil
+            end
+
+            if inboundKey then
+                local track = CheckrideMission.activeInboundMissiles[inboundKey]
+                CheckrideMission.sendEnrichmentEvent({
+                    type              = "inbound_missile_hit",
+                    source            = "mission",
+                    playerUcid        = targetUcid or track.playerUcid,
+                    playerName        = targetPlayerName,
+                    weaponKey         = inboundKey,
+                    weaponGuidance    = track.weaponGuidance,
+                    initiatorRole     = track.initiatorRole,
+                    initiatorObjectId = track.initiatorObjectId,
+                    missionTime       = event.time,
+                })
+                CheckrideMission.activeInboundMissiles[inboundKey] = nil
+            end
+        end
+    end
+
+    -- ── Path B: player is the INITIATOR (outbound weapon tracking) ────────────
     if not initiator then return end
 
     local playerName, _, ucid = CheckrideMission.getPlayerInfo(initiator)
     if not playerName then return end
 
-    local target = event.target
-    local weapon = event.weapon
-    local weaponKey = getWeaponKey(weapon)
+    local weaponKey      = getWeaponKey(weapon)
     local weaponObjectId = getObjectId(weapon)
     local targetObjectId = getObjectId(target)
 
-    local matchingShots = findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId)
+    -- Lethal / non-lethal fork on the target
+    if target then
+        local life = nil
+        local okLife, lifeVal = pcall(function() return target:getLife() end)
+        if okLife and type(lifeVal) == "number" then life = lifeVal end
 
-    if #matchingShots == 0 then
-        return
+        if life and life <= 1.0 then
+            -- ── Lethal hit: capture victim data while the object still exists ─
+            local victimRoles = {}
+            local okVDesc, vDesc = pcall(function() return target:getDesc() end)
+            if okVDesc and vDesc and type(vDesc.attributes) == "table" then
+                local wantedRoles = {
+                    "SAM SR","SAM TR","SAM launcher",
+                    "Armour","Tanks","IFV","APC",
+                    "AAA","Artillery","MLRS","Infantry",
+                }
+                for _, r in ipairs(wantedRoles) do
+                    if vDesc.attributes[r] then victimRoles[#victimRoles + 1] = r end
+                end
+            end
+
+            local weaponGuidance = nil
+            if weapon then
+                local okWDesc2, wDesc2 = pcall(function() return weapon:getDesc() end)
+                if okWDesc2 and wDesc2 then
+                    weaponGuidance = GUIDANCE_NAMES[wDesc2.guidance] or
+                                     (wDesc2.guidance and tostring(wDesc2.guidance)) or nil
+                end
+            end
+
+            local victimPoint = getObjectPoint(target)
+            local victimTypeName = nil
+            local okTType, tType = pcall(function() return target:getTypeName() end)
+            if okTType and tType and tType ~= "" then victimTypeName = tType end
+
+            if targetObjectId then
+                CheckrideMission.pendingKillsByObjectId[targetObjectId] = {
+                    killedAtMs      = event.time,
+                    victimRoles     = victimRoles,
+                    weaponGuidance  = weaponGuidance,
+                    victimPositionX = victimPoint and victimPoint.x or nil,
+                    victimPositionY = victimPoint and victimPoint.z or nil,
+                    night           = CheckrideMission.isNight(event.time),
+                    victimTypeName  = victimTypeName,
+                }
+            end
+            -- No event emitted here — onKill completes and emits kill_enrichment.
+
+        elseif life and life > 1.0 then
+            -- ── Non-lethal hit: emit lightweight hit counter ──────────────────
+            local killerCoal = nil
+            pcall(function() killerCoal = initiator:getCoalition() end)
+            local roleCoalition = getRoleCoalition(target, killerCoal)
+            if roleCoalition then
+                CheckrideMission.sendEnrichmentEvent({
+                    type         = "hit_enrichment",
+                    source       = "mission",
+                    playerUcid   = ucid,
+                    playerName   = playerName,
+                    roleCoalition = roleCoalition,
+                    missionTime  = event.time,
+                })
+            end
+        end
     end
+
+    -- ── Outbound weapon tracking hit (distanceNm, height delta) ───────────────
+    local matchingShots = findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId)
+    if #matchingShots == 0 then return end
 
     local shotState = pickPreferredWeaponCandidate(matchingShots, weaponKey, weaponObjectId)
-    if not shotState then
-        return
-    end
+    if not shotState then return end
 
     if isAirToAirMissileClass(shotState.weaponClass) then
-        if target and not isAirTarget(target) then
-            return
-        end
+        if target and not isAirTarget(target) then return end
     end
 
     weaponKey = shotState.weaponKey
 
     local hitPoint = getObjectPoint(target) or getObjectPoint(weapon)
-    if not hitPoint then
-        return
-    end
+    if not hitPoint then return end
 
-    local distanceNm = nil
+    local distanceNm    = nil
     local heightDeltaFt = nil
-    if shotState then
-        local dx = hitPoint.x - shotState.startX
-        local dy = hitPoint.z - shotState.startY
-        local distanceMeters = math.sqrt((dx * dx) + (dy * dy))
-        distanceNm = distanceMeters * METERS_TO_NM
-        heightDeltaFt = (hitPoint.y - shotState.startAlt) * METERS_TO_FEET
-    end
-
-    local message = {
-        type = "hit_enrichment",
-        source = "mission",
-        playerUcid = ucid,
-        playerName = playerName,
-        weaponKey = weaponKey,
-        weaponClass = shotState.weaponClass,
-        weaponName = (shotState and shotState.weaponName) or getWeaponTypeName(weapon),
-        weaponDisplayName = (shotState and shotState.weaponDisplayName) or getWeaponDisplayName(weapon),
-        weaponObjectId = weaponObjectId,
-        targetObjectId = targetObjectId,
-        inFlight = false,
-        status = "hit",
-        hitX = hitPoint.x,
-        hitY = hitPoint.z,
-        hitAlt = hitPoint.y,
-        distanceNm = distanceNm,
-        heightDeltaFt = heightDeltaFt,
-        missionTime = event.time,
-    }
+    local dx = hitPoint.x - shotState.startX
+    local dy = hitPoint.z - shotState.startY
+    distanceNm    = math.sqrt((dx * dx) + (dy * dy)) * METERS_TO_NM
+    heightDeltaFt = (hitPoint.y - shotState.startAlt) * METERS_TO_FEET
 
     if weaponKey then
         CheckrideMission.activeWeaponShots[weaponKey] = nil
     end
 
-    CheckrideMission.sendEnrichmentEvent(message)
+    CheckrideMission.sendEnrichmentEvent({
+        type             = "hit_enrichment",
+        source           = "mission",
+        playerUcid       = ucid,
+        playerName       = playerName,
+        weaponKey        = weaponKey,
+        weaponClass      = shotState.weaponClass,
+        weaponName       = shotState.weaponName or getWeaponTypeName(weapon),
+        weaponDisplayName = shotState.weaponDisplayName or getWeaponDisplayName(weapon),
+        weaponObjectId   = weaponObjectId,
+        targetObjectId   = targetObjectId,
+        inFlight         = false,
+        status           = "hit",
+        hitX             = hitPoint.x,
+        hitY             = hitPoint.z,
+        hitAlt           = hitPoint.y,
+        distanceNm       = distanceNm,
+        heightDeltaFt    = heightDeltaFt,
+        missionTime      = event.time,
+    })
 end
 
 function CheckrideMission.onLandingQualityMark(event)
@@ -1521,47 +1814,70 @@ function CheckrideMission.onKill(event)
     local target = event.target
     if not target then return end
 
-    -- Victim unit category
-    local victimCategory = nil
+    local victimObjectId = getObjectId(target)
+
+    -- Consume pending kill data captured in onHit (before target despawns)
+    local pending = nil
+    if victimObjectId then
+        pending = CheckrideMission.pendingKillsByObjectId[victimObjectId]
+        CheckrideMission.pendingKillsByObjectId[victimObjectId] = nil
+    end
+
+    -- Victim unit category — try live target first, fall back gracefully
+    local victimUnitCategory = "other"
     local okDesc, desc = pcall(function() return target:getDesc() end)
     if okDesc and desc then
-        victimCategory = desc.category
+        if desc.category == Unit.Category.AIRPLANE or desc.category == Unit.Category.HELICOPTER then
+            victimUnitCategory = "air"
+        elseif desc.category == Unit.Category.GROUND_UNIT then
+            victimUnitCategory = "ground"
+        elseif desc.category == Unit.Category.SHIP then
+            victimUnitCategory = "ship"
+        end
     end
 
-    local victimUnitCategory = "other"
-    if victimCategory == Unit.Category.AIRPLANE or victimCategory == Unit.Category.HELICOPTER then
-        victimUnitCategory = "air"
-    elseif victimCategory == Unit.Category.GROUND_UNIT then
-        victimUnitCategory = "ground"
-    elseif victimCategory == Unit.Category.SHIP then
-        victimUnitCategory = "ship"
+    -- Killer airframe category
+    local killerUnitCategory = nil
+    local okKDesc, kDesc = pcall(function() return initiator:getDesc() end)
+    if okKDesc and kDesc then
+        if kDesc.category == Unit.Category.AIRPLANE then killerUnitCategory = "AIRPLANE"
+        elseif kDesc.category == Unit.Category.HELICOPTER then killerUnitCategory = "HELICOPTER"
+        end
     end
 
-    -- Coalition check (enemy = different, non-neutral)
+    -- Coalition check
     local killerCoal = nil
     local victimCoal = nil
     pcall(function() killerCoal = initiator:getCoalition() end)
-    pcall(function() victimCoal  = target:getCoalition()  end)
+    pcall(function() victimCoal = target:getCoalition() end)
     local isEnemy = killerCoal and victimCoal and
                     killerCoal ~= victimCoal and victimCoal ~= coalition.side.NEUTRAL
 
-    -- Distance from pilot's carrier
+    -- Distance from pilot's carrier — use pending position when target is already gone
     local carrierKey = ucid or playerName
     local carrier = CheckrideMission.pilotCarrierByUcid[carrierKey]
     local carrierDistanceNm = nil
 
     if carrier then
-        local carrierAlive = false
         local okAlive, alive = pcall(function() return carrier:isExist() end)
-        if okAlive then carrierAlive = alive end
+        if okAlive and alive then
+            local okCP, carrierPos = pcall(function() return carrier:getPoint() end)
+            local targetX, targetZ = nil, nil
 
-        if carrierAlive then
-            local okCarrierPos, carrierPos = pcall(function() return carrier:getPoint() end)
-            local okTargetPos,  targetPos  = pcall(function() return target:getPoint()  end)
+            if pending and pending.victimPositionX and pending.victimPositionY then
+                targetX = pending.victimPositionX
+                targetZ = pending.victimPositionY
+            else
+                local okTP, targetPos = pcall(function() return target:getPoint() end)
+                if okTP and targetPos then
+                    targetX = targetPos.x
+                    targetZ = targetPos.z
+                end
+            end
 
-            if okCarrierPos and carrierPos and okTargetPos and targetPos then
-                local dx = carrierPos.x - targetPos.x
-                local dz = carrierPos.z - targetPos.z
+            if okCP and carrierPos and targetX and targetZ then
+                local dx = carrierPos.x - targetX
+                local dz = carrierPos.z - targetZ
                 carrierDistanceNm = math.sqrt(dx * dx + dz * dz) / 1852.0
             end
         end
@@ -1572,26 +1888,25 @@ function CheckrideMission.onKill(event)
         source             = "mission",
         playerUcid         = ucid,
         playerName         = playerName,
+        victimObjectId     = victimObjectId,
         victimUnitCategory = victimUnitCategory,
         isEnemy            = isEnemy,
         carrierDistanceNm  = carrierDistanceNm,
+        killerUnitCategory = killerUnitCategory,
+        killedAtMs         = pending and pending.killedAtMs or event.time,
+        victimRoles        = pending and pending.victimRoles or nil,
+        weaponGuidance     = pending and pending.weaponGuidance or nil,
+        victimPositionX    = pending and pending.victimPositionX or nil,
+        victimPositionY    = pending and pending.victimPositionY or nil,
+        night              = pending and pending.night or nil,
+        victimTypeName     = pending and pending.victimTypeName or nil,
         missionTime        = event.time,
     }
 
     CheckrideMission.log(
-        "kill enrichment: player=" .. tostring(playerName or "unknown") ..
-        " victimCategory=" .. tostring(victimUnitCategory) ..
-        " isEnemy=" .. tostring(isEnemy) ..
-        " carrierRef=" .. tostring(carrier ~= nil) ..
-        " carrierName=" .. tostring(CheckrideMission.getCarrierName(carrier) or "unknown") ..
-        " carrierDistanceNm=" .. tostring(carrierDistanceNm)
-    )
-
-    CheckrideMission.log(
         playerName .. " kill: " .. victimUnitCategory ..
-        (carrierDistanceNm
-            and (" at " .. string.format("%.1f", carrierDistanceNm) .. "nm from carrier")
-            or  " (no carrier ref)")
+        (pending and " (enriched)" or " (no hit record)") ..
+        (carrierDistanceNm and (" at " .. string.format("%.1f", carrierDistanceNm) .. "nm from carrier") or "")
     )
 
     CheckrideMission.sendEnrichmentEvent(message)

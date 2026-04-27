@@ -5,6 +5,10 @@ contextBridge.exposeInMainWorld('settings', {
   save: (data) => ipcRenderer.invoke('settings:save', data),
 });
 
+contextBridge.exposeInMainWorld('telemetry', {
+  getSnapshot: () => ipcRenderer.invoke('telemetry:snapshot'),
+});
+
 window.addEventListener('DOMContentLoaded', () => {
   const replaceText = (selector, text) => {
     const element = document.getElementById(selector);

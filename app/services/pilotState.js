@@ -179,8 +179,25 @@ class PilotState {
     this.currentRadarAltitudeFt = typeof altRadarFt === 'number' && Number.isFinite(altRadarFt)
       ? altRadarFt
       : this.currentRadarAltitudeFt;
-    this.currentPositionX = typeof positionX === 'number' && Number.isFinite(positionX) ? positionX : this.currentPositionX;
-    this.currentPositionY = typeof positionY === 'number' && Number.isFinite(positionY) ? positionY : this.currentPositionY;
+    const newPosX = typeof positionX === 'number' && Number.isFinite(positionX) ? positionX : null;
+    const newPosY = typeof positionY === 'number' && Number.isFinite(positionY) ? positionY : null;
+    const radarAltForNoe = typeof altRadarFt === 'number' && Number.isFinite(altRadarFt) ? altRadarFt : null;
+    const inAirForNoe = typeof inAir === 'boolean' ? inAir : this.inAir;
+    if (inAirForNoe && newPosX !== null && newPosY !== null
+        && this.currentPositionX !== null && this.currentPositionY !== null) {
+      const dx = newPosX - this.currentPositionX;
+      const dy = newPosY - this.currentPositionY;
+      const distKm = Math.sqrt(dx * dx + dy * dy) / 1000;
+      if (distKm < 5) {
+        this.sortieDistanceKm += distKm;
+        if (radarAltForNoe !== null && radarAltForNoe <= 50) {
+          this.noeDistanceKm += distKm;
+        }
+      }
+    }
+
+    this.currentPositionX = newPosX !== null ? newPosX : this.currentPositionX;
+    this.currentPositionY = newPosY !== null ? newPosY : this.currentPositionY;
     this.currentFuelState = typeof currentFuelState === 'number' && Number.isFinite(currentFuelState)
       ? currentFuelState
       : this.currentFuelState;
@@ -195,6 +212,7 @@ class PilotState {
     if (Array.isArray(ammoPayload)) {
       this.currentPayload = ammoPayload;
     }
+
   }
 
   applyShotEnrichment(event = {}) {
@@ -539,6 +557,9 @@ applyGunBurstStart(event) {
     this.hitCounters = {};
     this.gunBurstStartAtMs = null;
     this.longestGunBurstSeconds = 0;
+
+    this.sortieDistanceKm = 0;
+    this.noeDistanceKm = 0;
   }
 
   _computeMissileDistanceNm(missile) {

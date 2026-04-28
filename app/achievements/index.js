@@ -27,6 +27,10 @@ const winchester = require('./winchester');
 const tankKiller = require('./tankKiller');
 const doubleKill = require('./doubleKill');
 const avenger = require('./avenger');
+const gunship = require('./gunship');
+const deathFromBelow = require('./deathFromBelow');
+const napOfTheEarth = require('./napOfTheEarth');
+const fiveHundredMiles = require('./fiveHundredMiles');
 
 const ALL_ACHIEVEMENTS = [
   carrierQualified,
@@ -54,6 +58,10 @@ const ALL_ACHIEVEMENTS = [
   tankKiller,
   doubleKill,
   avenger,
+  gunship,
+  deathFromBelow,
+  napOfTheEarth,
+  fiveHundredMiles,
 ];
 
 module.exports = ALL_ACHIEVEMENTS;

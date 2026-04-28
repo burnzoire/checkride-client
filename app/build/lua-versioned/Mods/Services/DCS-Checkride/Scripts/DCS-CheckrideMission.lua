@@ -6,7 +6,7 @@
 -- Queues encoded events for retrieval via net.dostring_in from GameGUI/hook.
 -- ============================================================================
 CheckrideMission = {}
-CheckrideMission.clientVersion = "__CHECKRIDE_CLIENT_VERSION__"
+CheckrideMission.clientVersion = "1.1.6"
 CheckrideMission.version = CheckrideMission.clientVersion
 CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 

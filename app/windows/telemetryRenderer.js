@@ -38,13 +38,22 @@
     return `<div class="kv-key">${key}</div><div class="kv-value"${valClass}>${value}</div>`;
   }
 
+  const AMMO_CATEGORY = { 0: 'Gun', 1: 'Missile', 2: 'Rocket', 3: 'Bomb' };
+
+  function aircraftStatusLabel(t) {
+    const s = t.aircraftStatus;
+    if (s === 'dead') return { label: 'Dead', cls: 'danger' };
+    if (s === 'airborne' || t.inAir) return { label: 'Airborne', cls: 'ok' };
+    return { label: 'Ground', cls: '' };
+  }
+
   function renderTelemetry(t) {
-    const inAirCls = t.inAir ? 'ok' : '';
+    const { label: statusText, cls: statusCls } = aircraftStatusLabel(t);
     return `
       <div class="state-section">
         <div class="section-title">Flight Telemetry</div>
         <div class="kv-grid">
-          ${kvRow('Status', t.inAir ? 'Airborne' : 'On Ground', t.inAir ? 'ok' : '')}
+          ${kvRow('Status', statusText, statusCls)}
           ${kvRow('Location', fmt(t.takeoffLocation ?? (t.takeoffFromCarrier ? 'Carrier' : null)))}
           ${kvRow('Speed', t.speedKts !== null && t.speedKts !== undefined ? `${fmt(t.speedKts, 0)} kts / M${fmt(t.speedMach, 2)}` : '—')}
           ${kvRow('Altitude (baro)', t.altBaroFt !== null && t.altBaroFt !== undefined ? `${fmt(t.altBaroFt, 0)} ft` : '—')}
@@ -52,6 +61,76 @@
           ${kvRow('Fuel', fmtPct(t.currentFuelState))}
         </div>
       </div>`;
+  }
+
+  function renderPayload(t) {
+    const payload = t.payload;
+    if (!Array.isArray(payload) || payload.length === 0) return '';
+    const rows = payload.map(item => {
+      const name = escapeHtml(item.displayName || item.typeName || 'Unknown');
+      const cat = AMMO_CATEGORY[item.category] ?? '';
+      return `<tr><td>${name}</td><td style="color:#7a8394;font-size:11px">${cat}</td><td style="text-align:right">${item.count}</td></tr>`;
+    }).join('');
+    return `
+      <div class="state-section">
+        <div class="section-title">Payload</div>
+        <table class="kills-table">
+          <thead><tr><th>Weapon</th><th>Type</th><th style="text-align:right">Qty</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function renderMissiles(s) {
+    const outbound = (s.missiles || []).filter(m => m.inFlight);
+    const inbound = (s.inboundMissiles || []).filter(m => m.inFlight);
+    const recentInbound = (s.inboundMissiles || []).filter(m => !m.inFlight);
+
+    if (outbound.length === 0 && inbound.length === 0 && recentInbound.length === 0) return '';
+
+    let html = `<div class="state-section"><div class="section-title">Missiles</div>`;
+
+    if (inbound.length > 0) {
+      const rows = inbound.map(m => `
+        <tr>
+          <td><span class="badge badge-other" style="background:#3a1a1a;color:#e07b6b">INBOUND</span></td>
+          <td>${escapeHtml(m.weaponName || '?')}</td>
+          <td style="color:#7a8394">${escapeHtml(m.weaponGuidance || '—')}</td>
+        </tr>`).join('');
+      html += `<table class="kills-table" style="margin-bottom:8px">
+        <thead><tr><th></th><th>Weapon</th><th>Guidance</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+    }
+
+    if (recentInbound.length > 0) {
+      const rows = recentInbound.map(m => {
+        const statusLabel = m.status === 'hit' ? 'HIT' : 'EVADED';
+        const statusColor = m.status === 'hit' ? '#e07b6b' : '#3a8f5c';
+        return `<tr>
+          <td><span class="badge" style="background:#1e2230;color:${statusColor}">${statusLabel}</span></td>
+          <td>${escapeHtml(m.weaponName || '?')}</td>
+          <td style="color:#7a8394">${escapeHtml(m.weaponGuidance || '—')}</td>
+        </tr>`;
+      }).join('');
+      html += `<table class="kills-table" style="margin-bottom:8px">
+        ${inbound.length === 0 ? `<thead><tr><th></th><th>Weapon</th><th>Guidance</th></tr></thead>` : ''}
+        <tbody>${rows}</tbody></table>`;
+    }
+
+    if (outbound.length > 0) {
+      const rows = outbound.map(m => `
+        <tr>
+          <td><span class="badge badge-air">OUT</span></td>
+          <td>${escapeHtml(m.weaponDisplayName || m.weaponName || '?')}</td>
+          <td style="color:#7a8394">${m.speedMach ? 'M' + fmt(m.speedMach, 2) : '—'}</td>
+        </tr>`).join('');
+      html += `<table class="kills-table">
+        <thead><tr><th></th><th>Weapon</th><th>Speed</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+    }
+
+    html += `</div>`;
+    return html;
   }
 
   function renderCombat(s) {
@@ -132,6 +211,8 @@
         <div style="font-size:11px;color:#4d5464;margin-top:2px">${pilot.ucid}</div>
       </div>
       ${renderTelemetry(telemetry)}
+      ${renderPayload(telemetry)}
+      ${renderMissiles(state)}
       ${renderCombat(state)}
       ${renderSession(state)}
       ${renderRefuel(state)}
@@ -147,9 +228,10 @@
 
     pilotListEl.innerHTML = pilotList.map(p => {
       const isSelected = p.ucid === selected;
+      const aircraftStatus = p.state?.telemetry?.aircraftStatus;
       const inAir = p.state?.telemetry?.inAir;
-      const statusLabel = inAir ? 'Airborne' : 'On Ground';
-      const statusClass = inAir ? 'in-air' : '';
+      const statusLabel = aircraftStatus === 'dead' ? 'Dead' : (inAir ? 'Airborne' : 'On Ground');
+      const statusClass = aircraftStatus === 'dead' ? 'dead' : (inAir ? 'in-air' : '');
       return `<div class="pilot-item ${isSelected ? 'selected' : ''}" data-ucid="${p.ucid}">
         <div class="pilot-name">${escapeHtml(p.name)}</div>
         <div class="pilot-status ${statusClass}">${statusLabel}</div>

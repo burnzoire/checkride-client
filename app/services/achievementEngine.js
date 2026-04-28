@@ -157,6 +157,7 @@ class AchievementEngine {
     return {
       telemetry: {
         inAir: state.inAir,
+        aircraftStatus: state.aircraftStatus,
         takeoffLocation: state.takeoffLocation,
         takeoffFromCarrier: state.launchedFromCarrier,
         speedKts: state.currentSpeedKts,
@@ -166,6 +167,7 @@ class AchievementEngine {
         altRadarFt: state.currentRadarAltitudeFt,
         positionX: state.currentPositionX,
         positionY: state.currentPositionY,
+        payload: state.currentPayload,
       },
       state: {
         trapCount: state.trapCount,

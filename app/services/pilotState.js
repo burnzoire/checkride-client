@@ -40,6 +40,8 @@ class PilotState {
     this.passes = [];
     this.currentSlotId = null;
     this.inAir = false;
+    /** @type {'ground'|'airborne'|'dead'} */
+    this.aircraftStatus = 'ground';
 
     // ── Sortie state — reset on each takeoff or slot change ────────────────────
     this._resetSortieState();
@@ -92,6 +94,7 @@ class PilotState {
     this.takeoffLocation = event.takeoffLocation ?? null;
     this.lastTakeoffAtMs = this._parseMissionTimeMs(event) ?? this._parseOccurredAt(event);
     this.inAir = true;
+    this.aircraftStatus = 'airborne';
   }
 
   /**
@@ -180,8 +183,17 @@ class PilotState {
     this.currentFuelState = typeof currentFuelState === 'number' && Number.isFinite(currentFuelState)
       ? currentFuelState
       : this.currentFuelState;
-    this.inAir = typeof inAir === 'boolean' ? inAir : this.inAir;
+    if (typeof inAir === 'boolean') {
+      this.inAir = inAir;
+      if (this.aircraftStatus !== 'dead') {
+        this.aircraftStatus = inAir ? 'airborne' : 'ground';
+      }
+    }
     if (event.unitCategory != null) this.currentUnitCategory = event.unitCategory;
+    const ammoPayload = event.ammoPayload ?? event.ammo_payload;
+    if (Array.isArray(ammoPayload)) {
+      this.currentPayload = ammoPayload;
+    }
   }
 
   applyShotEnrichment(event = {}) {
@@ -366,14 +378,18 @@ class PilotState {
       this.launchedFromCarrier = false;
     }
     this.inAir = true;
+    this.aircraftStatus = 'airborne';
   }
 
   applyLanding() {
     this.inAir = false;
+    this.aircraftStatus = 'ground';
   }
 
-  applyPilotDown() {
+  applyPilotDown(event) {
     this.inAir = false;
+    const deathTypes = ['crash', 'eject', 'pilot_death', 'self_kill'];
+    this.aircraftStatus = (event?.type && deathTypes.includes(event.type)) ? 'dead' : 'ground';
   }
 
   applyChangeSlot(event = {}) {
@@ -388,9 +404,11 @@ class PilotState {
 
     this._resetSortieState();
     this.currentSlotId = nextSlotId;
+    this.aircraftStatus = 'ground';
 
     if (typeof inAir === 'boolean') {
       this.inAir = inAir;
+      this.aircraftStatus = inAir ? 'airborne' : 'ground';
       return;
     }
 
@@ -401,6 +419,7 @@ class PilotState {
 
     if (typeof flyable === 'boolean') {
       this.inAir = flyable;
+      this.aircraftStatus = flyable ? 'airborne' : 'ground';
       return;
     }
 
@@ -521,6 +540,7 @@ class PilotState {
     this.currentPositionX = null;
     this.currentPositionY = null;
     this.currentFuelState = null;
+    this.currentPayload = null;
 
     this.weapons = [];
     this.missiles = [];

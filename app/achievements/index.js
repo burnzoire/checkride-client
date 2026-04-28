@@ -23,6 +23,8 @@ const defeated = require('./defeated');
 const wanted = require('./wanted');
 const heyManNiceShot = require('./heyManNiceShot');
 const slapshot = require('./slapshot');
+const sureShot = require('./sureShot');
+const winchester = require('./winchester');
 
 const ALL_ACHIEVEMENTS = [
   carrierQualified,
@@ -46,6 +48,8 @@ const ALL_ACHIEVEMENTS = [
   wanted,
   heyManNiceShot,
   slapshot,
+  sureShot,
+  winchester,
 ];
 
 module.exports = ALL_ACHIEVEMENTS;

@@ -239,6 +239,9 @@ class PilotState {
     }
 
     this.weapons.push(weaponTrack);
+    if (weaponTrack.weaponClass === WEAPON_CLASS_AIR_TO_AIR_MISSILE) {
+      this.sortieAamFiredCount++;
+    }
     if (this.weapons.length > WEAPON_MAX_TRACKS) {
       this.weapons = this.weapons.slice(-WEAPON_MAX_TRACKS);
     }
@@ -537,6 +540,7 @@ class PilotState {
 
     this.weapons = [];
     this.missiles = [];
+    this.sortieAamFiredCount = 0;
     this.longestWeaponHit = 0;
     this.longestMissileHit = 0;
 

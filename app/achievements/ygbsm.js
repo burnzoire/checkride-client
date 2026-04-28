@@ -1,10 +1,10 @@
 const Achievement = require('./achievement');
 
-class Wanted extends Achievement {
+class YGBSM extends Achievement {
   constructor() {
     super({
-      id: 'wanted',
-      name: 'Wanted',
+      id: 'ygbsm',
+      name: 'YGBSM',
       description: 'Become targeted by at least 5 missiles at the same time.',
       triggerType: 'inbound_missile',
     });
@@ -15,4 +15,4 @@ class Wanted extends Achievement {
   }
 }
 
-module.exports = new Wanted();
+module.exports = new YGBSM();

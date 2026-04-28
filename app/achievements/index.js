@@ -20,7 +20,7 @@ const soHighRightNow = require('./soHighRightNow');
 const iFeelTheNeed = require('./iFeelTheNeed');
 const speedIsLife = require('./speedIsLife');
 const defeated = require('./defeated');
-const wanted = require('./wanted');
+const ygbsm = require('./ygbsm');
 const heyManNiceShot = require('./heyManNiceShot');
 const slapshot = require('./slapshot');
 const sureShot = require('./sureShot');
@@ -47,7 +47,7 @@ const ALL_ACHIEVEMENTS = [
   iFeelTheNeed,
   speedIsLife,
   defeated,
-  wanted,
+  ygbsm,
   heyManNiceShot,
   slapshot,
   sureShot,

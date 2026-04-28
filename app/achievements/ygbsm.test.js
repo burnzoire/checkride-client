@@ -1,4 +1,4 @@
-const wanted = require('./wanted');
+const ygbsm = require('./ygbsm');
 const PilotState = require('../services/pilotState');
 
 function inboundEvent(weaponKey = 'w1') {
@@ -26,30 +26,30 @@ function stateWithInbound(count, inFlight = true) {
   return state;
 }
 
-describe('Wanted — metadata', () => {
-  it('has id wanted', () => {
-    expect(wanted.id).toBe('wanted');
+describe('YGBSM — metadata', () => {
+  it('has id ygbsm', () => {
+    expect(ygbsm.id).toBe('ygbsm');
   });
 
   it('has triggerType inbound_missile', () => {
-    expect(wanted.triggerType).toBe('inbound_missile');
+    expect(ygbsm.triggerType).toBe('inbound_missile');
   });
 });
 
-describe('Wanted — evaluate', () => {
+describe('YGBSM — evaluate', () => {
   it('returns true with exactly 5 in-flight inbound missiles', () => {
     const state = stateWithInbound(5);
-    expect(wanted.evaluate(inboundEvent(), state)).toBe(true);
+    expect(ygbsm.evaluate(inboundEvent(), state)).toBe(true);
   });
 
   it('returns true with more than 5 in-flight missiles', () => {
     const state = stateWithInbound(7);
-    expect(wanted.evaluate(inboundEvent(), state)).toBe(true);
+    expect(ygbsm.evaluate(inboundEvent(), state)).toBe(true);
   });
 
   it('returns false with only 4 in-flight missiles', () => {
     const state = stateWithInbound(4);
-    expect(wanted.evaluate(inboundEvent(), state)).toBe(false);
+    expect(ygbsm.evaluate(inboundEvent(), state)).toBe(false);
   });
 
   it('does not count evaded missiles toward the threshold', () => {
@@ -60,6 +60,6 @@ describe('Wanted — evaluate', () => {
     for (let i = 4; i < 8; i++) {
       state.inboundMissiles.push({ weaponKey: `w${i}`, inFlight: false, status: 'evaded', launchedAtMs: 100000, completedAtMs: 110000 });
     }
-    expect(wanted.evaluate(inboundEvent(), state)).toBe(false);
+    expect(ygbsm.evaluate(inboundEvent(), state)).toBe(false);
   });
 });

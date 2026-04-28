@@ -120,6 +120,7 @@ class PilotState {
       killerUnitCategory:  event.killerUnitCategory ?? null,
       victimTypeName:      event.victimTypeName ?? null,
       victimObjectId:      event.victimObjectId ?? null,
+      avengedFriendly:     event.avengedFriendly === true,
     });
   }
 
@@ -464,18 +465,7 @@ class PilotState {
     this._pruneInboundMissiles();
   }
 
-  applyInboundMissileMiss(event) {
-    const weaponKey = event.weaponKey ? String(event.weaponKey) : null;
-    if (!weaponKey) return;
-    const track = this.inboundMissiles.find(m => m.weaponKey === weaponKey && m.inFlight);
-    if (!track) return;
-    track.inFlight = false;
-    track.status = 'evaded';
-    track.completedAtMs = this._parseMissionTimeMs(event) ?? this._parseEventTimeMs(event);
-    this._pruneInboundMissiles();
-  }
-
-  applyGunBurstStart(event) {
+applyGunBurstStart(event) {
     this.gunBurstStartAtMs = event.startAtMs ?? this._parseMissionTimeMs(event);
   }
 

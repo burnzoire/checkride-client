@@ -622,18 +622,6 @@ function CheckrideMission.sampleActiveWeaponsTick(_, now)
         local noDataSeconds = now - (track.lastDataAt or track.firedAt or now)
 
         if not isValid or noDataSeconds > (cfg.staleDataSeconds or 30) then
-            CheckrideMission.sendEnrichmentEvent({
-                type              = "inbound_missile_miss",
-                source            = "mission",
-                playerUcid        = track.playerUcid,
-                playerName        = track.playerName,
-                weaponKey         = weaponKey,
-                weaponName        = track.weaponName,
-                weaponGuidance    = track.weaponGuidance,
-                initiatorRole     = track.initiatorRole,
-                initiatorObjectId = track.initiatorObjectId,
-                missionTime       = now,
-            })
             CheckrideMission.activeInboundMissiles[weaponKey] = nil
         else
             track.lastDataAt = now
@@ -1838,11 +1826,36 @@ function CheckrideMission.onKill(event)
     local initiator = event.initiator
     if not initiator then return end
 
-    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
-    if not playerName then return end -- AI kill, skip
-
     local target = event.target
     if not target then return end
+
+    -- Emit friendly_killed_enrichment whenever a player aircraft is destroyed,
+    -- regardless of whether the killer is a player or AI.
+    local victimPlayerName = nil
+    local okVPN, vpn = pcall(function() return target:getPlayerName() end)
+    if okVPN and vpn and vpn ~= "" then victimPlayerName = vpn end
+
+    if victimPlayerName then
+        local killerObjectId = getObjectId(initiator)
+        local killerTypeName = nil
+        local okKType, kType = pcall(function() return initiator:getTypeName() end)
+        if okKType and kType and kType ~= "" then killerTypeName = kType end
+
+        local victimPlayerUcid = CheckrideLookupUCID and CheckrideLookupUCID(victimPlayerName) or nil
+
+        CheckrideMission.sendEnrichmentEvent({
+            type             = "friendly_killed_enrichment",
+            source           = "mission",
+            killerObjectId   = killerObjectId,
+            killerTypeName   = killerTypeName,
+            victimPlayerName = victimPlayerName,
+            victimPlayerUcid = victimPlayerUcid,
+            missionTime      = event.time,
+        })
+    end
+
+    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end -- AI kill, skip rest
 
     local victimObjectId = getObjectId(target)
 

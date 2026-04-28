@@ -2,6 +2,8 @@ const log = require('electron-log');
 const PilotState = require('./pilotState');
 const ALL_ACHIEVEMENTS = require('../achievements');
 
+const AVENGER_TTL_MS = 5 * 60 * 1000;
+
 /**
  * AchievementEngine evaluates all active achievements on every relevant event.
  *
@@ -25,6 +27,8 @@ class AchievementEngine {
     this.unlockedByPilot = new Map();
     /** @type {Map<string, string>} */
     this.pilotNames = new Map();
+    /** @type {Map<string, number>} killerObjectId → wall-clock ms when they killed a friendly */
+    this.recentFriendlyKillers = new Map();
   }
 
   /**
@@ -71,6 +75,20 @@ class AchievementEngine {
    * @returns {Achievement[]}
    */
   evaluate(event) {
+    if (event.type === 'friendly_killed_enrichment') {
+      if (event.killerObjectId != null) {
+        this.recentFriendlyKillers.set(String(event.killerObjectId), Date.now());
+      }
+      return [];
+    }
+
+    if (event.type === 'kill_enrichment' && event.victimObjectId != null) {
+      const killedFriendlyAt = this.recentFriendlyKillers.get(String(event.victimObjectId));
+      if (killedFriendlyAt != null && (Date.now() - killedFriendlyAt) <= AVENGER_TTL_MS) {
+        event.avengedFriendly = true;
+      }
+    }
+
     const DISPATCH = {
       grading:             { ucidField: 'playerUcid', stateMethod: 'applyGrading' },
       takeoff:             { ucidField: 'playerUcid', stateMethod: 'applyTakeoff' },
@@ -90,7 +108,6 @@ class AchievementEngine {
       change_slot:              { ucidField: 'playerUcid', stateMethod: 'applyChangeSlot' },
       inbound_missile:          { ucidField: 'playerUcid', stateMethod: 'applyInboundMissile' },
       inbound_missile_hit:      { ucidField: 'playerUcid', stateMethod: 'applyInboundMissileHit' },
-      inbound_missile_miss:     { ucidField: 'playerUcid', stateMethod: 'applyInboundMissileMiss' },
       gun_burst_start:          { ucidField: 'playerUcid', stateMethod: 'applyGunBurstStart' },
       gun_burst_end:            { ucidField: 'playerUcid', stateMethod: 'applyGunBurstEnd' },
     };

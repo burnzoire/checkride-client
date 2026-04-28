@@ -19,7 +19,6 @@ const specialDelivery = require('./specialDelivery');
 const soHighRightNow = require('./soHighRightNow');
 const iFeelTheNeed = require('./iFeelTheNeed');
 const speedIsLife = require('./speedIsLife');
-const defeated = require('./defeated');
 const ygbsm = require('./ygbsm');
 const heyManNiceShot = require('./heyManNiceShot');
 const slapshot = require('./slapshot');
@@ -27,6 +26,7 @@ const sureShot = require('./sureShot');
 const winchester = require('./winchester');
 const tankKiller = require('./tankKiller');
 const doubleKill = require('./doubleKill');
+const avenger = require('./avenger');
 
 const ALL_ACHIEVEMENTS = [
   carrierQualified,
@@ -46,7 +46,6 @@ const ALL_ACHIEVEMENTS = [
   soHighRightNow,
   iFeelTheNeed,
   speedIsLife,
-  defeated,
   ygbsm,
   heyManNiceShot,
   slapshot,
@@ -54,6 +53,7 @@ const ALL_ACHIEVEMENTS = [
   winchester,
   tankKiller,
   doubleKill,
+  avenger,
 ];
 
 module.exports = ALL_ACHIEVEMENTS;

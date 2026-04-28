@@ -747,28 +747,9 @@ describe('PilotState — inbound missile tracking', () => {
     expect(state.inboundMissiles[0].inFlight).toBe(true);
   });
 
-  it('marks inbound missile as evaded on miss', () => {
-    state.applyInboundMissile({ weaponKey: 'inbound-2' });
-    state.applyInboundMissileMiss({ weaponKey: 'inbound-2' });
-    expect(state.inboundMissiles[0].status).toBe('evaded');
-    expect(state.inboundMissiles[0].inFlight).toBe(false);
-  });
-
-  it('returns early from inboundMissileMiss when weaponKey is missing', () => {
-    state.applyInboundMissile({ weaponKey: 'inbound-2', missionTime: 300 });
-    expect(() => state.applyInboundMissileMiss({})).not.toThrow();
-    expect(state.inboundMissiles[0].inFlight).toBe(true);
-  });
-
-  it('returns early from inboundMissileMiss when no matching track', () => {
-    state.applyInboundMissile({ weaponKey: 'inbound-2', missionTime: 300 });
-    state.applyInboundMissileMiss({ weaponKey: 'no-match', missionTime: 315 });
-    expect(state.inboundMissiles[0].inFlight).toBe(true);
-  });
-
   it('retains completed inbound missiles within TTL', () => {
     state.applyInboundMissile({ weaponKey: 'w1' });
-    state.applyInboundMissileMiss({ weaponKey: 'w1' });
+    state.applyInboundMissileHit({ weaponKey: 'w1' });
     state.applyInboundMissile({ weaponKey: 'w2' });
     expect(state.inboundMissiles).toHaveLength(2);
   });
@@ -776,7 +757,7 @@ describe('PilotState — inbound missile tracking', () => {
   it('prunes completed inbound missiles after TTL expires', () => {
     jest.useFakeTimers();
     state.applyInboundMissile({ weaponKey: 'old' });
-    state.applyInboundMissileMiss({ weaponKey: 'old' });
+    state.applyInboundMissileHit({ weaponKey: 'old' });
     jest.advanceTimersByTime(61000);
     state.applyInboundMissile({ weaponKey: 'new' });
     expect(state.inboundMissiles.find(m => m.weaponKey === 'old')).toBeUndefined();

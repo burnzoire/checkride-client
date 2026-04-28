@@ -327,9 +327,6 @@ class PilotState {
     }
 
     const weaponTrack = candidates[candidates.length - 1];
-    if (!weaponTrack) {
-      return;
-    }
 
     weaponTrack.inFlight = false;
     weaponTrack.status = event.status ?? 'hit';
@@ -509,10 +506,6 @@ class PilotState {
 
   _parseEventTimeMs(event) {
     return this._parseOccurredAt(event) ?? Date.now();
-  }
-
-  _normalizeFuelState(value) {
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
   }
 
   _normalizeFiniteNumber(value) {

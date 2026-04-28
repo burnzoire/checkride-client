@@ -506,3 +506,386 @@ describe('PilotState — sortie fields', () => {
     });
   });
 });
+
+// ─── applyKill — null/missing field branches ─────────────────────────────────
+
+describe('PilotState — applyKill null field branches', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('uses null when victimUnitCategory is not provided', () => {
+    state.applyKill({ carrierDistanceNm: 10 });
+    expect(state.kills[0].victimUnitCategory).toBeNull();
+  });
+
+  it('uses empty array when victimRoles is not an array', () => {
+    state.applyKill({ victimUnitCategory: 'air', victimRoles: null });
+    expect(state.kills[0].victimRoles).toEqual([]);
+  });
+
+  it('stores victimRoles array when provided', () => {
+    state.applyKill({ victimUnitCategory: 'ground', victimRoles: ['SAM SR', 'SAM launcher'] });
+    expect(state.kills[0].victimRoles).toEqual(['SAM SR', 'SAM launcher']);
+  });
+});
+
+// ─── applyFlightSampleEnrichment — dead status branch + unitCategory ────────
+
+describe('PilotState — applyFlightSampleEnrichment dead status', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('updates inAir but does not change aircraftStatus when status is dead', () => {
+    state.applyPilotDown({ type: 'crash' });
+    expect(state.aircraftStatus).toBe('dead');
+    state.applyFlightSampleEnrichment({ inAir: true });
+    expect(state.inAir).toBe(true);
+    expect(state.aircraftStatus).toBe('dead');
+  });
+
+  it('sets currentUnitCategory when unitCategory is provided', () => {
+    state.applyFlightSampleEnrichment({ unitCategory: 'AIRPLANE' });
+    expect(state.currentUnitCategory).toBe('AIRPLANE');
+  });
+});
+
+// ─── applyShotEnrichment — early return on missing weaponKey ─────────────────
+
+describe('PilotState — applyShotEnrichment early return', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('returns early and does not add a weapon when weaponKey is missing', () => {
+    state.applyShotEnrichment({ weaponName: 'AIM-120C' });
+    expect(state.weapons).toHaveLength(0);
+  });
+});
+
+// ─── applyFlightSampleEnrichment — highest tracking + payload ────────────────
+
+describe('PilotState — applyFlightSampleEnrichment highest tracking', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('tracks highestSpeedKts as a running max', () => {
+    state.applyFlightSampleEnrichment({ speedKts: 400 });
+    state.applyFlightSampleEnrichment({ speedKts: 600 });
+    state.applyFlightSampleEnrichment({ speedKts: 500 });
+    expect(state.highestSpeedKts).toBe(600);
+  });
+
+  it('tracks highestAltitudeFt as a running max', () => {
+    state.applyFlightSampleEnrichment({ altitudeFt: 20000 });
+    state.applyFlightSampleEnrichment({ altitudeFt: 45000 });
+    state.applyFlightSampleEnrichment({ altitudeFt: 30000 });
+    expect(state.highestAltitudeFt).toBe(45000);
+  });
+
+  it('sets currentPayload from ammoPayload array', () => {
+    const payload = [{ count: 4, typeName: 'AIM-120C', displayName: 'AMRAAM', category: 1 }];
+    state.applyFlightSampleEnrichment({ ammoPayload: payload });
+    expect(state.currentPayload).toEqual(payload);
+  });
+
+  it('does not set currentPayload when ammoPayload is not an array', () => {
+    state.applyFlightSampleEnrichment({ ammoPayload: null });
+    expect(state.currentPayload).toBeNull();
+  });
+});
+
+// ─── applyShotEnrichment — update existing + max tracks ─────────────────────
+
+describe('PilotState — applyShotEnrichment edge cases', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('updates existing in-flight weapon when weaponKey matches', () => {
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'AIM-120C', speedMach: 2.1 });
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'AIM-120C', speedMach: 2.5 });
+    expect(state.weapons).toHaveLength(1);
+    expect(state.weapons[0].speedMach).toBeCloseTo(2.5);
+  });
+
+  it('caps weapons array at 100 tracks', () => {
+    for (let i = 0; i < 101; i++) {
+      state.applyShotEnrichment({ weaponKey: `w${i}`, weaponName: 'GBU-12' });
+    }
+    expect(state.weapons.length).toBeLessThanOrEqual(100);
+  });
+});
+
+// ─── applyWeaponSampleEnrichment — fallback paths ───────────────────────────
+
+describe('PilotState — applyWeaponSampleEnrichment fallback paths', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('finds track by weaponObjectId when weaponKey lookup misses', () => {
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'AIM-54C', weaponObjectId: 999 });
+    state.applyWeaponSampleEnrichment({ weaponObjectId: 999, speedMach: 3.1, inFlight: true, status: 'in_flight' });
+    expect(state.weapons[0].speedMach).toBeCloseTo(3.1);
+  });
+
+  it('creates a new track from weapon sample when no prior track found', () => {
+    state.applyWeaponSampleEnrichment({ weaponKey: 'new-w', weaponName: 'AIM-120C', inFlight: true, status: 'in_flight' });
+    expect(state.weapons).toHaveLength(1);
+    expect(state.weapons[0].weaponKey).toBe('new-w');
+  });
+
+  it('returns early when no weaponKey and no matching track', () => {
+    state.applyWeaponSampleEnrichment({ weaponObjectId: 999 });
+    expect(state.weapons).toHaveLength(0);
+  });
+
+  it('sets completedAtMs when weapon sample status is expired', () => {
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'AIM-120C' });
+    state.applyWeaponSampleEnrichment({ weaponKey: 'w1', inFlight: false, status: 'expired' });
+    expect(Number.isFinite(state.weapons[0].completedAtMs)).toBe(true);
+  });
+
+  it('sets completedAtMs when weapon sample status is hit', () => {
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'AIM-120C' });
+    state.applyWeaponSampleEnrichment({ weaponKey: 'w1', inFlight: false, status: 'hit' });
+    expect(Number.isFinite(state.weapons[0].completedAtMs)).toBe(true);
+  });
+});
+
+// ─── applyHitEnrichment — hitCounters + fallback matching ───────────────────
+
+describe('PilotState — applyHitEnrichment edge cases', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('increments hitCounters by roleCoalition', () => {
+    state.applyHitEnrichment({ roleCoalition: 'sam_enemy' });
+    state.applyHitEnrichment({ roleCoalition: 'sam_enemy' });
+    state.applyHitEnrichment({ roleCoalition: 'armour_enemy' });
+    expect(state.hitCounters['sam_enemy']).toBe(2);
+    expect(state.hitCounters['armour_enemy']).toBe(1);
+  });
+
+  it('returns early when no candidates match', () => {
+    expect(() => state.applyHitEnrichment({})).not.toThrow();
+    expect(state.weapons).toHaveLength(0);
+  });
+
+  it('filters to non-AAM weapons when no identifiers are provided', () => {
+    state.applyShotEnrichment({ weaponKey: 'aam', weaponName: 'AIM-120C', targetObjectId: 1 });
+    state.applyShotEnrichment({ weaponKey: 'bomb', weaponName: 'GBU-12', targetObjectId: 2 });
+    state.applyHitEnrichment({ distanceNm: 5.0 });
+    expect(state.weapons.find(w => w.weaponKey === 'bomb').inFlight).toBe(false);
+    expect(state.weapons.find(w => w.weaponKey === 'aam').inFlight).toBe(true);
+  });
+
+  it('falls back to weaponObjectId lookup when primary candidates are empty', () => {
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'AIM-120C', weaponObjectId: 777, targetObjectId: 1 });
+    state.applyHitEnrichment({ weaponObjectId: 777, targetObjectId: 99, distanceNm: 10 });
+    expect(state.weapons[0].inFlight).toBe(false);
+    expect(state.weapons[0].distanceNm).toBeCloseTo(10);
+  });
+
+  it('returns null distanceNm when start coordinates are missing', () => {
+    state.applyShotEnrichment({ weaponKey: 'w-nopos', weaponName: 'AIM-120C' });
+    state.applyHitEnrichment({ weaponKey: 'w-nopos', hitX: 1000, hitY: 2000, hitAlt: 3000 });
+    expect(state.missiles[0].distanceNm).toBeNull();
+  });
+});
+
+// ─── applyChangeSlot — inAir field ──────────────────────────────────────────
+
+describe('PilotState — applyChangeSlot inAir field', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('sets inAir and aircraftStatus directly from inAir field, overriding flyable', () => {
+    state.applyChangeSlot({ inAir: true, flyable: false });
+    expect(state.inAir).toBe(true);
+    expect(state.aircraftStatus).toBe('airborne');
+  });
+
+  it('sets inAir false and aircraftStatus ground when inAir is false', () => {
+    state.applyChangeSlot({ inAir: false });
+    expect(state.inAir).toBe(false);
+    expect(state.aircraftStatus).toBe('ground');
+  });
+});
+
+// ─── inbound missile tracking ────────────────────────────────────────────────
+
+describe('PilotState — inbound missile tracking', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('tracks an inbound missile', () => {
+    state.applyInboundMissile({ weaponKey: 'inbound-1', weaponName: 'SA-6', weaponGuidance: 'RADAR_SEMI_ACTIVE', initiatorRole: 'SAM', missionTime: 200 });
+    expect(state.inboundMissiles).toHaveLength(1);
+    expect(state.inboundMissiles[0].inFlight).toBe(true);
+    expect(state.inboundMissiles[0].status).toBe('in_flight');
+  });
+
+  it('returns early when inboundMissile has no weaponKey', () => {
+    state.applyInboundMissile({});
+    expect(state.inboundMissiles).toHaveLength(0);
+  });
+
+  it('marks inbound missile as hit', () => {
+    state.applyInboundMissile({ weaponKey: 'inbound-1' });
+    state.applyInboundMissileHit({ weaponKey: 'inbound-1' });
+    expect(state.inboundMissiles[0].inFlight).toBe(false);
+    expect(state.inboundMissiles[0].status).toBe('hit');
+  });
+
+  it('returns early from inboundMissileHit when weaponKey is missing', () => {
+    state.applyInboundMissile({ weaponKey: 'inbound-1', missionTime: 200 });
+    expect(() => state.applyInboundMissileHit({})).not.toThrow();
+    expect(state.inboundMissiles[0].inFlight).toBe(true);
+  });
+
+  it('returns early from inboundMissileHit when no matching track', () => {
+    state.applyInboundMissile({ weaponKey: 'inbound-1', missionTime: 200 });
+    state.applyInboundMissileHit({ weaponKey: 'no-match', missionTime: 202 });
+    expect(state.inboundMissiles[0].inFlight).toBe(true);
+  });
+
+  it('marks inbound missile as evaded on miss', () => {
+    state.applyInboundMissile({ weaponKey: 'inbound-2' });
+    state.applyInboundMissileMiss({ weaponKey: 'inbound-2' });
+    expect(state.inboundMissiles[0].status).toBe('evaded');
+    expect(state.inboundMissiles[0].inFlight).toBe(false);
+  });
+
+  it('returns early from inboundMissileMiss when weaponKey is missing', () => {
+    state.applyInboundMissile({ weaponKey: 'inbound-2', missionTime: 300 });
+    expect(() => state.applyInboundMissileMiss({})).not.toThrow();
+    expect(state.inboundMissiles[0].inFlight).toBe(true);
+  });
+
+  it('returns early from inboundMissileMiss when no matching track', () => {
+    state.applyInboundMissile({ weaponKey: 'inbound-2', missionTime: 300 });
+    state.applyInboundMissileMiss({ weaponKey: 'no-match', missionTime: 315 });
+    expect(state.inboundMissiles[0].inFlight).toBe(true);
+  });
+
+  it('retains completed inbound missiles within TTL', () => {
+    state.applyInboundMissile({ weaponKey: 'w1' });
+    state.applyInboundMissileMiss({ weaponKey: 'w1' });
+    state.applyInboundMissile({ weaponKey: 'w2' });
+    expect(state.inboundMissiles).toHaveLength(2);
+  });
+
+  it('prunes completed inbound missiles after TTL expires', () => {
+    jest.useFakeTimers();
+    state.applyInboundMissile({ weaponKey: 'old' });
+    state.applyInboundMissileMiss({ weaponKey: 'old' });
+    jest.advanceTimersByTime(61000);
+    state.applyInboundMissile({ weaponKey: 'new' });
+    expect(state.inboundMissiles.find(m => m.weaponKey === 'old')).toBeUndefined();
+    expect(state.inboundMissiles.find(m => m.weaponKey === 'new')).toBeDefined();
+    jest.useRealTimers();
+  });
+
+  it('prunes completed inbound missiles with null completedAtMs', () => {
+    state.applyInboundMissile({ weaponKey: 'w1' });
+    state.inboundMissiles[0].inFlight = false;
+    state.inboundMissiles[0].completedAtMs = null;
+    state.applyInboundMissile({ weaponKey: 'w2' });
+    expect(state.inboundMissiles.find(m => m.weaponKey === 'w1')).toBeUndefined();
+  });
+});
+
+// ─── gun burst tracking ──────────────────────────────────────────────────────
+
+describe('PilotState — gun burst tracking', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('tracks gun burst duration', () => {
+    state.applyGunBurstStart({ startAtMs: 10000 });
+    state.applyGunBurstEnd({ endAtMs: 13500 });
+    expect(state.longestGunBurstSeconds).toBeCloseTo(3.5);
+    expect(state.gunBurstStartAtMs).toBeNull();
+  });
+
+  it('tracks longest gun burst across multiple bursts', () => {
+    state.applyGunBurstStart({ startAtMs: 1000 });
+    state.applyGunBurstEnd({ endAtMs: 3000 });
+    state.applyGunBurstStart({ startAtMs: 5000 });
+    state.applyGunBurstEnd({ endAtMs: 10000 });
+    expect(state.longestGunBurstSeconds).toBeCloseTo(5.0);
+  });
+
+  it('ignores gun burst end when no start recorded', () => {
+    state.applyGunBurstEnd({ endAtMs: 5000 });
+    expect(state.longestGunBurstSeconds).toBe(0);
+  });
+
+  it('ignores gun burst end when endAtMs is missing', () => {
+    state.applyGunBurstStart({ startAtMs: 1000 });
+    state.applyGunBurstEnd({});
+    expect(state.longestGunBurstSeconds).toBe(0);
+  });
+
+  it('uses missionTime as fallback for gun burst start', () => {
+    state.applyGunBurstStart({ missionTime: 10.0 });
+    state.applyGunBurstEnd({ endAtMs: 12500 });
+    expect(state.longestGunBurstSeconds).toBeCloseTo(2.5);
+  });
+
+  it('does not update longestGunBurstSeconds when burst is shorter than current longest', () => {
+    state.applyGunBurstStart({ startAtMs: 0 });
+    state.applyGunBurstEnd({ endAtMs: 5000 }); // 5s
+    state.applyGunBurstStart({ startAtMs: 10000 });
+    state.applyGunBurstEnd({ endAtMs: 12000 }); // 2s — shorter
+    expect(state.longestGunBurstSeconds).toBeCloseTo(5.0);
+  });
+});
+
+// ─── _pruneCompletedWeapons TTL ──────────────────────────────────────────────
+
+describe('PilotState — _pruneCompletedWeapons TTL', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('prunes completed weapons after 60s TTL expires', () => {
+    jest.useFakeTimers();
+    state.applyShotEnrichment({ weaponKey: 'old', weaponName: 'GBU-12' });
+    state.applyHitEnrichment({ weaponKey: 'old', distanceNm: 3.0 });
+    jest.advanceTimersByTime(61000);
+    state.applyShotEnrichment({ weaponKey: 'new', weaponName: 'GBU-12' });
+    expect(state.weapons.find(w => w.weaponKey === 'old')).toBeUndefined();
+    expect(state.weapons.find(w => w.weaponKey === 'new')).toBeDefined();
+    jest.useRealTimers();
+  });
+});
+
+// ─── _inferWeaponClassFromName ───────────────────────────────────────────────
+
+describe('PilotState — _inferWeaponClassFromName', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  it('returns unknown for empty weapon name', () => {
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: '' });
+    expect(state.weapons[0].weaponClass).toBe('unknown');
+  });
+
+  it('classifies AGM as air_to_ground_missile', () => {
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'AGM-65D' });
+    expect(state.weapons[0].weaponClass).toBe('air_to_ground_missile');
+  });
+
+  it('classifies Maverick as air_to_ground_missile', () => {
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'Maverick' });
+    expect(state.weapons[0].weaponClass).toBe('air_to_ground_missile');
+  });
+
+  it('classifies Hydra as rocket', () => {
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'Hydra-70' });
+    expect(state.weapons[0].weaponClass).toBe('rocket');
+  });
+
+  it('classifies unrecognised weapon names as other', () => {
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'UnknownWeapon' });
+    expect(state.weapons[0].weaponClass).toBe('other');
+  });
+});

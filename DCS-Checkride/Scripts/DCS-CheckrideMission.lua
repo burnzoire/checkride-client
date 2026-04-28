@@ -13,7 +13,8 @@ CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 CheckrideMission.FlightSample = {
     enabled = true,
     maxTrackedPilots = 64,
-    tickSeconds = 2.0,
+    targetSampleIntervalSeconds = 4.0,
+    minTickSeconds = 0.25,
     rosterRefreshSeconds = 1.0,
     roster = {},
     nextPilotIndex = 1,
@@ -445,13 +446,17 @@ end
 
 function CheckrideMission.sampleTelemetryTick(_, now)
     local cfg = CheckrideMission.FlightSample
+    local minTick = cfg.minTickSeconds or 0.25
+
     if not cfg.enabled then
-        return now + (cfg.tickSeconds or 0.20)
+        return now + minTick
     end
 
     CheckrideMission.refreshTelemetryRoster(now)
 
     local rosterSize = #cfg.roster
+    local tickSeconds = math.max(minTick, (cfg.targetSampleIntervalSeconds or 4.0) / math.max(1, rosterSize))
+
     if rosterSize > 0 then
         if cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
             cfg.nextPilotIndex = 1
@@ -466,7 +471,7 @@ function CheckrideMission.sampleTelemetryTick(_, now)
         CheckrideMission.emitFlightSampleForEntry(entry, now)
     end
 
-    return now + (cfg.tickSeconds or 0.20)
+    return now + tickSeconds
 end
 
 function CheckrideMission.startTelemetrySampler()
@@ -481,9 +486,11 @@ function CheckrideMission.startTelemetrySampler()
         return
     end
 
-    timer.scheduleFunction(CheckrideMission.sampleTelemetryTick, nil, timer.getTime() + (cfg.tickSeconds or 0.20))
+    local minTick = cfg.minTickSeconds or 0.25
+    timer.scheduleFunction(CheckrideMission.sampleTelemetryTick, nil, timer.getTime() + minTick)
     CheckrideMission.log(
-        "telemetry sampler started: tick=" .. tostring(cfg.tickSeconds or 0.20) ..
+        "telemetry sampler started: targetSampleInterval=" .. tostring(cfg.targetSampleIntervalSeconds or 4.0) ..
+        "s minTick=" .. tostring(minTick) ..
         "s rosterRefresh=" .. tostring(cfg.rosterRefreshSeconds or 1.0) ..
         "s maxTrackedPilots=" .. tostring(cfg.maxTrackedPilots or 64)
     )

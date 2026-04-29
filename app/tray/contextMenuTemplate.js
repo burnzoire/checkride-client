@@ -6,6 +6,10 @@ const contextMenuTemplate = (udpServer, api, openSettings, options = {}) => [
     label: 'Settings',
     click: openSettings,
   },
+  {
+    label: 'Pilot Telemetry',
+    click: options.openTelemetry ?? (() => {}),
+  },
   { type: 'separator' },
   {
     label: 'About Checkride',

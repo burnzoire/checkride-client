@@ -6,15 +6,14 @@
 -- Queues encoded events for retrieval via net.dostring_in from GameGUI/hook.
 -- ============================================================================
 CheckrideMission = {}
-CheckrideMission.clientVersion = "__CHECKRIDE_CLIENT_VERSION__"
+CheckrideMission.clientVersion = "1.1.6"
 CheckrideMission.version = CheckrideMission.clientVersion
 CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 
 CheckrideMission.FlightSample = {
     enabled = true,
     maxTrackedPilots = 64,
-    targetSampleIntervalSeconds = 4.0,
-    minTickSeconds = 0.25,
+    tickSeconds = 2.0,
     rosterRefreshSeconds = 1.0,
     roster = {},
     nextPilotIndex = 1,
@@ -199,26 +198,6 @@ local GUIDANCE_NAMES = {
     [7]  = "IR",
     [8]  = "LASER",
     [9]  = "TV",
-}
-
--- Maps Weapon.Category integer → string name.
-local WEAPON_CATEGORY_NAMES = {
-    [0] = "SHELL",
-    [1] = "MISSILE",
-    [2] = "ROCKET",
-    [3] = "BOMB",
-    [4] = "TORPEDO",
-}
-
--- Maps Weapon.MissileCategory integer → string name.
--- Missiles matching a sub-category return that name instead of "MISSILE".
-local MISSILE_CATEGORY_NAMES = {
-    [1] = "AAM",
-    [2] = "SAM",
-    [3] = "BM",
-    [4] = "ANTI_SHIP",
-    [5] = "ARM",
-    [6] = "OTHER",
 }
 
 local function isFiniteNumber(value)
@@ -466,17 +445,13 @@ end
 
 function CheckrideMission.sampleTelemetryTick(_, now)
     local cfg = CheckrideMission.FlightSample
-    local minTick = cfg.minTickSeconds or 0.25
-
     if not cfg.enabled then
-        return now + minTick
+        return now + (cfg.tickSeconds or 0.20)
     end
 
     CheckrideMission.refreshTelemetryRoster(now)
 
     local rosterSize = #cfg.roster
-    local tickSeconds = math.max(minTick, (cfg.targetSampleIntervalSeconds or 4.0) / math.max(1, rosterSize))
-
     if rosterSize > 0 then
         if cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
             cfg.nextPilotIndex = 1
@@ -491,7 +466,7 @@ function CheckrideMission.sampleTelemetryTick(_, now)
         CheckrideMission.emitFlightSampleForEntry(entry, now)
     end
 
-    return now + tickSeconds
+    return now + (cfg.tickSeconds or 0.20)
 end
 
 function CheckrideMission.startTelemetrySampler()
@@ -506,11 +481,9 @@ function CheckrideMission.startTelemetrySampler()
         return
     end
 
-    local minTick = cfg.minTickSeconds or 0.25
-    timer.scheduleFunction(CheckrideMission.sampleTelemetryTick, nil, timer.getTime() + minTick)
+    timer.scheduleFunction(CheckrideMission.sampleTelemetryTick, nil, timer.getTime() + (cfg.tickSeconds or 0.20))
     CheckrideMission.log(
-        "telemetry sampler started: targetSampleInterval=" .. tostring(cfg.targetSampleIntervalSeconds or 4.0) ..
-        "s minTick=" .. tostring(minTick) ..
+        "telemetry sampler started: tick=" .. tostring(cfg.tickSeconds or 0.20) ..
         "s rosterRefresh=" .. tostring(cfg.rosterRefreshSeconds or 1.0) ..
         "s maxTrackedPilots=" .. tostring(cfg.maxTrackedPilots or 64)
     )
@@ -642,6 +615,18 @@ function CheckrideMission.sampleActiveWeaponsTick(_, now)
         local noDataSeconds = now - (track.lastDataAt or track.firedAt or now)
 
         if not isValid or noDataSeconds > (cfg.staleDataSeconds or 30) then
+            CheckrideMission.sendEnrichmentEvent({
+                type              = "inbound_missile_miss",
+                source            = "mission",
+                playerUcid        = track.playerUcid,
+                playerName        = track.playerName,
+                weaponKey         = weaponKey,
+                weaponName        = track.weaponName,
+                weaponGuidance    = track.weaponGuidance,
+                initiatorRole     = track.initiatorRole,
+                initiatorObjectId = track.initiatorObjectId,
+                missionTime       = now,
+            })
             CheckrideMission.activeInboundMissiles[weaponKey] = nil
         else
             track.lastDataAt = now
@@ -1130,23 +1115,55 @@ local function getRoleCoalition(target, initiatorCoalition)
 end
 
 local function classifyWeaponClass(weapon)
-    if not weapon then return "UNKNOWN" end
-
-    local okDesc, desc = pcall(function() return weapon:getDesc() end)
-    if not okDesc or not desc then return "UNKNOWN" end
-
-    local categoryName = WEAPON_CATEGORY_NAMES[desc.category]
-    if not categoryName then return "UNKNOWN" end
-
-    if categoryName == "MISSILE" then
-        return MISSILE_CATEGORY_NAMES[desc.missileCategory] or "MISSILE"
+    if not weapon then
+        return "unknown"
     end
 
-    return categoryName
+    local weaponName = string.upper(getWeaponTypeName(weapon) or "")
+    if weaponName == "" then
+        return "unknown"
+    end
+
+    local airToAirPatterns = {
+        "AIM[_%-]",
+        "^R[_%-]%d",
+        "MAGIC",
+        "MICA",
+        "SUPER%s*530",
+        "SPARROW",
+        "AMRAAM",
+        "PHOENIX",
+        "SIDEWINDER",
+        "IRIS%-T",
+        "METEOR",
+        "SKYFLASH",
+        "PL%-%d",
+        "SD%-%d",
+    }
+
+    for _, pattern in ipairs(airToAirPatterns) do
+        if string.find(weaponName, pattern) then
+            return "air_to_air_missile"
+        end
+    end
+
+    if string.find(weaponName, "MAVERICK") or string.find(weaponName, "AGM") then
+        return "air_to_ground_missile"
+    end
+
+    if string.find(weaponName, "BOMB") or string.find(weaponName, "MK%-") or string.find(weaponName, "GBU") then
+        return "bomb"
+    end
+
+    if string.find(weaponName, "ROCKET") or string.find(weaponName, "HYDRA") or string.find(weaponName, "S%-8") then
+        return "rocket"
+    end
+
+    return "other"
 end
 
 local function isAirToAirMissileClass(weaponClass)
-    return weaponClass == "AAM"
+    return weaponClass == "air_to_air_missile"
 end
 
 local function findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId)
@@ -1613,14 +1630,11 @@ function CheckrideMission.onHit(event)
             local okTType, tType = pcall(function() return target:getTypeName() end)
             if okTType and tType and tType ~= "" then victimTypeName = tType end
 
-            local weaponClass = weapon and classifyWeaponClass(weapon) or nil
-
             if targetObjectId then
                 CheckrideMission.pendingKillsByObjectId[targetObjectId] = {
                     killedAtMs      = event.time,
                     victimRoles     = victimRoles,
                     weaponGuidance  = weaponGuidance,
-                    weaponClass     = weaponClass,
                     victimPositionX = victimPoint and victimPoint.x or nil,
                     victimPositionY = victimPoint and victimPoint.z or nil,
                     night           = CheckrideMission.isNight(event.time),
@@ -1817,36 +1831,11 @@ function CheckrideMission.onKill(event)
     local initiator = event.initiator
     if not initiator then return end
 
+    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end -- AI kill, skip
+
     local target = event.target
     if not target then return end
-
-    -- Emit friendly_killed_enrichment whenever a player aircraft is destroyed,
-    -- regardless of whether the killer is a player or AI.
-    local victimPlayerName = nil
-    local okVPN, vpn = pcall(function() return target:getPlayerName() end)
-    if okVPN and vpn and vpn ~= "" then victimPlayerName = vpn end
-
-    if victimPlayerName then
-        local killerObjectId = getObjectId(initiator)
-        local killerTypeName = nil
-        local okKType, kType = pcall(function() return initiator:getTypeName() end)
-        if okKType and kType and kType ~= "" then killerTypeName = kType end
-
-        local victimPlayerUcid = CheckrideLookupUCID and CheckrideLookupUCID(victimPlayerName) or nil
-
-        CheckrideMission.sendEnrichmentEvent({
-            type             = "friendly_killed_enrichment",
-            source           = "mission",
-            killerObjectId   = killerObjectId,
-            killerTypeName   = killerTypeName,
-            victimPlayerName = victimPlayerName,
-            victimPlayerUcid = victimPlayerUcid,
-            missionTime      = event.time,
-        })
-    end
-
-    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
-    if not playerName then return end -- AI kill, skip rest
 
     local victimObjectId = getObjectId(target)
 
@@ -1930,7 +1919,6 @@ function CheckrideMission.onKill(event)
         killedAtMs         = pending and pending.killedAtMs or event.time,
         victimRoles        = pending and pending.victimRoles or nil,
         weaponGuidance     = pending and pending.weaponGuidance or nil,
-        weaponClass        = pending and pending.weaponClass or nil,
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,

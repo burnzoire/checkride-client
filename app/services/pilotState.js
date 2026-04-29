@@ -29,50 +29,22 @@ const BOLTER_GRADE = 'B';
 const METERS_TO_NM = 0.00053995680345572;
 const METERS_TO_FEET = 3.2808398950131;
 
-const WEAPON_CLASS_AIR_TO_AIR_MISSILE = 'air_to_air_missile';
+const WEAPON_CLASS_AIR_TO_AIR_MISSILE = 'AAM';
 const WEAPON_COMPLETED_TTL_MS = 60 * 1000;
 const WEAPON_MAX_TRACKS = 100;
+const INBOUND_MISSILE_TTL_MS = 60 * 1000;
 class PilotState {
   constructor() {
-    // ── Grading state ──────────────────────────────────────────────────────────
-    // Chronological record of every grading pass this session. All per-pass
-    // counters and flags are derived from this array via getters so there is
-    // no duplicated or stale incremental state to maintain.
+    // ── Session state — survives across sorties ────────────────────────────────
     /** @type {GradingEvent[]} */
     this.passes = [];
-
-    // ── Sortie state (reset on each takeoff) ───────────────────────────────────
-    // Set by applyTakeoffEnrichment when the mission script confirms where the
-    // pilot launched from. Cleared and re-set on every new takeoff so an old
-    // carrier sortie never bleeds into a land-base sortie.
-    this.launchedFromCarrier = false;
-    this.takeoffLocation = null;  // carrier/airdrome name, or null
-    /** @type {Kill[]} */
-    this.kills = [];              // array of { victimUnitCategory, carrierDistanceNm }
-    this.lastTakeoffAtMs = null;
-
-    this.lastRefuelDetectedAtMs = null;
-    this.lastRefuelFuelGain = null;
-    this.lastRefuelContactDurationSeconds = null;
-    this.longestRefuelContactSeconds = 0;
-
-    this.weapons = [];
-    this.missiles = [];
-    this.longestWeaponHit = 0;
-    this.longestMissileHit = 0;
-
-    this.currentSpeedKts = null;
-    this.currentSpeedMach = null;
-    this.highestSpeedKts = 0;
-    this.highestSpeedMach = 0;
-    this.currentAltitudeFt = null;
-    this.highestAltitudeFt = 0;
-    this.currentRadarAltitudeFt = null;
-    this.currentPositionX = null;
-    this.currentPositionY = null;
-    this.currentFuelState = null;
-    this.inAir = false;
     this.currentSlotId = null;
+    this.inAir = false;
+    /** @type {'ground'|'airborne'|'dead'} */
+    this.aircraftStatus = 'ground';
+
+    // ── Sortie state — reset on each takeoff or slot change ────────────────────
+    this._resetSortieState();
   }
 
   // ── Derived grading state ──────────────────────────────────────────────────
@@ -122,6 +94,7 @@ class PilotState {
     this.takeoffLocation = event.takeoffLocation ?? null;
     this.lastTakeoffAtMs = this._parseMissionTimeMs(event) ?? this._parseOccurredAt(event);
     this.inAir = true;
+    this.aircraftStatus = 'airborne';
   }
 
   /**
@@ -134,8 +107,21 @@ class PilotState {
    */
   applyKill(event) {
     this.kills.push({
-      victimUnitCategory: event.victimUnitCategory ?? null,
-      carrierDistanceNm: typeof event.carrierDistanceNm === 'number' ? event.carrierDistanceNm : null,
+      victimUnitCategory:  event.victimUnitCategory ?? null,
+      carrierDistanceNm:   typeof event.carrierDistanceNm === 'number' ? event.carrierDistanceNm : null,
+      killedAtMs:          event.killedAtMs ?? null,
+      victimRoles:         Array.isArray(event.victimRoles) ? event.victimRoles : [],
+      weaponGuidance:      event.weaponGuidance ?? null,
+      victimPositionX:     event.victimPositionX ?? null,
+      victimPositionY:     event.victimPositionY ?? null,
+      pilotAltitudeFt:     this.currentAltitudeFt,
+      pilotSpeedMach:      this.currentSpeedMach,
+      night:               event.night ?? null,
+      killerUnitCategory:  event.killerUnitCategory ?? null,
+      victimTypeName:      event.victimTypeName ?? null,
+      victimObjectId:      event.victimObjectId ?? null,
+      weaponClass:         event.weaponClass ?? null,
+      avengedFriendly:     event.avengedFriendly === true,
     });
   }
 
@@ -194,12 +180,43 @@ class PilotState {
     this.currentRadarAltitudeFt = typeof altRadarFt === 'number' && Number.isFinite(altRadarFt)
       ? altRadarFt
       : this.currentRadarAltitudeFt;
-    this.currentPositionX = typeof positionX === 'number' && Number.isFinite(positionX) ? positionX : this.currentPositionX;
-    this.currentPositionY = typeof positionY === 'number' && Number.isFinite(positionY) ? positionY : this.currentPositionY;
+    const newPosX = typeof positionX === 'number' && Number.isFinite(positionX) ? positionX : null;
+    const newPosY = typeof positionY === 'number' && Number.isFinite(positionY) ? positionY : null;
+    const radarAltForNoe = typeof altRadarFt === 'number' && Number.isFinite(altRadarFt) ? altRadarFt : null;
+    const inAirForNoe = typeof inAir === 'boolean' ? inAir : this.inAir;
+    if (inAirForNoe && newPosX !== null && newPosY !== null
+        && this.currentPositionX !== null && this.currentPositionY !== null) {
+      const dx = newPosX - this.currentPositionX;
+      const dy = newPosY - this.currentPositionY;
+      const distKm = Math.sqrt(dx * dx + dy * dy) / 1000;
+      if (distKm < 5) {
+        this.sortieDistanceKm += distKm;
+        if (radarAltForNoe !== null && radarAltForNoe <= 100) {
+          this.noeDistanceKm += distKm;
+          this.noeConsecutiveDistanceKm += distKm;
+        } else if (radarAltForNoe !== null && radarAltForNoe > 100) {
+          this.noeConsecutiveDistanceKm = 0;
+        }
+      }
+    }
+
+    this.currentPositionX = newPosX !== null ? newPosX : this.currentPositionX;
+    this.currentPositionY = newPosY !== null ? newPosY : this.currentPositionY;
     this.currentFuelState = typeof currentFuelState === 'number' && Number.isFinite(currentFuelState)
       ? currentFuelState
       : this.currentFuelState;
-    this.inAir = typeof inAir === 'boolean' ? inAir : this.inAir;
+    if (typeof inAir === 'boolean') {
+      this.inAir = inAir;
+      if (this.aircraftStatus !== 'dead') {
+        this.aircraftStatus = inAir ? 'airborne' : 'ground';
+      }
+    }
+    if (event.unitCategory != null) this.currentUnitCategory = event.unitCategory;
+    const ammoPayload = event.ammoPayload ?? event.ammo_payload;
+    if (Array.isArray(ammoPayload)) {
+      this.currentPayload = ammoPayload;
+    }
+
   }
 
   applyShotEnrichment(event = {}) {
@@ -245,6 +262,9 @@ class PilotState {
     }
 
     this.weapons.push(weaponTrack);
+    if (weaponTrack.weaponClass === WEAPON_CLASS_AIR_TO_AIR_MISSILE) {
+      this.sortieAamFiredCount++;
+    }
     if (this.weapons.length > WEAPON_MAX_TRACKS) {
       this.weapons = this.weapons.slice(-WEAPON_MAX_TRACKS);
     }
@@ -301,6 +321,9 @@ class PilotState {
   }
 
   applyHitEnrichment(event = {}) {
+    if (event.roleCoalition) {
+      this.hitCounters[event.roleCoalition] = (this.hitCounters[event.roleCoalition] ?? 0) + 1;
+    }
     const weaponKey = event.weaponKey ?? event.weapon_key;
     const targetObjectId = event.targetObjectId ?? event.target_object_id;
     const weaponObjectId = event.weaponObjectId ?? event.weapon_object_id;
@@ -330,9 +353,6 @@ class PilotState {
     }
 
     const weaponTrack = candidates[candidates.length - 1];
-    if (!weaponTrack) {
-      return;
-    }
 
     weaponTrack.inFlight = false;
     weaponTrack.status = event.status ?? 'hit';
@@ -381,14 +401,18 @@ class PilotState {
       this.launchedFromCarrier = false;
     }
     this.inAir = true;
+    this.aircraftStatus = 'airborne';
   }
 
   applyLanding() {
     this.inAir = false;
+    this.aircraftStatus = 'ground';
   }
 
-  applyPilotDown() {
+  applyPilotDown(event) {
     this.inAir = false;
+    const deathTypes = ['crash', 'eject', 'pilot_death', 'self_kill'];
+    this.aircraftStatus = (event?.type && deathTypes.includes(event.type)) ? 'dead' : 'ground';
   }
 
   applyChangeSlot(event = {}) {
@@ -403,9 +427,11 @@ class PilotState {
 
     this._resetSortieState();
     this.currentSlotId = nextSlotId;
+    this.aircraftStatus = 'ground';
 
     if (typeof inAir === 'boolean') {
       this.inAir = inAir;
+      this.aircraftStatus = inAir ? 'airborne' : 'ground';
       return;
     }
 
@@ -416,6 +442,7 @@ class PilotState {
 
     if (typeof flyable === 'boolean') {
       this.inAir = flyable;
+      this.aircraftStatus = flyable ? 'airborne' : 'ground';
       return;
     }
 
@@ -429,6 +456,50 @@ class PilotState {
    */
   applyGrading(event) {
     this.passes.push(event);
+  }
+
+  applyInboundMissile(event) {
+    const weaponKey = event.weaponKey;
+    if (!weaponKey) return;
+
+    this.inboundMissiles.push({
+      weaponKey:         String(weaponKey),
+      weaponName:        event.weaponName ?? null,
+      weaponGuidance:    event.weaponGuidance ?? null,
+      initiatorRole:     event.initiatorRole ?? null,
+      initiatorObjectId: event.initiatorObjectId ?? null,
+      inFlight:          true,
+      status:            'in_flight',
+      launchedAtMs:      this._parseMissionTimeMs(event) ?? this._parseEventTimeMs(event),
+      completedAtMs:     null,
+    });
+    this._pruneInboundMissiles();
+  }
+
+  applyInboundMissileHit(event) {
+    const weaponKey = event.weaponKey ? String(event.weaponKey) : null;
+    if (!weaponKey) return;
+    const track = this.inboundMissiles.find(m => m.weaponKey === weaponKey && m.inFlight);
+    if (!track) return;
+    track.inFlight = false;
+    track.status = 'hit';
+    track.completedAtMs = this._parseMissionTimeMs(event) ?? this._parseEventTimeMs(event);
+    this._pruneInboundMissiles();
+  }
+
+applyGunBurstStart(event) {
+    this.gunBurstStartAtMs = event.startAtMs ?? this._parseMissionTimeMs(event);
+  }
+
+  applyGunBurstEnd(event) {
+    if (this.gunBurstStartAtMs == null) return;
+    const endAtMs = event.endAtMs ?? this._parseMissionTimeMs(event);
+    if (endAtMs == null) return;
+    const durationSeconds = (endAtMs - this.gunBurstStartAtMs) / 1000;
+    if (durationSeconds > this.longestGunBurstSeconds) {
+      this.longestGunBurstSeconds = durationSeconds;
+    }
+    this.gunBurstStartAtMs = null;
   }
 
   _parseOccurredAt(event) {
@@ -450,10 +521,6 @@ class PilotState {
 
   _parseEventTimeMs(event) {
     return this._parseOccurredAt(event) ?? Date.now();
-  }
-
-  _normalizeFuelState(value) {
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
   }
 
   _normalizeFiniteNumber(value) {
@@ -481,11 +548,23 @@ class PilotState {
     this.currentPositionX = null;
     this.currentPositionY = null;
     this.currentFuelState = null;
+    this.currentPayload = null;
 
     this.weapons = [];
     this.missiles = [];
+    this.sortieAamFiredCount = 0;
     this.longestWeaponHit = 0;
     this.longestMissileHit = 0;
+
+    this.inboundMissiles = [];
+    this.currentUnitCategory = null;
+    this.hitCounters = {};
+    this.gunBurstStartAtMs = null;
+    this.longestGunBurstSeconds = 0;
+
+    this.sortieDistanceKm = 0;
+    this.noeDistanceKm = 0;
+    this.noeConsecutiveDistanceKm = 0;
   }
 
   _computeMissileDistanceNm(missile) {
@@ -516,6 +595,15 @@ class PilotState {
     this.missiles = this.weapons.filter((weaponTrack) => weaponTrack.weaponClass === WEAPON_CLASS_AIR_TO_AIR_MISSILE);
   }
 
+  _pruneInboundMissiles() {
+    const nowMs = Date.now();
+    this.inboundMissiles = this.inboundMissiles.filter(track => {
+      if (track.inFlight) return true;
+      if (!Number.isFinite(track.completedAtMs)) return false;
+      return (nowMs - track.completedAtMs) <= INBOUND_MISSILE_TTL_MS;
+    });
+  }
+
   _pruneCompletedWeapons() {
     const nowMs = Date.now();
     this.weapons = this.weapons.filter((weaponTrack) => {
@@ -537,7 +625,7 @@ class PilotState {
   _inferWeaponClassFromName(weaponName) {
     const normalizedName = typeof weaponName === 'string' ? weaponName.toUpperCase() : '';
     if (!normalizedName) {
-      return 'unknown';
+      return 'UNKNOWN';
     }
 
     if (
@@ -552,18 +640,18 @@ class PilotState {
     }
 
     if (normalizedName.includes('AGM') || normalizedName.includes('MAVERICK')) {
-      return 'air_to_ground_missile';
+      return 'MISSILE';
     }
 
     if (normalizedName.includes('GBU') || normalizedName.includes('BOMB') || normalizedName.includes('MK-')) {
-      return 'bomb';
+      return 'BOMB';
     }
 
     if (normalizedName.includes('ROCKET') || normalizedName.includes('HYDRA')) {
-      return 'rocket';
+      return 'ROCKET';
     }
 
-    return 'other';
+    return 'UNKNOWN';
   }
 }
 

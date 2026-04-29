@@ -2,6 +2,8 @@ const log = require('electron-log');
 const PilotState = require('./pilotState');
 const ALL_ACHIEVEMENTS = require('../achievements');
 
+const AVENGER_TTL_MS = 5 * 60 * 1000;
+
 /**
  * AchievementEngine evaluates all active achievements on every relevant event.
  *
@@ -23,6 +25,10 @@ class AchievementEngine {
     this.pilotStates = new Map();
     /** @type {Map<string, Set<string>>} */
     this.unlockedByPilot = new Map();
+    /** @type {Map<string, string>} */
+    this.pilotNames = new Map();
+    /** @type {Map<string, number>} killerObjectId → wall-clock ms when they killed a friendly */
+    this.recentFriendlyKillers = new Map();
   }
 
   /**
@@ -69,6 +75,20 @@ class AchievementEngine {
    * @returns {Achievement[]}
    */
   evaluate(event) {
+    if (event.type === 'friendly_killed_enrichment') {
+      if (event.killerObjectId != null) {
+        this.recentFriendlyKillers.set(String(event.killerObjectId), Date.now());
+      }
+      return [];
+    }
+
+    if (event.type === 'kill_enrichment' && event.victimObjectId != null) {
+      const killedFriendlyAt = this.recentFriendlyKillers.get(String(event.victimObjectId));
+      if (killedFriendlyAt != null && (Date.now() - killedFriendlyAt) <= AVENGER_TTL_MS) {
+        event.avengedFriendly = true;
+      }
+    }
+
     const DISPATCH = {
       grading:             { ucidField: 'playerUcid', stateMethod: 'applyGrading' },
       takeoff:             { ucidField: 'playerUcid', stateMethod: 'applyTakeoff' },
@@ -85,7 +105,11 @@ class AchievementEngine {
       hit_enrichment:      { ucidField: 'playerUcid', stateMethod: 'applyHitEnrichment' },
       weapon_sample_enrichment: { ucidField: 'playerUcid', stateMethod: 'applyWeaponSampleEnrichment' },
       flight_sample_enrichment: { ucidField: 'playerUcid', stateMethod: 'applyFlightSampleEnrichment' },
-      change_slot:         { ucidField: 'playerUcid', stateMethod: 'applyChangeSlot' },
+      change_slot:              { ucidField: 'playerUcid', stateMethod: 'applyChangeSlot' },
+      inbound_missile:          { ucidField: 'playerUcid', stateMethod: 'applyInboundMissile' },
+      inbound_missile_hit:      { ucidField: 'playerUcid', stateMethod: 'applyInboundMissileHit' },
+      gun_burst_start:          { ucidField: 'playerUcid', stateMethod: 'applyGunBurstStart' },
+      gun_burst_end:            { ucidField: 'playerUcid', stateMethod: 'applyGunBurstEnd' },
     };
 
     const dispatch = DISPATCH[event.type];
@@ -93,6 +117,10 @@ class AchievementEngine {
 
     const ucid = event[dispatch.ucidField];
     if (!ucid) return [];
+
+    if (event.playerName) {
+      this.pilotNames.set(ucid, event.playerName);
+    }
 
     const state = this._getOrCreateState(ucid);
     state[dispatch.stateMethod](event);
@@ -146,6 +174,7 @@ class AchievementEngine {
     return {
       telemetry: {
         inAir: state.inAir,
+        aircraftStatus: state.aircraftStatus,
         takeoffLocation: state.takeoffLocation,
         takeoffFromCarrier: state.launchedFromCarrier,
         speedKts: state.currentSpeedKts,
@@ -155,8 +184,10 @@ class AchievementEngine {
         altRadarFt: state.currentRadarAltitudeFt,
         positionX: state.currentPositionX,
         positionY: state.currentPositionY,
+        payload: state.currentPayload,
       },
       state: {
+        passes: state.passes,
         trapCount: state.trapCount,
         nightTrapCount: state.nightTrapCount,
         consecutiveBolters: state.consecutiveBolters,
@@ -172,19 +203,50 @@ class AchievementEngine {
         lastRefuelDetectedAtMs: state.lastRefuelDetectedAtMs,
         lastRefuelFuelGain: state.lastRefuelFuelGain,
         lastRefuelContactDurationSeconds: state.lastRefuelContactDurationSeconds,
+        longestRefuelContactSeconds: state.longestRefuelContactSeconds,
         weapons: state.weapons,
         munitionsInFlight,
         missiles: state.missiles,
+        sortieAamFiredCount: state.sortieAamFiredCount,
+        longestWeaponHit: state.longestWeaponHit,
+        longestMissileHit: state.longestMissileHit,
+        inboundMissiles: state.inboundMissiles,
+        currentUnitCategory: state.currentUnitCategory,
+        hitCounters: state.hitCounters,
+        longestGunBurstSeconds: state.longestGunBurstSeconds,
+        highestSpeedKts: state.highestSpeedKts,
+        highestSpeedMach: state.highestSpeedMach,
+        highestAltitudeFt: state.highestAltitudeFt,
+        sortieDistanceKm: state.sortieDistanceKm,
+        noeDistanceKm: state.noeDistanceKm,
+        noeConsecutiveDistanceKm: state.noeConsecutiveDistanceKm,
       },
       gauges: {
         most_ground_kills_in_sortie: killsGround,
         most_air_kills_in_sortie: killsAir,
         longest_refuel_contact_seconds: state.longestRefuelContactSeconds,
         longest_missile_hit_nm: state.longestMissileHit,
+        longest_weapon_hit_nm: state.longestWeaponHit,
+        highest_speed_kts: state.highestSpeedKts,
         highest_speed_mach: state.highestSpeedMach,
         highest_altitude_ft: state.highestAltitudeFt,
+        longest_gun_burst_seconds: state.longestGunBurstSeconds,
+        sortie_distance_km: state.sortieDistanceKm,
+        noe_distance_km: state.noeDistanceKm,
       },
     };
+  }
+
+  getAllPilotSnapshots() {
+    const result = [];
+    for (const [ucid, state] of this.pilotStates.entries()) {
+      result.push({
+        ucid,
+        name: this.pilotNames.get(ucid) ?? ucid,
+        state: this.serializeState(state),
+      });
+    }
+    return result;
   }
 
   /**
@@ -194,6 +256,7 @@ class AchievementEngine {
   resetPilot(ucid) {
     this.pilotStates.delete(ucid);
     this.unlockedByPilot.delete(ucid);
+    this.pilotNames.delete(ucid);
   }
 
   _getOrCreateState(ucid) {

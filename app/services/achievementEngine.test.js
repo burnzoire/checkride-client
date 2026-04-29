@@ -2,6 +2,7 @@ jest.mock('electron-log', () => ({ info: jest.fn(), error: jest.fn() }));
 
 const AchievementEngine = require('./achievementEngine');
 const Achievement = require('../achievements/achievement');
+const PilotState = require('./pilotState');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,85 @@ class StubAchievement extends Achievement {
     return this._evaluateFn(event, state);
   }
 }
+
+// ─── serializeState completeness ─────────────────────────────────────────────
+// Mapping from every PilotState own-property name to its dot-path in the
+// serializeState output. null = intentionally excluded (add a reason).
+//
+// HOW THIS WORKS: the first test checks that every own property of a fresh
+// PilotState instance has an entry here — it fails immediately when a new
+// field is added to PilotState without updating this map. The second test
+// checks that every non-null path actually exists in the serialized output —
+// it fails when the map is updated but serializeState is not.
+
+const PILOTSTATE_TO_SNAPSHOT = {
+  // ── Session state (constructor) ──────────────────────────────────────────
+  passes:               'state.passes',
+  currentSlotId:        null, // internal slot tracking, not needed by snapshot consumers
+  inAir:                'telemetry.inAir',
+  aircraftStatus:       'telemetry.aircraftStatus',
+  // ── Sortie state (_resetSortieState) ─────────────────────────────────────
+  kills:                'state.kills',
+  lastTakeoffAtMs:      'state.lastTakeoffAtMs',
+  takeoffLocation:      'state.takeoffLocation',
+  launchedFromCarrier:  'state.launchedFromCarrier',
+  lastRefuelDetectedAtMs:           'state.lastRefuelDetectedAtMs',
+  lastRefuelFuelGain:               'state.lastRefuelFuelGain',
+  lastRefuelContactDurationSeconds: 'state.lastRefuelContactDurationSeconds',
+  longestRefuelContactSeconds:      'state.longestRefuelContactSeconds',
+  currentSpeedKts:      'telemetry.speedKts',
+  currentSpeedMach:     'telemetry.speedMach',
+  highestSpeedKts:      'state.highestSpeedKts',
+  highestSpeedMach:     'state.highestSpeedMach',
+  currentAltitudeFt:    'telemetry.altBaroFt',
+  highestAltitudeFt:    'state.highestAltitudeFt',
+  currentRadarAltitudeFt: 'telemetry.altRadarFt',
+  currentPositionX:     'telemetry.positionX',
+  currentPositionY:     'telemetry.positionY',
+  currentFuelState:     'telemetry.currentFuelState',
+  currentPayload:       'telemetry.payload',
+  weapons:              'state.weapons',
+  missiles:             'state.missiles',
+  sortieAamFiredCount:  'state.sortieAamFiredCount',
+  longestWeaponHit:     'state.longestWeaponHit',
+  longestMissileHit:    'state.longestMissileHit',
+  inboundMissiles:      'state.inboundMissiles',
+  currentUnitCategory:  'state.currentUnitCategory',
+  hitCounters:          'state.hitCounters',
+  gunBurstStartAtMs:    null, // transient: null between bursts, meaningless in a snapshot
+  longestGunBurstSeconds: 'state.longestGunBurstSeconds',
+  sortieDistanceKm:     'state.sortieDistanceKm',
+  noeDistanceKm:        'state.noeDistanceKm',
+  noeConsecutiveDistanceKm: 'state.noeConsecutiveDistanceKm',
+};
+
+function hasPath(obj, path) {
+  const keys = path.split('.');
+  let cur = obj;
+  for (const k of keys) {
+    if (cur == null || !Object.prototype.hasOwnProperty.call(cur, k)) return false;
+    cur = cur[k];
+  }
+  return true;
+}
+
+describe('AchievementEngine — serializeState covers all PilotState fields', () => {
+  it('every PilotState own-property is covered in PILOTSTATE_TO_SNAPSHOT (update the map when PilotState grows)', () => {
+    const allProps = Object.keys(new PilotState());
+    for (const prop of allProps) {
+      expect(Object.keys(PILOTSTATE_TO_SNAPSHOT)).toContain(prop);
+    }
+  });
+
+  it('every non-null mapped path resolves in serializeState output (update serializeState when the map changes)', () => {
+    const engine = new AchievementEngine([]);
+    const serialized = engine.serializeState(new PilotState());
+    for (const [, path] of Object.entries(PILOTSTATE_TO_SNAPSHOT)) {
+      if (path === null) continue;
+      expect(hasPath(serialized, path)).toBe(true);
+    }
+  });
+});
 
 // ─── engine mechanics ────────────────────────────────────────────────────────
 
@@ -264,7 +344,7 @@ describe('AchievementEngine — core mechanics', () => {
     });
 
     expect(snapshot.state.state.weapons).toHaveLength(1);
-    expect(snapshot.state.state.weapons[0].weaponClass).toBe('bomb');
+    expect(snapshot.state.state.weapons[0].weaponClass).toBe('BOMB');
     expect(snapshot.state.state.missiles).toHaveLength(0);
     expect(snapshot.state.gauges.longest_missile_hit_nm).toBe(0);
   });
@@ -277,7 +357,7 @@ describe('AchievementEngine — core mechanics', () => {
       playerUcid: 'pilot-1',
       playerName: 'Maverick',
       weaponKey: 'w3',
-      weaponClass: 'air_to_air_missile',
+      weaponClass: 'AAM',
       weaponName: 'AIM-54C-Mk60',
       targetObjectId: 1002,
     });
@@ -287,7 +367,7 @@ describe('AchievementEngine — core mechanics', () => {
       playerUcid: 'pilot-1',
       playerName: 'Maverick',
       weaponKey: 'w3',
-      weaponClass: 'air_to_air_missile',
+      weaponClass: 'AAM',
       inFlight: true,
       status: 'in_flight',
       speedKts: 1050,

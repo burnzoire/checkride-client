@@ -4,6 +4,7 @@ const contextMenuTemplate = require('./tray/contextMenuTemplate');
 const { initApp, attachEventPipeline } = require('./appInit');
 const store = require('./config');
 const { showSettingsWindow } = require('./windows/settingsWindow');
+const { showTelemetryWindow } = require('./windows/telemetryWindow');
 const { DemoController } = require('./demo/demoController');
 
 if (app.isPackaged) {
@@ -31,6 +32,10 @@ let isQuitting = false;
 
 const openSettingsWindow = () => {
   return showSettingsWindow();
+};
+
+const openTelemetryWindow = () => {
+  return showTelemetryWindow();
 };
 
 function createGrayscaleIcon(image) {
@@ -73,6 +78,7 @@ function buildContextMenu() {
       isHealthy,
       demoController,
       dcsChatClient,
+      openTelemetry: openTelemetryWindow,
       onChange: () => {
         if (tray) {
           tray.setContextMenu(buildContextMenu());
@@ -298,6 +304,11 @@ ipcMain.handle('api:health', () => {
   return {
     isHealthy: store.get('api_healthy', true),
   };
+});
+
+ipcMain.handle('telemetry:snapshot', () => {
+  if (!achievementEngine) return { pilots: [] };
+  return { pilots: achievementEngine.getAllPilotSnapshots() };
 });
 
 app.whenReady().then(bootstrap);

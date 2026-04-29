@@ -468,7 +468,7 @@ describe('PilotState — sortie fields', () => {
       });
 
       expect(state.weapons).toHaveLength(1);
-      expect(state.weapons[0].weaponClass).toBe('bomb');
+      expect(state.weapons[0].weaponClass).toBe('BOMB');
       expect(state.missiles).toHaveLength(0);
 
       state.applyHitEnrichment({
@@ -491,7 +491,7 @@ describe('PilotState — sortie fields', () => {
 
       state.applyWeaponSampleEnrichment({
         weaponKey: 'weapon-5',
-        weaponClass: 'air_to_air_missile',
+        weaponClass: 'AAM',
         inFlight: true,
         status: 'in_flight',
         speedKts: 980,
@@ -847,26 +847,26 @@ describe('PilotState — _inferWeaponClassFromName', () => {
 
   it('returns unknown for empty weapon name', () => {
     state.applyShotEnrichment({ weaponKey: 'w1', weaponName: '' });
-    expect(state.weapons[0].weaponClass).toBe('unknown');
+    expect(state.weapons[0].weaponClass).toBe('UNKNOWN');
   });
 
-  it('classifies AGM as air_to_ground_missile', () => {
+  it('classifies AGM as MISSILE', () => {
     state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'AGM-65D' });
-    expect(state.weapons[0].weaponClass).toBe('air_to_ground_missile');
+    expect(state.weapons[0].weaponClass).toBe('MISSILE');
   });
 
-  it('classifies Maverick as air_to_ground_missile', () => {
+  it('classifies Maverick as MISSILE', () => {
     state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'Maverick' });
-    expect(state.weapons[0].weaponClass).toBe('air_to_ground_missile');
+    expect(state.weapons[0].weaponClass).toBe('MISSILE');
   });
 
-  it('classifies Hydra as rocket', () => {
+  it('classifies Hydra as ROCKET', () => {
     state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'Hydra-70' });
-    expect(state.weapons[0].weaponClass).toBe('rocket');
+    expect(state.weapons[0].weaponClass).toBe('ROCKET');
   });
 
-  it('classifies unrecognised weapon names as other', () => {
+  it('classifies unrecognised weapon names as UNKNOWN', () => {
     state.applyShotEnrichment({ weaponKey: 'w1', weaponName: 'UnknownWeapon' });
-    expect(state.weapons[0].weaponClass).toBe('other');
+    expect(state.weapons[0].weaponClass).toBe('UNKNOWN');
   });
 });

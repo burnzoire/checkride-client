@@ -8,19 +8,15 @@ function killEvent(overrides = {}) {
     playerName: 'Maverick',
     victimUnitCategory: 'air',
     victimObjectId: 55,
+    weaponClass: 'AAM',
     ...overrides,
   };
 }
 
-function stateWith({ aamFiredCount = 0, missiles = [] } = {}) {
+function stateWith({ aamFiredCount = 0 } = {}) {
   const state = new PilotState();
   state.sortieAamFiredCount = aamFiredCount;
-  state.missiles = missiles;
   return state;
-}
-
-function hitMissile(overrides = {}) {
-  return { weaponKey: 'w1', weaponClass: 'air_to_air_missile', inFlight: false, status: 'hit', ...overrides };
 }
 
 describe('SureShot — metadata', () => {
@@ -34,45 +30,47 @@ describe('SureShot — metadata', () => {
 });
 
 describe('SureShot — evaluate', () => {
-  it('returns true when exactly 1 AAM fired and missile hit scores an air kill', () => {
-    const state = stateWith({ aamFiredCount: 1, missiles: [hitMissile()] });
+  it('returns true when exactly 1 AAM fired and kill event carries weaponClass AAM', () => {
+    const state = stateWith({ aamFiredCount: 1 });
     expect(sureShot.evaluate(killEvent(), state)).toBe(true);
   });
 
   it('returns false when no AAMs have been fired', () => {
-    const state = stateWith({ aamFiredCount: 0, missiles: [] });
+    const state = stateWith({ aamFiredCount: 0 });
     expect(sureShot.evaluate(killEvent(), state)).toBe(false);
   });
 
   it('returns false when more than one AAM has been fired', () => {
-    const state = stateWith({ aamFiredCount: 2, missiles: [hitMissile(), hitMissile({ weaponKey: 'w2' })] });
+    const state = stateWith({ aamFiredCount: 2 });
     expect(sureShot.evaluate(killEvent(), state)).toBe(false);
   });
 
   it('returns false when victim is a ground unit', () => {
-    const state = stateWith({ aamFiredCount: 1, missiles: [hitMissile()] });
+    const state = stateWith({ aamFiredCount: 1 });
     expect(sureShot.evaluate(killEvent({ victimUnitCategory: 'ground' }), state)).toBe(false);
   });
 
   it('returns false when victim is a ship', () => {
-    const state = stateWith({ aamFiredCount: 1, missiles: [hitMissile()] });
+    const state = stateWith({ aamFiredCount: 1 });
     expect(sureShot.evaluate(killEvent({ victimUnitCategory: 'ship' }), state)).toBe(false);
   });
 
-  it('returns false when the AAM missed (status expired)', () => {
-    const state = stateWith({
-      aamFiredCount: 1,
-      missiles: [{ weaponKey: 'w1', weaponClass: 'air_to_air_missile', inFlight: false, status: 'expired' }],
-    });
-    expect(sureShot.evaluate(killEvent(), state)).toBe(false);
+  it('returns false when kill event has no weaponClass (no hit record — gun or unknown)', () => {
+    const state = stateWith({ aamFiredCount: 1 });
+    expect(sureShot.evaluate(killEvent({ weaponClass: null }), state)).toBe(false);
   });
 
-  it('returns false when the AAM is still in flight', () => {
-    const state = stateWith({
-      aamFiredCount: 1,
-      missiles: [{ weaponKey: 'w1', weaponClass: 'air_to_air_missile', inFlight: true, status: 'in_flight' }],
-    });
-    expect(sureShot.evaluate(killEvent(), state)).toBe(false);
+  it('returns false when kill was from a bomb, not an AAM', () => {
+    const state = stateWith({ aamFiredCount: 1 });
+    expect(sureShot.evaluate(killEvent({ weaponClass: 'BOMB' }), state)).toBe(false);
+  });
+
+  it('awards correctly even when hit_enrichment has not yet updated missile state (ordering race)', () => {
+    // This is the key regression test: kill_enrichment arrives before hit_enrichment.
+    // Before the fix, state.missiles would still show in_flight and the award was missed.
+    const state = stateWith({ aamFiredCount: 1 });
+    // missiles intentionally empty — hit_enrichment hasn't arrived yet
+    expect(sureShot.evaluate(killEvent(), state)).toBe(true);
   });
 });
 
@@ -85,7 +83,7 @@ describe('SureShot — sortieAamFiredCount integration', () => {
     const state = new PilotState();
     state.applyShotEnrichment({
       weaponKey: 'w1',
-      weaponClass: 'air_to_air_missile',
+      weaponClass: 'AAM',
       occurredAt: new Date().toISOString(),
     });
     expect(state.sortieAamFiredCount).toBe(1);
@@ -95,7 +93,7 @@ describe('SureShot — sortieAamFiredCount integration', () => {
     const state = new PilotState();
     state.applyShotEnrichment({
       weaponKey: 'w1',
-      weaponClass: 'bomb',
+      weaponClass: 'BOMB',
       occurredAt: new Date().toISOString(),
     });
     expect(state.sortieAamFiredCount).toBe(0);
@@ -103,7 +101,7 @@ describe('SureShot — sortieAamFiredCount integration', () => {
 
   it('does not double-count an update to an existing in-flight AAM', () => {
     const state = new PilotState();
-    const shot = { weaponKey: 'w1', weaponClass: 'air_to_air_missile', occurredAt: new Date().toISOString() };
+    const shot = { weaponKey: 'w1', weaponClass: 'AAM', occurredAt: new Date().toISOString() };
     state.applyShotEnrichment(shot);
     state.applyShotEnrichment(shot);
     expect(state.sortieAamFiredCount).toBe(1);
@@ -111,7 +109,7 @@ describe('SureShot — sortieAamFiredCount integration', () => {
 
   it('resets on takeoff enrichment', () => {
     const state = new PilotState();
-    state.applyShotEnrichment({ weaponKey: 'w1', weaponClass: 'air_to_air_missile', occurredAt: new Date().toISOString() });
+    state.applyShotEnrichment({ weaponKey: 'w1', weaponClass: 'AAM', occurredAt: new Date().toISOString() });
     expect(state.sortieAamFiredCount).toBe(1);
     state.applyTakeoffEnrichment({ launchedFromCarrier: false, occurredAt: new Date().toISOString() });
     expect(state.sortieAamFiredCount).toBe(0);

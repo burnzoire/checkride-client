@@ -13,12 +13,7 @@ class Slapshot extends Achievement {
   }
 
   evaluate(event, state) {
-    // DCS misclassifies the AGM-88 HARM as RADAR_SEMI_ACTIVE (guidance type 5) rather than
-    // RADAR_PASSIVE (type 6). Accept both for non-AAM weapons to cover this quirk while
-    // excluding genuine SARH air-to-air missiles (AIM-7, R-27R, etc.).
-    const isArm = event.weaponGuidance === 'RADAR_PASSIVE' ||
-      (event.weaponGuidance === 'RADAR_SEMI_ACTIVE' && event.weaponClass !== 'air_to_air_missile');
-    if (!isArm) return false;
+    if (event.weaponClass !== 'ARM') return false;
     const armTimeS = event.missionTime ?? null;
     if (armTimeS == null) return false;
     return state.inboundMissiles.some(m => {

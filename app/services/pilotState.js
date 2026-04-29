@@ -29,7 +29,7 @@ const BOLTER_GRADE = 'B';
 const METERS_TO_NM = 0.00053995680345572;
 const METERS_TO_FEET = 3.2808398950131;
 
-const WEAPON_CLASS_AIR_TO_AIR_MISSILE = 'air_to_air_missile';
+const WEAPON_CLASS_AIR_TO_AIR_MISSILE = 'AAM';
 const WEAPON_COMPLETED_TTL_MS = 60 * 1000;
 const WEAPON_MAX_TRACKS = 100;
 const INBOUND_MISSILE_TTL_MS = 60 * 1000;
@@ -120,6 +120,7 @@ class PilotState {
       killerUnitCategory:  event.killerUnitCategory ?? null,
       victimTypeName:      event.victimTypeName ?? null,
       victimObjectId:      event.victimObjectId ?? null,
+      weaponClass:         event.weaponClass ?? null,
       avengedFriendly:     event.avengedFriendly === true,
     });
   }
@@ -624,7 +625,7 @@ applyGunBurstStart(event) {
   _inferWeaponClassFromName(weaponName) {
     const normalizedName = typeof weaponName === 'string' ? weaponName.toUpperCase() : '';
     if (!normalizedName) {
-      return 'unknown';
+      return 'UNKNOWN';
     }
 
     if (
@@ -639,18 +640,18 @@ applyGunBurstStart(event) {
     }
 
     if (normalizedName.includes('AGM') || normalizedName.includes('MAVERICK')) {
-      return 'air_to_ground_missile';
+      return 'MISSILE';
     }
 
     if (normalizedName.includes('GBU') || normalizedName.includes('BOMB') || normalizedName.includes('MK-')) {
-      return 'bomb';
+      return 'BOMB';
     }
 
     if (normalizedName.includes('ROCKET') || normalizedName.includes('HYDRA')) {
-      return 'rocket';
+      return 'ROCKET';
     }
 
-    return 'other';
+    return 'UNKNOWN';
   }
 }
 

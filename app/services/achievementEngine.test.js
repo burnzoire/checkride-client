@@ -344,7 +344,7 @@ describe('AchievementEngine — core mechanics', () => {
     });
 
     expect(snapshot.state.state.weapons).toHaveLength(1);
-    expect(snapshot.state.state.weapons[0].weaponClass).toBe('bomb');
+    expect(snapshot.state.state.weapons[0].weaponClass).toBe('BOMB');
     expect(snapshot.state.state.missiles).toHaveLength(0);
     expect(snapshot.state.gauges.longest_missile_hit_nm).toBe(0);
   });
@@ -357,7 +357,7 @@ describe('AchievementEngine — core mechanics', () => {
       playerUcid: 'pilot-1',
       playerName: 'Maverick',
       weaponKey: 'w3',
-      weaponClass: 'air_to_air_missile',
+      weaponClass: 'AAM',
       weaponName: 'AIM-54C-Mk60',
       targetObjectId: 1002,
     });
@@ -367,7 +367,7 @@ describe('AchievementEngine — core mechanics', () => {
       playerUcid: 'pilot-1',
       playerName: 'Maverick',
       weaponKey: 'w3',
-      weaponClass: 'air_to_air_missile',
+      weaponClass: 'AAM',
       inFlight: true,
       status: 'in_flight',
       speedKts: 1050,

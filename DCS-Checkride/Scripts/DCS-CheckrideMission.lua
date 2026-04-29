@@ -201,6 +201,26 @@ local GUIDANCE_NAMES = {
     [9]  = "TV",
 }
 
+-- Maps Weapon.Category integer → string name.
+local WEAPON_CATEGORY_NAMES = {
+    [0] = "SHELL",
+    [1] = "MISSILE",
+    [2] = "ROCKET",
+    [3] = "BOMB",
+    [4] = "TORPEDO",
+}
+
+-- Maps Weapon.MissileCategory integer → string name.
+-- Missiles matching a sub-category return that name instead of "MISSILE".
+local MISSILE_CATEGORY_NAMES = {
+    [1] = "AAM",
+    [2] = "SAM",
+    [3] = "BM",
+    [4] = "ANTI_SHIP",
+    [5] = "ARM",
+    [6] = "OTHER",
+}
+
 local function isFiniteNumber(value)
     return type(value) == "number" and value == value and value > -math.huge and value < math.huge
 end
@@ -1110,55 +1130,23 @@ local function getRoleCoalition(target, initiatorCoalition)
 end
 
 local function classifyWeaponClass(weapon)
-    if not weapon then
-        return "unknown"
+    if not weapon then return "UNKNOWN" end
+
+    local okDesc, desc = pcall(function() return weapon:getDesc() end)
+    if not okDesc or not desc then return "UNKNOWN" end
+
+    local categoryName = WEAPON_CATEGORY_NAMES[desc.category]
+    if not categoryName then return "UNKNOWN" end
+
+    if categoryName == "MISSILE" then
+        return MISSILE_CATEGORY_NAMES[desc.missileCategory] or "MISSILE"
     end
 
-    local weaponName = string.upper(getWeaponTypeName(weapon) or "")
-    if weaponName == "" then
-        return "unknown"
-    end
-
-    local airToAirPatterns = {
-        "AIM[_%-]",
-        "^R[_%-]%d",
-        "MAGIC",
-        "MICA",
-        "SUPER%s*530",
-        "SPARROW",
-        "AMRAAM",
-        "PHOENIX",
-        "SIDEWINDER",
-        "IRIS%-T",
-        "METEOR",
-        "SKYFLASH",
-        "PL%-%d",
-        "SD%-%d",
-    }
-
-    for _, pattern in ipairs(airToAirPatterns) do
-        if string.find(weaponName, pattern) then
-            return "air_to_air_missile"
-        end
-    end
-
-    if string.find(weaponName, "MAVERICK") or string.find(weaponName, "AGM") then
-        return "air_to_ground_missile"
-    end
-
-    if string.find(weaponName, "BOMB") or string.find(weaponName, "MK%-") or string.find(weaponName, "GBU") then
-        return "bomb"
-    end
-
-    if string.find(weaponName, "ROCKET") or string.find(weaponName, "HYDRA") or string.find(weaponName, "S%-8") then
-        return "rocket"
-    end
-
-    return "other"
+    return categoryName
 end
 
 local function isAirToAirMissileClass(weaponClass)
-    return weaponClass == "air_to_air_missile"
+    return weaponClass == "AAM"
 end
 
 local function findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId)
@@ -1625,11 +1613,14 @@ function CheckrideMission.onHit(event)
             local okTType, tType = pcall(function() return target:getTypeName() end)
             if okTType and tType and tType ~= "" then victimTypeName = tType end
 
+            local weaponClass = weapon and classifyWeaponClass(weapon) or nil
+
             if targetObjectId then
                 CheckrideMission.pendingKillsByObjectId[targetObjectId] = {
                     killedAtMs      = event.time,
                     victimRoles     = victimRoles,
                     weaponGuidance  = weaponGuidance,
+                    weaponClass     = weaponClass,
                     victimPositionX = victimPoint and victimPoint.x or nil,
                     victimPositionY = victimPoint and victimPoint.z or nil,
                     night           = CheckrideMission.isNight(event.time),
@@ -1939,6 +1930,7 @@ function CheckrideMission.onKill(event)
         killedAtMs         = pending and pending.killedAtMs or event.time,
         victimRoles        = pending and pending.victimRoles or nil,
         weaponGuidance     = pending and pending.weaponGuidance or nil,
+        weaponClass        = pending and pending.weaponClass or nil,
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,

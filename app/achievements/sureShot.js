@@ -12,8 +12,9 @@ class SureShot extends Achievement {
 
   evaluate(event, state) {
     if (event.victimUnitCategory !== 'air') return false;
+    if (event.weaponClass !== 'AAM') return false;
     if (state.sortieAamFiredCount !== 1) return false;
-    return state.missiles.some(m => m.status === 'hit');
+    return true;
   }
 }
 

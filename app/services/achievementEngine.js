@@ -209,6 +209,7 @@ class AchievementEngine {
         missiles: state.missiles,
         sortieAamFiredCount: state.sortieAamFiredCount,
         longestWeaponHit: state.longestWeaponHit,
+        longestMissileHit: state.longestMissileHit,
         inboundMissiles: state.inboundMissiles,
         currentUnitCategory: state.currentUnitCategory,
         hitCounters: state.hitCounters,
@@ -218,6 +219,7 @@ class AchievementEngine {
         highestAltitudeFt: state.highestAltitudeFt,
         sortieDistanceKm: state.sortieDistanceKm,
         noeDistanceKm: state.noeDistanceKm,
+        noeConsecutiveDistanceKm: state.noeConsecutiveDistanceKm,
       },
       gauges: {
         most_ground_kills_in_sortie: killsGround,

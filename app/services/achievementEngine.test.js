@@ -100,7 +100,7 @@ const PILOTSTATE_TO_SNAPSHOT = {
   missiles:             'state.missiles',
   sortieAamFiredCount:  'state.sortieAamFiredCount',
   longestWeaponHit:     'state.longestWeaponHit',
-  longestMissileHit:    'gauges.longest_missile_hit_nm',
+  longestMissileHit:    'state.longestMissileHit',
   inboundMissiles:      'state.inboundMissiles',
   currentUnitCategory:  'state.currentUnitCategory',
   hitCounters:          'state.hitCounters',
@@ -108,6 +108,7 @@ const PILOTSTATE_TO_SNAPSHOT = {
   longestGunBurstSeconds: 'state.longestGunBurstSeconds',
   sortieDistanceKm:     'state.sortieDistanceKm',
   noeDistanceKm:        'state.noeDistanceKm',
+  noeConsecutiveDistanceKm: 'state.noeConsecutiveDistanceKm',
 };
 
 function hasPath(obj, path) {

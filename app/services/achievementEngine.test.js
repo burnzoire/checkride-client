@@ -109,6 +109,7 @@ const PILOTSTATE_TO_SNAPSHOT = {
   sortieDistanceKm:     'state.sortieDistanceKm',
   noeDistanceKm:        'state.noeDistanceKm',
   noeConsecutiveDistanceKm: 'state.noeConsecutiveDistanceKm',
+  longestNoeConsecutiveDistanceKm: null, // rolled up into gauges.longest_noe_distance_nm
 };
 
 function hasPath(obj, path) {
@@ -313,6 +314,44 @@ describe('AchievementEngine — core mechanics', () => {
     expect(snapshot.state.state.weapons).toHaveLength(1);
     expect(snapshot.state.state.missiles).toHaveLength(1);
     expect(snapshot.state.state.missiles[0].inFlight).toBe(false);
+  });
+
+  it('serializes distance gauges in nautical miles from flight sample enrichment', () => {
+    const engine = new AchievementEngine([]);
+
+    // Two samples 1852m apart at low altitude — 1 NM NOE run
+    engine.evaluate({ type: 'flight_sample_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', positionX: 0, positionY: 0, altRadarFt: 50, inAir: true });
+    engine.evaluate({ type: 'flight_sample_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', positionX: 1852, positionY: 0, altRadarFt: 50, inAir: true });
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'flight_sample_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.gauges.longest_sortie_distance_nm).toBeCloseTo(1.0, 2);
+    expect(snapshot.state.gauges.longest_noe_distance_nm).toBeCloseTo(1.0, 2);
+  });
+
+  it('longest_noe_distance_nm reflects max consecutive run, not current run after a break', () => {
+    const engine = new AchievementEngine([]);
+
+    // First NOE leg: 1852m (~1 NM)
+    engine.evaluate({ type: 'flight_sample_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', positionX: 0, positionY: 0, altRadarFt: 50, inAir: true });
+    engine.evaluate({ type: 'flight_sample_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', positionX: 1852, positionY: 0, altRadarFt: 50, inAir: true });
+    // Climb breaks streak
+    engine.evaluate({ type: 'flight_sample_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', positionX: 2778, positionY: 0, altRadarFt: 5000, inAir: true });
+    // Short second NOE leg: 926m
+    engine.evaluate({ type: 'flight_sample_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', positionX: 3704, positionY: 0, altRadarFt: 50, inAir: true });
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'flight_sample_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    // Longest NOE run was the first leg (~1 NM), not the shorter second leg
+    expect(snapshot.state.gauges.longest_noe_distance_nm).toBeCloseTo(1.0, 2);
   });
 
   it('serializes non-missile weapon tracks without affecting missile stats', () => {

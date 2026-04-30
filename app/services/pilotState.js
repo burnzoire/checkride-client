@@ -194,6 +194,9 @@ class PilotState {
         if (radarAltForNoe !== null && radarAltForNoe <= 100) {
           this.noeDistanceKm += distKm;
           this.noeConsecutiveDistanceKm += distKm;
+          if (this.noeConsecutiveDistanceKm > this.longestNoeConsecutiveDistanceKm) {
+            this.longestNoeConsecutiveDistanceKm = this.noeConsecutiveDistanceKm;
+          }
         } else if (radarAltForNoe !== null && radarAltForNoe > 100) {
           this.noeConsecutiveDistanceKm = 0;
         }
@@ -565,6 +568,7 @@ applyGunBurstStart(event) {
     this.sortieDistanceKm = 0;
     this.noeDistanceKm = 0;
     this.noeConsecutiveDistanceKm = 0;
+    this.longestNoeConsecutiveDistanceKm = 0;
   }
 
   _computeMissileDistanceNm(missile) {

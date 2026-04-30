@@ -233,6 +233,8 @@ class AchievementEngine {
         longest_gun_burst_seconds: state.longestGunBurstSeconds,
         sortie_distance_km: state.sortieDistanceKm,
         noe_distance_km: state.noeDistanceKm,
+        longest_sortie_distance_nm: state.sortieDistanceKm / 1.852,
+        longest_noe_distance_nm: state.longestNoeConsecutiveDistanceKm / 1.852,
       },
     };
   }

@@ -105,4 +105,13 @@ describe('Avenger — engine integration', () => {
     const unlocked = engine.evaluate(friendlyKilledEvent());
     expect(unlocked).toEqual([]);
   });
+
+  it('unlocks when an AI friendly aircraft is the victim (no victimPlayerName)', () => {
+    const engine = new AchievementEngine([avenger]);
+
+    engine.evaluate({ type: 'friendly_killed_enrichment', killerObjectId: 55 });
+    const unlocked = engine.evaluate(killEvent({ victimObjectId: 55 }));
+
+    expect(unlocked.map(a => a.id)).toContain('avenger');
+  });
 });

@@ -333,6 +333,24 @@ describe('AchievementEngine — core mechanics', () => {
     expect(snapshot.state.gauges.longest_noe_distance_nm).toBeCloseTo(1.0, 2);
   });
 
+  it('serializes most_armored_kills_in_sortie using Armoured vehicles attribute, most_ground_kills_in_sortie includes all', () => {
+    const engine = new AchievementEngine([]);
+    const kill = (roles) => ({ type: 'kill_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', victimUnitCategory: 'ground', victimRoles: roles });
+
+    engine.evaluate(kill(['Armor', 'MBT'])); // armored — counts toward both
+    engine.evaluate(kill(['Infantry']));                   // soft — ground only
+    engine.evaluate(kill(['Infantry', 'MANPADS']));        // soft — ground only
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'kill_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.gauges.most_ground_kills_in_sortie).toBe(3);
+    expect(snapshot.state.gauges.most_armored_kills_in_sortie).toBe(1);
+  });
+
   it('longest_noe_distance_nm reflects max consecutive run, not current run after a break', () => {
     const engine = new AchievementEngine([]);
 

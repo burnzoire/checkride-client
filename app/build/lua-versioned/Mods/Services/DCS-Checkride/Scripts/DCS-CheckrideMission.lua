@@ -1607,8 +1607,8 @@ function CheckrideMission.onHit(event)
             local okVDesc, vDesc = pcall(function() return target:getDesc() end)
             if okVDesc and vDesc and type(vDesc.attributes) == "table" then
                 local wantedRoles = {
-                    "SAM SR","SAM TR","SAM launcher",
-                    "Armour","Tanks","IFV","APC",
+                    "SAM SR","SAM TR","SAM launcher","MANPADS",
+                    "Armor","Tank","MBT","IFV","APC",
                     "AAA","Artillery","MLRS","Infantry",
                 }
                 for _, r in ipairs(wantedRoles) do
@@ -1645,18 +1645,24 @@ function CheckrideMission.onHit(event)
 
         elseif life and life > 1.0 then
             -- ── Non-lethal hit: emit lightweight hit counter ──────────────────
-            local killerCoal = nil
-            pcall(function() killerCoal = initiator:getCoalition() end)
-            local roleCoalition = getRoleCoalition(target, killerCoal)
-            if roleCoalition then
-                CheckrideMission.sendEnrichmentEvent({
-                    type         = "hit_enrichment",
-                    source       = "mission",
-                    playerUcid   = ucid,
-                    playerName   = playerName,
-                    roleCoalition = roleCoalition,
-                    missionTime  = event.time,
-                })
+            -- Guard: only process if this weapon is actively tracked (missiles/bombs).
+            -- Gun rounds are never added to activeWeaponShots, so this skips the
+            -- expensive pcall + UDP path on every bullet hit.
+            local matchingForHit = findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId)
+            if #matchingForHit > 0 then
+                local killerCoal = nil
+                pcall(function() killerCoal = initiator:getCoalition() end)
+                local roleCoalition = getRoleCoalition(target, killerCoal)
+                if roleCoalition then
+                    CheckrideMission.sendEnrichmentEvent({
+                        type         = "hit_enrichment",
+                        source       = "mission",
+                        playerUcid   = ucid,
+                        playerName   = playerName,
+                        roleCoalition = roleCoalition,
+                        missionTime  = event.time,
+                    })
+                end
             end
         end
     end

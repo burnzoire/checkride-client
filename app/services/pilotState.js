@@ -106,11 +106,12 @@ class PilotState {
    * @param {number|null} event.carrierDistanceNm
    */
   applyKill(event) {
+    const victimRoles = Array.isArray(event.victimRoles) ? event.victimRoles : [];
     this.kills.push({
       victimUnitCategory:  event.victimUnitCategory ?? null,
       carrierDistanceNm:   typeof event.carrierDistanceNm === 'number' ? event.carrierDistanceNm : null,
       killedAtMs:          event.killedAtMs ?? null,
-      victimRoles:         Array.isArray(event.victimRoles) ? event.victimRoles : [],
+      victimRoles,
       weaponGuidance:      event.weaponGuidance ?? null,
       victimPositionX:     event.victimPositionX ?? null,
       victimPositionY:     event.victimPositionY ?? null,
@@ -123,6 +124,7 @@ class PilotState {
       weaponClass:         event.weaponClass ?? null,
       avengedFriendly:     event.avengedFriendly === true,
     });
+
   }
 
   applyRefuelEnrichment(event) {
@@ -569,6 +571,7 @@ applyGunBurstStart(event) {
     this.noeDistanceKm = 0;
     this.noeConsecutiveDistanceKm = 0;
     this.longestNoeConsecutiveDistanceKm = 0;
+
   }
 
   _computeMissileDistanceNm(missile) {

@@ -15,7 +15,7 @@ class DoubleKill extends Achievement {
     super({
       id: 'double_kill',
       name: 'Double Kill',
-      description: 'Destroy two armored vehicles with a single bomb.',
+      description: 'Destroy two armored vehicles with a single release.',
       triggerType: 'kill_enrichment',
     });
   }

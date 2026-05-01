@@ -6,7 +6,7 @@ class NightTanker extends Achievement {
   constructor() {
     super({
       id: 'night_tanker',
-      name: 'Night Tanker',
+      name: 'Blind Date',
       description: 'Complete a night refuel contact and gain at least 10% fuel.',
       triggerType: 'refuel_enrichment',
       iconHint: 'Night aerial refueling',

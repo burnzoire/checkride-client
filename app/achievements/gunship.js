@@ -6,7 +6,7 @@ class Gunship extends Achievement {
   constructor() {
     super({
       id: 'gunship',
-      name: 'Gunship',
+      name: 'I AM THE GREATEST!',
       description: `Destroy ${GROUND_KILLS_REQUIRED} enemy ground units in a single sortie while flying a helicopter.`,
       triggerType: 'kill_enrichment',
     });

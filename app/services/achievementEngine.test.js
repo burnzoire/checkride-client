@@ -341,7 +341,7 @@ describe('AchievementEngine — core mechanics', () => {
     engine.evaluate(kill(['SAM TR']));
     engine.evaluate(kill(['SAM launcher']));
     engine.evaluate(kill(['AAA']));
-    engine.evaluate(kill(['Armor', 'MBT'])); // not SEAD
+    engine.evaluate(kill(['Armour', 'Tanks'])); // not SEAD
 
     const snapshot = engine.buildSnapshot({
       pilotUcid: 'pilot-1',
@@ -357,9 +357,10 @@ describe('AchievementEngine — core mechanics', () => {
     const engine = new AchievementEngine([]);
     const kill = (roles) => ({ type: 'kill_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', victimUnitCategory: 'ground', victimRoles: roles });
 
-    engine.evaluate(kill(['Armor', 'MBT'])); // armored — counts toward both
-    engine.evaluate(kill(['Infantry']));                   // soft — ground only
-    engine.evaluate(kill(['Infantry', 'MANPADS']));        // soft — ground only
+    engine.evaluate(kill(['Armour', 'Tanks'])); // MBT — counts toward both
+    engine.evaluate(kill(['Armour', 'APC']));   // APC — counts toward both
+    engine.evaluate(kill(['Infantry']));         // soft — ground only
+    engine.evaluate(kill(['Infantry', 'MANPADS'])); // soft — ground only
 
     const snapshot = engine.buildSnapshot({
       pilotUcid: 'pilot-1',
@@ -367,8 +368,8 @@ describe('AchievementEngine — core mechanics', () => {
       unlockedAchievements: [],
     });
 
-    expect(snapshot.state.gauges.most_ground_kills_in_sortie).toBe(3);
-    expect(snapshot.state.gauges.most_armored_kills_in_sortie).toBe(1);
+    expect(snapshot.state.gauges.most_ground_kills_in_sortie).toBe(4);
+    expect(snapshot.state.gauges.most_armored_kills_in_sortie).toBe(2);
   });
 
   it('longest_noe_distance_nm reflects max consecutive run, not current run after a break', () => {

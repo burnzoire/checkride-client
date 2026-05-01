@@ -163,3 +163,6 @@ dist
 
 # macos
 .DS_Store
+
+app/build/
+dist/

@@ -169,7 +169,8 @@ class AchievementEngine {
   serializeState(state) {
     const killsAir = state.kills.filter((k) => k.victimUnitCategory === 'air').length;
     const killsGround = state.kills.filter((k) => k.victimUnitCategory === 'ground').length;
-    const armoredKills = state.kills.filter((k) => k.victimUnitCategory === 'ground' && k.victimRoles.includes('Armor')).length;
+    const ARMOUR_ROLES = ['Armour', 'Tanks', 'IFV', 'APC'];
+    const armoredKills = state.kills.filter((k) => k.victimUnitCategory === 'ground' && Array.isArray(k.victimRoles) && k.victimRoles.some((r) => ARMOUR_ROLES.includes(r))).length;
     const seadKills = state.kills.filter((k) => k.victimRoles.some((r) => ['SAM SR', 'SAM TR', 'SAM launcher', 'AAA'].includes(r))).length;
     const munitionsInFlight = state.weapons.filter((weaponTrack) => weaponTrack.inFlight === true).length;
 

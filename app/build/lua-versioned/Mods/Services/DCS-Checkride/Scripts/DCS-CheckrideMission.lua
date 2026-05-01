@@ -1854,10 +1854,15 @@ function CheckrideMission.onKill(event)
 
     -- Victim unit category — try live target first, fall back gracefully
     local victimUnitCategory = "other"
+    local victimAirType = nil
     local okDesc, desc = pcall(function() return target:getDesc() end)
     if okDesc and desc then
-        if desc.category == Unit.Category.AIRPLANE or desc.category == Unit.Category.HELICOPTER then
+        if desc.category == Unit.Category.AIRPLANE then
             victimUnitCategory = "air"
+            victimAirType = "AIRPLANE"
+        elseif desc.category == Unit.Category.HELICOPTER then
+            victimUnitCategory = "air"
+            victimAirType = "HELICOPTER"
         elseif desc.category == Unit.Category.GROUND_UNIT then
             victimUnitCategory = "ground"
         elseif desc.category == Unit.Category.SHIP then
@@ -1919,6 +1924,7 @@ function CheckrideMission.onKill(event)
         playerName         = playerName,
         victimObjectId     = victimObjectId,
         victimUnitCategory = victimUnitCategory,
+        victimAirType      = victimAirType,
         isEnemy            = isEnemy,
         carrierDistanceNm  = carrierDistanceNm,
         killerUnitCategory = killerUnitCategory,

@@ -333,6 +333,26 @@ describe('AchievementEngine — core mechanics', () => {
     expect(snapshot.state.gauges.longest_noe_distance_nm).toBeCloseTo(1.0, 2);
   });
 
+  it('serializes most_sead_kills_in_sortie counting SAM and AAA kills', () => {
+    const engine = new AchievementEngine([]);
+    const kill = (roles) => ({ type: 'kill_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', victimUnitCategory: 'ground', victimRoles: roles });
+
+    engine.evaluate(kill(['SAM SR']));
+    engine.evaluate(kill(['SAM TR']));
+    engine.evaluate(kill(['SAM launcher']));
+    engine.evaluate(kill(['AAA']));
+    engine.evaluate(kill(['Armor', 'MBT'])); // not SEAD
+
+    const snapshot = engine.buildSnapshot({
+      pilotUcid: 'pilot-1',
+      triggerEvent: { type: 'kill_enrichment', playerUcid: 'pilot-1' },
+      unlockedAchievements: [],
+    });
+
+    expect(snapshot.state.gauges.most_sead_kills_in_sortie).toBe(4);
+    expect(snapshot.state.gauges.most_armored_kills_in_sortie).toBe(1);
+  });
+
   it('serializes most_armored_kills_in_sortie using Armoured vehicles attribute, most_ground_kills_in_sortie includes all', () => {
     const engine = new AchievementEngine([]);
     const kill = (roles) => ({ type: 'kill_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', victimUnitCategory: 'ground', victimRoles: roles });

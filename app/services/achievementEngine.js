@@ -169,6 +169,9 @@ class AchievementEngine {
   serializeState(state) {
     const killsAir = state.kills.filter((k) => k.victimUnitCategory === 'air').length;
     const killsGround = state.kills.filter((k) => k.victimUnitCategory === 'ground').length;
+    const ARMOUR_ROLES = ['Armour', 'Tanks', 'IFV', 'APC'];
+    const armoredKills = state.kills.filter((k) => k.victimUnitCategory === 'ground' && Array.isArray(k.victimRoles) && k.victimRoles.some((r) => ARMOUR_ROLES.includes(r))).length;
+    const seadKills = state.kills.filter((k) => k.victimRoles.some((r) => ['SAM SR', 'SAM TR', 'SAM launcher', 'AAA'].includes(r))).length;
     const munitionsInFlight = state.weapons.filter((weaponTrack) => weaponTrack.inFlight === true).length;
 
     return {
@@ -197,6 +200,8 @@ class AchievementEngine {
         takeoffLocation: state.takeoffLocation,
         lastTakeoffAtMs: state.lastTakeoffAtMs,
         killsGround,
+        armoredKills,
+        seadKills,
         killsAir,
         killsCount: state.kills.length,
         kills: state.kills,
@@ -223,6 +228,8 @@ class AchievementEngine {
       },
       gauges: {
         most_ground_kills_in_sortie: killsGround,
+        most_armored_kills_in_sortie: armoredKills,
+        most_sead_kills_in_sortie: seadKills,
         most_air_kills_in_sortie: killsAir,
         longest_refuel_contact_seconds: state.longestRefuelContactSeconds,
         longest_missile_hit_nm: state.longestMissileHit,
@@ -233,6 +240,8 @@ class AchievementEngine {
         longest_gun_burst_seconds: state.longestGunBurstSeconds,
         sortie_distance_km: state.sortieDistanceKm,
         noe_distance_km: state.noeDistanceKm,
+        longest_sortie_distance_nm: state.sortieDistanceKm / 1.852,
+        longest_noe_distance_nm: state.longestNoeConsecutiveDistanceKm / 1.852,
       },
     };
   }

@@ -1820,19 +1820,33 @@ function CheckrideMission.onKill(event)
     local target = event.target
     if not target then return end
 
-    -- Emit friendly_killed_enrichment whenever a player aircraft is destroyed,
-    -- regardless of whether the killer is a player or AI.
+    -- Emit friendly_killed_enrichment whenever a friendly aircraft is destroyed
+    -- by an enemy, whether the victim is a human player or an AI aircraft.
     local victimPlayerName = nil
     local okVPN, vpn = pcall(function() return target:getPlayerName() end)
     if okVPN and vpn and vpn ~= "" then victimPlayerName = vpn end
 
-    if victimPlayerName then
+    local victimIsAirUnit = false
+    local okVCat, vCat = pcall(function() return target:getDesc() end)
+    if okVCat and vCat then
+        victimIsAirUnit = (vCat.category == Unit.Category.AIRPLANE or vCat.category == Unit.Category.HELICOPTER)
+    end
+
+    local killerCoalForFriendly = nil
+    local victimCoalForFriendly = nil
+    pcall(function() killerCoalForFriendly = initiator:getCoalition() end)
+    pcall(function() victimCoalForFriendly = target:getCoalition() end)
+    local victimIsEnemyKilled = killerCoalForFriendly and victimCoalForFriendly and
+                                killerCoalForFriendly ~= victimCoalForFriendly and
+                                victimCoalForFriendly ~= coalition.side.NEUTRAL
+
+    if victimPlayerName or (victimIsAirUnit and victimIsEnemyKilled) then
         local killerObjectId = getObjectId(initiator)
         local killerTypeName = nil
         local okKType, kType = pcall(function() return initiator:getTypeName() end)
         if okKType and kType and kType ~= "" then killerTypeName = kType end
 
-        local victimPlayerUcid = CheckrideLookupUCID and CheckrideLookupUCID(victimPlayerName) or nil
+        local victimPlayerUcid = victimPlayerName and (CheckrideLookupUCID and CheckrideLookupUCID(victimPlayerName) or nil) or nil
 
         CheckrideMission.sendEnrichmentEvent({
             type             = "friendly_killed_enrichment",
@@ -1859,10 +1873,15 @@ function CheckrideMission.onKill(event)
 
     -- Victim unit category — try live target first, fall back gracefully
     local victimUnitCategory = "other"
+    local victimAirType = nil
     local okDesc, desc = pcall(function() return target:getDesc() end)
     if okDesc and desc then
-        if desc.category == Unit.Category.AIRPLANE or desc.category == Unit.Category.HELICOPTER then
+        if desc.category == Unit.Category.AIRPLANE then
             victimUnitCategory = "air"
+            victimAirType = "AIRPLANE"
+        elseif desc.category == Unit.Category.HELICOPTER then
+            victimUnitCategory = "air"
+            victimAirType = "HELICOPTER"
         elseif desc.category == Unit.Category.GROUND_UNIT then
             victimUnitCategory = "ground"
         elseif desc.category == Unit.Category.SHIP then
@@ -1924,6 +1943,7 @@ function CheckrideMission.onKill(event)
         playerName         = playerName,
         victimObjectId     = victimObjectId,
         victimUnitCategory = victimUnitCategory,
+        victimAirType      = victimAirType,
         isEnemy            = isEnemy,
         carrierDistanceNm  = carrierDistanceNm,
         killerUnitCategory = killerUnitCategory,

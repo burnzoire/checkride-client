@@ -839,6 +839,70 @@ describe('PilotState — _pruneCompletedWeapons TTL', () => {
   });
 });
 
+// ─── distance gauges ─────────────────────────────────────────────────────────
+
+describe('PilotState — sortie and NOE distance tracking', () => {
+  let state;
+  beforeEach(() => { state = new PilotState(); });
+
+  function sample(positionX, positionY, altRadarFt, inAir = true) {
+    return { positionX, positionY, altRadarFt, inAir };
+  }
+
+  it('accumulates sortieDistanceKm between flight samples while airborne', () => {
+    // 1852m = 1 NM = 1km * (1/1.852) — use a round 1852m step
+    state.applyFlightSampleEnrichment(sample(0, 0, 500));
+    state.applyFlightSampleEnrichment(sample(1852, 0, 500));
+    expect(state.sortieDistanceKm).toBeCloseTo(1.852, 3);
+  });
+
+  it('does not accumulate distance when not airborne', () => {
+    state.applyFlightSampleEnrichment(sample(0, 0, 500, false));
+    state.applyFlightSampleEnrichment(sample(1852, 0, 500, false));
+    expect(state.sortieDistanceKm).toBe(0);
+  });
+
+  it('ignores jumps greater than 5 km (teleports/slot changes)', () => {
+    state.applyFlightSampleEnrichment(sample(0, 0, 500));
+    state.applyFlightSampleEnrichment(sample(6000, 0, 500));
+    expect(state.sortieDistanceKm).toBe(0);
+  });
+
+  it('accumulates noeConsecutiveDistanceKm while radar alt <= 100 ft', () => {
+    state.applyFlightSampleEnrichment(sample(0, 0, 50));
+    state.applyFlightSampleEnrichment(sample(1852, 0, 80));
+    expect(state.noeConsecutiveDistanceKm).toBeCloseTo(1.852, 3);
+  });
+
+  it('resets noeConsecutiveDistanceKm when climbing above 100 ft', () => {
+    state.applyFlightSampleEnrichment(sample(0, 0, 50));
+    state.applyFlightSampleEnrichment(sample(1852, 0, 50));
+    state.applyFlightSampleEnrichment(sample(3704, 0, 500)); // climb — resets consecutive
+    expect(state.noeConsecutiveDistanceKm).toBe(0);
+  });
+
+  it('tracks longestNoeConsecutiveDistanceKm across a broken NOE run', () => {
+    // First NOE leg: 1852m
+    state.applyFlightSampleEnrichment(sample(0, 0, 50));
+    state.applyFlightSampleEnrichment(sample(1852, 0, 50));
+    // Climb breaks the streak
+    state.applyFlightSampleEnrichment(sample(3704, 0, 500));
+    // Second NOE leg: only 926m — shorter
+    state.applyFlightSampleEnrichment(sample(4630, 0, 50));
+    state.applyFlightSampleEnrichment(sample(5556, 0, 50));
+    expect(state.longestNoeConsecutiveDistanceKm).toBeCloseTo(1.852, 3);
+  });
+
+  it('resets all distance state on takeoff_enrichment', () => {
+    state.applyFlightSampleEnrichment(sample(0, 0, 50));
+    state.applyFlightSampleEnrichment(sample(1852, 0, 50));
+    state.applyTakeoffEnrichment({ launchedFromCarrier: false });
+    expect(state.sortieDistanceKm).toBe(0);
+    expect(state.noeConsecutiveDistanceKm).toBe(0);
+    expect(state.longestNoeConsecutiveDistanceKm).toBe(0);
+  });
+});
+
 // ─── _inferWeaponClassFromName ───────────────────────────────────────────────
 
 describe('PilotState — _inferWeaponClassFromName', () => {

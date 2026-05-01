@@ -22,25 +22,30 @@ describe('DeathFromBelow — metadata', () => {
 });
 
 describe('DeathFromBelow — evaluate', () => {
-  it('returns true for a helo air kill', () => {
-    const state = stateWithKills([{ killerUnitCategory: 'HELICOPTER', victimUnitCategory: 'air' }]);
+  it('returns true for a helo killing a fixed-wing', () => {
+    const state = stateWithKills([{ killerUnitCategory: 'HELICOPTER', victimAirType: 'AIRPLANE' }]);
     expect(deathFromBelow.evaluate(killEvent(), state)).toBe(true);
   });
 
-  it('returns false for a helo ground kill', () => {
-    const state = stateWithKills([{ killerUnitCategory: 'HELICOPTER', victimUnitCategory: 'ground' }]);
+  it('returns false for a helo killing another helicopter', () => {
+    const state = stateWithKills([{ killerUnitCategory: 'HELICOPTER', victimAirType: 'HELICOPTER' }]);
     expect(deathFromBelow.evaluate(killEvent(), state)).toBe(false);
   });
 
-  it('returns false for an airplane air kill', () => {
-    const state = stateWithKills([{ killerUnitCategory: 'AIRPLANE', victimUnitCategory: 'air' }]);
+  it('returns false for a helo ground kill', () => {
+    const state = stateWithKills([{ killerUnitCategory: 'HELICOPTER', victimAirType: null }]);
+    expect(deathFromBelow.evaluate(killEvent(), state)).toBe(false);
+  });
+
+  it('returns false for an airplane killing a fixed-wing', () => {
+    const state = stateWithKills([{ killerUnitCategory: 'AIRPLANE', victimAirType: 'AIRPLANE' }]);
     expect(deathFromBelow.evaluate(killEvent(), state)).toBe(false);
   });
 
   it('returns true if any kill in a multi-kill sortie qualifies', () => {
     const state = stateWithKills([
-      { killerUnitCategory: 'HELICOPTER', victimUnitCategory: 'ground' },
-      { killerUnitCategory: 'HELICOPTER', victimUnitCategory: 'air' },
+      { killerUnitCategory: 'HELICOPTER', victimAirType: null },
+      { killerUnitCategory: 'HELICOPTER', victimAirType: 'AIRPLANE' },
     ]);
     expect(deathFromBelow.evaluate(killEvent(), state)).toBe(true);
   });

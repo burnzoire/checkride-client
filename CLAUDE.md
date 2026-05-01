@@ -89,6 +89,18 @@ NSIS installer (Windows) copies three Lua files from `extraResources/dcs/` into 
 - `app/services/pilotStatePublisher.js` — ActionCable WebSocket
 - `app/config.js` — electron-store settings schema
 
+## Adding a new gauge
+
+Gauges track per-pilot high-water-mark values (max speed, max altitude, etc.) and are synced to the API via `GaugeSync`. No changes to `GaugeSync` itself are needed.
+
+1. **Track the value in `app/services/pilotState.js`** — add the state field to `_resetSortieState()` and update it in the appropriate `apply*Enrichment()` method. Use `applyFlightSampleEnrichment` for telemetry values from `onsimulationframe` events, or `applyHitEnrichment` for weapon-hit-derived values.
+
+2. **Expose it in `app/services/achievementEngine.js`** — in `serializeState()`, add the gauge ID and its value to the `gauges` object. Ensure units match what the server expects (e.g. convert km → nm by dividing by 1.852, or use the `METERS_TO_NM` constant for meters → nm conversions).
+
+3. **Register on the server** — add a `Definition` entry to `REGISTRY` in `../checkride/app/models/gauge.rb` with `source: :pilot_gauges` and the appropriate aggregation (`:max` for highest-ever, `:min` for lowest-ever).
+
+4. **Display in the UI** — add the gauge ID to `HIGH_SCORE_GAUGES` in `../checkride-ui/src/pages/DashboardPage.tsx`, add a label to `GAUGE_LABELS` in `StatsPage.tsx`, and add a format case in `formatGaugeValue()` in `StatsPage.tsx`.
+
 ## Testing
 
 - Run `npm test` before pushing.

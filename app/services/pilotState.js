@@ -103,14 +103,17 @@ class PilotState {
    *
    * @param {object} event - kill_enrichment event
    * @param {'air'|'ground'|'ship'|'other'} event.victimUnitCategory
+   * @param {'AIRPLANE'|'HELICOPTER'|null} event.victimAirType - only set when victimUnitCategory is 'air'
    * @param {number|null} event.carrierDistanceNm
    */
   applyKill(event) {
+    const victimRoles = Array.isArray(event.victimRoles) ? event.victimRoles : [];
     this.kills.push({
       victimUnitCategory:  event.victimUnitCategory ?? null,
+      victimAirType:       event.victimAirType ?? null,
       carrierDistanceNm:   typeof event.carrierDistanceNm === 'number' ? event.carrierDistanceNm : null,
       killedAtMs:          event.killedAtMs ?? null,
-      victimRoles:         Array.isArray(event.victimRoles) ? event.victimRoles : [],
+      victimRoles,
       weaponGuidance:      event.weaponGuidance ?? null,
       victimPositionX:     event.victimPositionX ?? null,
       victimPositionY:     event.victimPositionY ?? null,
@@ -123,6 +126,7 @@ class PilotState {
       weaponClass:         event.weaponClass ?? null,
       avengedFriendly:     event.avengedFriendly === true,
     });
+
   }
 
   applyRefuelEnrichment(event) {
@@ -194,6 +198,9 @@ class PilotState {
         if (radarAltForNoe !== null && radarAltForNoe <= 100) {
           this.noeDistanceKm += distKm;
           this.noeConsecutiveDistanceKm += distKm;
+          if (this.noeConsecutiveDistanceKm > this.longestNoeConsecutiveDistanceKm) {
+            this.longestNoeConsecutiveDistanceKm = this.noeConsecutiveDistanceKm;
+          }
         } else if (radarAltForNoe !== null && radarAltForNoe > 100) {
           this.noeConsecutiveDistanceKm = 0;
         }
@@ -565,6 +572,8 @@ applyGunBurstStart(event) {
     this.sortieDistanceKm = 0;
     this.noeDistanceKm = 0;
     this.noeConsecutiveDistanceKm = 0;
+    this.longestNoeConsecutiveDistanceKm = 0;
+
   }
 
   _computeMissileDistanceNm(missile) {

@@ -30,6 +30,7 @@ CheckrideMission.WeaponSample = {
 CheckrideMission.RefuelDetection = {
     enabled = true,
     minFuelGainStep = 0.0005,
+    minAccumulatedFuelGain = 0.01,
 }
 
 -- Maps ucid (or fallback playerName) to the carrier Unit the pilot launched from.
@@ -1046,13 +1047,18 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
 
     if gainedFuelThisSample then
         active.consecutiveGainSamples = (active.consecutiveGainSamples or 0) + 1
+        active.accumulatedFuelGain = math.max(0, (active.accumulatedFuelGain or 0) + fuelDelta)
+        active.lastGainAt = now
 
-        -- Require at least 2 consecutive gain samples before treating this as a
-        -- real AAR contact. A single-sample spike (e.g. caused by weapon release
-        -- shifting DCS's getFuel() reading) is silently ignored: segmentStartedAt
-        -- remains nil, so finalizeRefuelSegment will also be a no-op when the
-        -- session eventually ends.
-        if active.consecutiveGainSamples >= 2 and not isFiniteNumber(active.segmentStartedAt) then
+        -- Require both 2 consecutive gain samples and a minimum accumulated fuel
+        -- gain before emitting started. The consecutive check filters single-frame
+        -- spikes; the accumulated threshold filters weapon-release artefacts where
+        -- releasing ordnance briefly shifts getFuel() by a small fraction. A real
+        -- tanker contact delivers far more fuel than any payload change can fake.
+        local minGain = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minAccumulatedFuelGain) or 0.01
+        if active.consecutiveGainSamples >= 2
+           and active.accumulatedFuelGain >= minGain
+           and not isFiniteNumber(active.segmentStartedAt) then
             active.segmentStartedAt = active.lastSampleTime or now
             active.night = CheckrideMission.isNight(active.segmentStartedAt)
 
@@ -1067,13 +1073,10 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
                 missionTime = active.segmentStartedAt,
                 system = active.system,
                 fuelState = currentFuelState,
-                fuelGain = fuelDelta,
+                fuelGain = active.accumulatedFuelGain,
                 night = active.night,
             })
         end
-
-        active.accumulatedFuelGain = math.max(0, (active.accumulatedFuelGain or 0) + fuelDelta)
-        active.lastGainAt = now
         active.lastSampleTime = now
         active.lastFuelState = currentFuelState
         active.unitRef = entry.unit or active.unitRef

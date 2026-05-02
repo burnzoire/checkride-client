@@ -306,14 +306,19 @@ class APIClient {
     });
   }
 
-  heartbeat() {
+  heartbeat(playerCount = 0) {
     return new Promise((resolve, reject) => {
+      const data = JSON.stringify({ player_count: playerCount });
+
       const options = {
         host: this.host,
         path: `${this.pathPrefix}/heartbeat`,
         port: this.port,
         method: 'POST',
-        headers: this.buildHeaders({ 'Content-Length': 0 }),
+        headers: this.buildHeaders({
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data),
+        }),
       };
 
       const req = this.httpModule.request(options, (response) => {
@@ -335,6 +340,7 @@ class APIClient {
         reject(new APIClientError(`API request failed: ${error}`));
       });
 
+      req.write(data);
       req.end();
     });
   }

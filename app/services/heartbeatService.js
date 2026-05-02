@@ -3,15 +3,16 @@ const log = require('electron-log');
 const DEFAULT_HEARTBEAT_INTERVAL = 60000; // 60 seconds
 
 class HeartbeatService {
-  constructor(apiClient, interval = DEFAULT_HEARTBEAT_INTERVAL) {
+  constructor(apiClient, interval = DEFAULT_HEARTBEAT_INTERVAL, getPlayerCount = () => 0) {
     this.apiClient = apiClient;
     this.interval = interval;
+    this.getPlayerCount = getPlayerCount;
     this.intervalId = null;
   }
 
   async beat() {
     try {
-      await this.apiClient.heartbeat();
+      await this.apiClient.heartbeat(this.getPlayerCount());
       log.debug('Heartbeat sent');
     } catch (error) {
       log.warn('Heartbeat failed:', error.message);

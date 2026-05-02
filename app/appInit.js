@@ -376,7 +376,15 @@ async function initApp({ onLuaVersionMismatch } = {}) {
   const healthChecker = new HealthChecker(apiClient, store)
   healthChecker.start()
 
-  const heartbeatService = new HeartbeatService(apiClient)
+  let connectedPlayerCount = 0;
+  const originalOnEvent = udpServer.onEvent;
+  udpServer.onEvent = (event) => {
+    if (event.type === 'connect') connectedPlayerCount++;
+    if (event.type === 'disconnect') connectedPlayerCount = Math.max(0, connectedPlayerCount - 1);
+    return originalOnEvent(event);
+  };
+
+  const heartbeatService = new HeartbeatService(apiClient, undefined, () => connectedPlayerCount)
   heartbeatService.start()
 
   return { udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, healthChecker, heartbeatService };

@@ -181,7 +181,19 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   const engine = achievementEngine || new AchievementEngine();
   const pilotStatePublishState = new Map();
   const warnedMismatchKeys = new Set();
+  // Built from connect/change_slot events so mission-script events with null playerUcid
+  // (due to the async CheckridePlayers injection race) can still be attributed correctly.
+  const ucidByName = new Map();
   udpServer.onEvent = (event) => {
+    if (event.playerUcid && event.playerName) {
+      ucidByName.set(event.playerName, event.playerUcid);
+    } else if (!event.playerUcid && event.playerName) {
+      const resolvedUcid = ucidByName.get(event.playerName);
+      if (resolvedUcid) {
+        event.playerUcid = resolvedUcid;
+      }
+    }
+
     if (event.type !== 'flight_sample_enrichment') {
       log.debug(`Handling event: ${JSON.stringify(event)}`)
     }

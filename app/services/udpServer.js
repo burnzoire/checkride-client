@@ -9,6 +9,10 @@ class UDPServer {
     this.start()
   }
 
+  get onEvent() {
+    return this.onEventCallback;
+  }
+
   set onEvent(callback) {
     this.onEventCallback = callback;
   }

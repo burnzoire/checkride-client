@@ -13,7 +13,7 @@ local function checkrideLogWarn(message)
     log.write('DCS-Checkride-Hook', warningLevel, tostring(message))
 end
 
-local CHECKRIDE_CLIENT_VERSION = '1.1.6'
+local CHECKRIDE_CLIENT_VERSION = '1.3.2-beta3'
 checkrideLogInfo('Hook version: ' .. CHECKRIDE_CLIENT_VERSION)
 
 local status, result = pcall(function() local dcsSr=require('lfs');dofile(dcsSr.writedir()..[[Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideGameGUI.lua]]); end,nil)

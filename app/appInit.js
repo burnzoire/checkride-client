@@ -399,8 +399,7 @@ async function initApp({ onLuaVersionMismatch } = {}) {
   let connectedPlayerCount = 0;
   const originalOnEvent = udpServer.onEvent;
   udpServer.onEvent = (event) => {
-    if (event.type === 'connect') connectedPlayerCount++;
-    if (event.type === 'disconnect') connectedPlayerCount = Math.max(0, connectedPlayerCount - 1);
+    if (event.playerCount != null) connectedPlayerCount = event.playerCount;
     return originalOnEvent(event);
   };
 

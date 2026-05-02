@@ -213,6 +213,11 @@ local function getPlayerOrAI(playerID)
     return Checkride.clients[playerID] or { name = "AI", ucid = "" }
 end
 
+local function getConnectedPlayerCount()
+    local players = net.get_player_list()
+    return players and #players or 0
+end
+
 local function isBlank(value)
     return value == nil or tostring(value) == ""
 end
@@ -285,6 +290,7 @@ function Checkride.onConnect(time, playerID, name)
     local event = buildEvent("connect", time)
     event.playerUcid = player.ucid
     event.playerName = player.name
+    event.playerCount = getConnectedPlayerCount()
     Checkride.sendEvent(event)
 end
 
@@ -299,6 +305,7 @@ function Checkride.onDisconnect(time, playerID, name, playerSide, reason_code)
     event.playerName = player.name
     event.playerSide = playerSide
     event.reasonCode = reason_code
+    event.playerCount = getConnectedPlayerCount()
     Checkride.sendEvent(event)
 
     Checkride.removePlayer(playerID)
@@ -354,6 +361,7 @@ function Checkride.onChangeSlot(time, playerID, slotID, prevSide)
     event.slotId = slotID
     event.prevSide = prevSide
     event.flyable = isFlyableSlot(side, slotID)
+    event.playerCount = getConnectedPlayerCount()
     Checkride.sendEvent(event)
 end
 
@@ -535,4 +543,5 @@ Checkride.log("Checkride loaded v" .. Checkride.version)
 Checkride.sendEvent({
     type = "ready",
     luaClientVersion = Checkride.clientVersion,
+    playerCount = getConnectedPlayerCount(),
 })

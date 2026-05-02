@@ -209,6 +209,14 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
       engine.resetPilot(event.playerUcid);
       engine.loadAchievementsFromApi(event.playerUcid, apiClient)
         .catch((error) => log.error(`Failed to load achievements for pilot ${event.playerUcid}:`, error))
+
+      if (event.type === 'connect' && dcsChatClient?.send) {
+        dcsChatClient.send(
+          'You can view your pilot progression any time at https://www.checkride.oversweep.com',
+          true,
+          { kind: 'info', playerUcid: event.playerUcid }
+        ).catch((error) => log.error(`Failed to send welcome message to ${event.playerUcid}:`, error));
+      }
     }
 
     // Events with persist: false update pilot state and fire achievements but are never saved to the API.

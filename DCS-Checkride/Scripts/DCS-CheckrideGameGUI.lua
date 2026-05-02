@@ -82,6 +82,26 @@ function Checkride.sendChatToAll(message)
     Checkride.log("Chat send API not available")
 end
 
+function Checkride.sendChatToUcid(message, ucid)
+    if not message or message == "" or not ucid or ucid == "" then
+        return
+    end
+
+    for id, player in pairs(Checkride.clients) do
+        if player.ucid == ucid then
+            if net and net.send_chat_to then
+                net.send_chat_to(message, id)
+            else
+                Checkride.log("send_chat_to API not available, falling back to broadcast")
+                Checkride.sendChatToAll(message)
+            end
+            return
+        end
+    end
+
+    Checkride.log("sendChatToUcid: no connected player found for ucid " .. ucid)
+end
+
 function Checkride.pollChatSocket()
     if not Checkride.UDPReceiveSocket then
         return
@@ -111,7 +131,11 @@ function Checkride.pollChatSocket()
 
                 if message and message ~= "" then
                     Checkride.log("Received chat message: " .. message)
-                    Checkride.sendChatToAll(message)
+                    if decoded.playerUcid and decoded.playerUcid ~= "" then
+                        Checkride.sendChatToUcid(message, decoded.playerUcid)
+                    else
+                        Checkride.sendChatToAll(message)
+                    end
                 end
             end
         elseif message and message ~= "" then

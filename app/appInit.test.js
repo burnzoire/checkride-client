@@ -7,6 +7,7 @@ jest.mock('./config');
 jest.mock('electron-log');
 jest.mock('./services/eventProcessor');
 jest.mock('./services/healthChecker');
+jest.mock('./services/heartbeatService');
 jest.mock('./services/pilotStatePublisher');
 jest.mock('./services/gaugeSync');
 
@@ -20,6 +21,7 @@ const { initApp, attachEventPipeline } = require('./appInit');
 const log = require('electron-log');
 const { EventProcessor } = require('./services/eventProcessor');
 const { HealthChecker } = require('./services/healthChecker');
+const { HeartbeatService } = require('./services/heartbeatService');
 const PilotStatePublisher = require('./services/pilotStatePublisher');
 const GaugeSync = require('./services/gaugeSync');
 
@@ -52,6 +54,10 @@ describe('initApp', () => {
       start: jest.fn(),
       setOnStatusChange: jest.fn(),
       checkHealth: jest.fn(),
+      stop: jest.fn(),
+    }));
+    HeartbeatService.mockImplementation(() => ({
+      start: jest.fn(),
       stop: jest.fn(),
     }));
 

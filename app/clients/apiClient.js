@@ -306,6 +306,39 @@ class APIClient {
     });
   }
 
+  heartbeat() {
+    return new Promise((resolve, reject) => {
+      const options = {
+        host: this.host,
+        path: `${this.pathPrefix}/heartbeat`,
+        port: this.port,
+        method: 'POST',
+        headers: this.buildHeaders({ 'Content-Length': 0 }),
+      };
+
+      const req = this.httpModule.request(options, (response) => {
+        let body = [];
+        response.on('data', (chunk) => { body.push(chunk); });
+        response.on('end', () => {
+          if (response.statusCode !== 200) {
+            reject(new APIClientError(`Heartbeat failed with status ${response.statusCode}`));
+            return;
+          }
+          resolve({ ok: true });
+        });
+        response.on('error', (error) => {
+          reject(new APIClientError(`Heartbeat request failed: ${error}`));
+        });
+      });
+
+      req.on('error', (error) => {
+        reject(new APIClientError(`API request failed: ${error}`));
+      });
+
+      req.end();
+    });
+  }
+
   healthcheck() {
     return new Promise((resolve, reject) => {
       var options = {

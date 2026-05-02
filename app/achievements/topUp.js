@@ -18,6 +18,10 @@ class TopUp extends Achievement {
     if (event.refuelStatus !== 'started') return false;
     const fuelGain = event.fuelGain ?? event.fuel_gain;
     if (!(typeof fuelGain === 'number' && Number.isFinite(fuelGain) && fuelGain > 0)) return false;
+
+    const system = String(event.system || '').toLowerCase();
+    if (system !== 'boom' && system !== 'basket') return false;
+
     if (!Number.isFinite(state.lastTakeoffAtMs)) return false;
 
     const missionTime = event?.startedAtMissionTime ?? event?.started_at_mission_time ?? event?.missionTime ?? event?.mission_time;

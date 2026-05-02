@@ -1045,7 +1045,14 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
     local gainedFuelThisSample = fuelDelta > minFuelGainStep
 
     if gainedFuelThisSample then
-        if not isFiniteNumber(active.segmentStartedAt) then
+        active.consecutiveGainSamples = (active.consecutiveGainSamples or 0) + 1
+
+        -- Require at least 2 consecutive gain samples before treating this as a
+        -- real AAR contact. A single-sample spike (e.g. caused by weapon release
+        -- shifting DCS's getFuel() reading) is silently ignored: segmentStartedAt
+        -- remains nil, so finalizeRefuelSegment will also be a no-op when the
+        -- session eventually ends.
+        if active.consecutiveGainSamples >= 2 and not isFiniteNumber(active.segmentStartedAt) then
             active.segmentStartedAt = active.lastSampleTime or now
             active.night = CheckrideMission.isNight(active.segmentStartedAt)
 
@@ -1086,6 +1093,7 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
             accumulatedFuelGain = 0,
             segmentStartedAt = nil,
             lastGainAt = nil,
+            consecutiveGainSamples = 0,
             system = getRefuelingSystemName(entry.unit),
             night = nil,
             unitRef = entry.unit,
@@ -1095,6 +1103,7 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
 
     active.lastSampleTime = now
     active.lastFuelState = currentFuelState
+    active.consecutiveGainSamples = 0
     active.unitRef = entry.unit or active.unitRef
 end
 

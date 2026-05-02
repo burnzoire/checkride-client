@@ -1086,6 +1086,8 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
             active.system = currentSystem
         end
         return
+    else
+        active.consecutiveGainSamples = 0
     end
 
     if isFiniteNumber(active.accumulatedFuelGain) and active.accumulatedFuelGain > 0 then
@@ -1106,7 +1108,6 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
 
     active.lastSampleTime = now
     active.lastFuelState = currentFuelState
-    active.consecutiveGainSamples = 0
     active.unitRef = entry.unit or active.unitRef
 end
 

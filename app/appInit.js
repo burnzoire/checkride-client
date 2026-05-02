@@ -8,6 +8,7 @@ const AchievementEngine = require('./services/achievementEngine');
 const { EventFactory, InvalidEventTypeError } = require('./factories/eventFactory');
 const { APIClient } = require('./clients/apiClient');
 const { HealthChecker } = require('./services/healthChecker');
+const { HeartbeatService } = require('./services/heartbeatService');
 const { version: CLIENT_VERSION } = require('./package.json');
 
 
@@ -372,11 +373,21 @@ async function initApp({ onLuaVersionMismatch } = {}) {
 
   attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates, onLuaVersionMismatch })
 
-  // Initialize and start health checker
   const healthChecker = new HealthChecker(apiClient, store)
   healthChecker.start()
 
-  return { udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, healthChecker };
+  let connectedPlayerCount = 0;
+  const originalOnEvent = udpServer.onEvent;
+  udpServer.onEvent = (event) => {
+    if (event.type === 'connect') connectedPlayerCount++;
+    if (event.type === 'disconnect') connectedPlayerCount = Math.max(0, connectedPlayerCount - 1);
+    return originalOnEvent(event);
+  };
+
+  const heartbeatService = new HeartbeatService(apiClient, undefined, () => connectedPlayerCount)
+  heartbeatService.start()
+
+  return { udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, healthChecker, heartbeatService };
 }
 
 module.exports = { initApp, attachEventPipeline };

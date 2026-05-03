@@ -195,6 +195,7 @@
         <div class="kv-grid">
           ${kvRow('Sortie distance', s.sortieDistanceKm ? fmt(s.sortieDistanceKm) + ' km' : '—')}
           ${kvRow('NOE distance', s.noeDistanceKm ? fmt(s.noeDistanceKm) + ' km' : '—')}
+          ${kvRow('NOE streak', s.noeConsecutiveDistanceKm ? fmt(s.noeConsecutiveDistanceKm) + ' km' : '—')}
         </div>
       </div>`;
   }
@@ -214,7 +215,7 @@
           ${kvRow('Longest gun burst', g.longest_gun_burst_seconds ? fmt(g.longest_gun_burst_seconds) + 's' : '—')}
           ${kvRow('Longest refuel contact', g.longest_refuel_contact_seconds ? fmt(g.longest_refuel_contact_seconds) + 's' : '—')}
           ${kvRow('Sortie distance', g.sortie_distance_km ? fmt(g.sortie_distance_km) + ' km' : '—')}
-          ${kvRow('NOE distance', g.noe_distance_km ? fmt(g.noe_distance_km) + ' km' : '—')}
+          ${kvRow('Longest NOE run', g.longest_noe_distance_nm ? fmt(g.longest_noe_distance_nm * 1.852) + ' km' : '—')}
           ${kvRow('Most air kills (sortie)', fmt(g.most_air_kills_in_sortie, 0))}
           ${kvRow('Most ground kills (sortie)', fmt(g.most_ground_kills_in_sortie, 0))}
         </div>

@@ -20,7 +20,7 @@ describe('HeartbeatService', () => {
     await service.beat();
 
     expect(apiClient.heartbeat).toHaveBeenCalledTimes(1);
-    expect(apiClient.heartbeat).toHaveBeenCalledWith(0);
+    expect(apiClient.heartbeat).toHaveBeenCalledWith({ playerCount: 0, clientVersion: null, serverId: null });
     expect(log.debug).toHaveBeenCalledWith('Heartbeat sent');
   });
 
@@ -30,11 +30,19 @@ describe('HeartbeatService', () => {
     const service = new HeartbeatService(apiClient, 60000, () => count);
 
     await service.beat();
-    expect(apiClient.heartbeat).toHaveBeenCalledWith(3);
+    expect(apiClient.heartbeat).toHaveBeenCalledWith({ playerCount: 3, clientVersion: null, serverId: null });
 
     count = 5;
     await service.beat();
-    expect(apiClient.heartbeat).toHaveBeenCalledWith(5);
+    expect(apiClient.heartbeat).toHaveBeenCalledWith({ playerCount: 5, clientVersion: null, serverId: null });
+  });
+
+  it('includes client version and server id in heartbeat', async () => {
+    apiClient.heartbeat.mockResolvedValue({ ok: true });
+    const service = new HeartbeatService(apiClient, 60000, () => 2, '1.3.5', 'My Server');
+
+    await service.beat();
+    expect(apiClient.heartbeat).toHaveBeenCalledWith({ playerCount: 2, clientVersion: '1.3.5', serverId: 'My Server' });
   });
 
   it('logs a warning when heartbeat fails and does not throw', async () => {

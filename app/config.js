@@ -38,6 +38,10 @@ const schema = {
     type: 'boolean',
     default: false,
   },
+  server_name: {
+    type: 'string',
+    default: '',
+  },
 };
 
 const store = new Store({ schema });

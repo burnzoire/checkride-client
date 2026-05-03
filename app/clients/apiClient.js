@@ -306,9 +306,12 @@ class APIClient {
     });
   }
 
-  heartbeat(playerCount = 0) {
+  heartbeat({ playerCount = 0, clientVersion = null, serverId = null } = {}) {
     return new Promise((resolve, reject) => {
-      const data = JSON.stringify({ player_count: playerCount });
+      const body = { player_count: playerCount };
+      if (clientVersion) body.client_version = clientVersion;
+      if (serverId) body.server_id = serverId;
+      const data = JSON.stringify(body);
 
       const options = {
         host: this.host,

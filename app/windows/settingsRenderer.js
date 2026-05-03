@@ -11,6 +11,7 @@
   const apiTokenInput = getField('api_token');
   const missionScriptingInput = getField('mission_scripting_enabled');
   const publishPilotStateUpdatesInput = getField('publish_pilot_state_updates');
+  const serverNameInput = getField('server_name');
 
   function populateForm(config) {
     if (!config) {
@@ -25,6 +26,7 @@
     if (apiTokenInput) apiTokenInput.value = config.api_token ?? '';
     if (missionScriptingInput) missionScriptingInput.checked = config.mission_scripting_enabled !== false;
     if (publishPilotStateUpdatesInput) publishPilotStateUpdatesInput.checked = Boolean(config.publish_pilot_state_updates);
+    if (serverNameInput) serverNameInput.value = config.server_name ?? '';
   }
 
   function readForm() {
@@ -37,6 +39,7 @@
       api_token: apiTokenInput?.value.trim() ?? '',
       mission_scripting_enabled: Boolean(missionScriptingInput?.checked),
       publish_pilot_state_updates: Boolean(publishPilotStateUpdatesInput?.checked),
+      server_name: serverNameInput?.value.trim() ?? '',
     };
   }
 

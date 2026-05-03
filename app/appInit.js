@@ -212,7 +212,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
       if (event.type === 'connect' && dcsChatClient?.send) {
         dcsChatClient.send(
-          'You can view your pilot progression any time at https://www.checkride.oversweep.com',
+          'You can view your pilot progression any time at https://checkride.oversweep.com',
           true,
           { kind: 'info', playerUcid: event.playerUcid }
         ).catch((error) => log.error(`Failed to send welcome message to ${event.playerUcid}:`, error));
@@ -362,6 +362,9 @@ async function initApp({ onLuaVersionMismatch } = {}) {
   const apiPort = store.get("server_port")
   const apiToken = store.get("api_token")
   const pathPrefix = store.get("path_prefix")
+  const serverName = store.get("server_name") || null
+
+  log.info(`Checkride client v${CLIENT_VERSION} starting — server=${apiHost}:${apiPort} ssl=${useSsl} name=${serverName || '(none)'}`)
   const discordWebhookPath = store.get("discord_webhook_path")
   const apiClient = new APIClient(useSsl, apiHost, apiPort, apiToken, pathPrefix, CLIENT_VERSION)
   const discordClient = new DiscordClient(discordWebhookPath)
@@ -403,7 +406,7 @@ async function initApp({ onLuaVersionMismatch } = {}) {
     return originalOnEvent(event);
   };
 
-  const heartbeatService = new HeartbeatService(apiClient, undefined, () => connectedPlayerCount)
+  const heartbeatService = new HeartbeatService(apiClient, undefined, () => connectedPlayerCount, CLIENT_VERSION, serverName)
   heartbeatService.start()
 
   return { udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, healthChecker, heartbeatService };

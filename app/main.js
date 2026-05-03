@@ -226,6 +226,7 @@ ipcMain.handle('settings:load', () => {
     api_token: store.get('api_token'),
     mission_scripting_enabled: store.get('mission_scripting_enabled'),
     publish_pilot_state_updates: store.get('publish_pilot_state_updates'),
+    server_name: store.get('server_name'),
   };
 });
 
@@ -239,6 +240,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
     api_token: payload.api_token?.trim() || '',
     mission_scripting_enabled: Boolean(payload.mission_scripting_enabled),
     publish_pilot_state_updates: Boolean(payload.publish_pilot_state_updates),
+    server_name: payload.server_name?.trim() || '',
   };
 
   store.set('server_host', nextConfig.server_host);
@@ -249,6 +251,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
   store.set('api_token', nextConfig.api_token);
   store.set('mission_scripting_enabled', nextConfig.mission_scripting_enabled);
   store.set('publish_pilot_state_updates', nextConfig.publish_pilot_state_updates);
+  store.set('server_name', nextConfig.server_name);
 
   if (dcsChatClient?.sendConfig) {
     const log = require('electron-log');

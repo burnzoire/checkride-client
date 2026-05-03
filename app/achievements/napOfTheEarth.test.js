@@ -44,18 +44,18 @@ describe('NapOfTheEarth — evaluate', () => {
     expect(napOfTheEarth.evaluate(flightSample(), state)).toBe(false);
   });
 
-  it('returns true once 50 km of consecutive NOE distance is reached in a helicopter', () => {
+  it('returns true once 15 km of consecutive NOE distance is reached in a helicopter', () => {
     const state = new PilotState();
     state.currentUnitCategory = 'HELICOPTER';
-    // 51 samples × 1000 m = 51 km, first sample has no prev position so 50 deltas
-    applyNoeSamples(state, 51, { positionStepM: 1000, altRadarFt: 80 });
+    // 16 samples × 1000 m = 16 km, first sample has no prev position so 15 deltas
+    applyNoeSamples(state, 16, { positionStepM: 1000, altRadarFt: 80 });
     expect(napOfTheEarth.evaluate(flightSample(), state)).toBe(true);
   });
 
   it('does not accumulate distance when radar alt is above 100ft', () => {
     const state = new PilotState();
     state.currentUnitCategory = 'HELICOPTER';
-    applyNoeSamples(state, 60, { positionStepM: 1000, altRadarFt: 101 });
+    applyNoeSamples(state, 20, { positionStepM: 1000, altRadarFt: 101 });
     expect(state.noeDistanceKm).toBe(0);
     expect(state.noeConsecutiveDistanceKm).toBe(0);
     expect(napOfTheEarth.evaluate(flightSample(), state)).toBe(false);
@@ -64,20 +64,20 @@ describe('NapOfTheEarth — evaluate', () => {
   it('resets consecutive distance when radar alt exceeds 100ft, requiring restart', () => {
     const state = new PilotState();
     state.currentUnitCategory = 'HELICOPTER';
-    // Fly 30 km NOE, then climb above 100ft, then fly another 25 km — never reaches 50 km consecutive
-    applyNoeSamples(state, 31, { positionStepM: 1000, altRadarFt: 80 }); // ~30 km consecutive
+    // Fly 10 km NOE, then climb above 100ft, then fly another 4 km — never reaches 15 km consecutive
+    applyNoeSamples(state, 11, { positionStepM: 1000, altRadarFt: 80 }); // ~10 km consecutive
     applyNoeSamples(state, 3,  { positionStepM: 1000, altRadarFt: 200 }); // above 100ft — resets consecutive
-    applyNoeSamples(state, 26, { positionStepM: 1000, altRadarFt: 80 }); // ~25 km consecutive
-    expect(state.noeConsecutiveDistanceKm).toBeLessThan(50);
+    applyNoeSamples(state, 5,  { positionStepM: 1000, altRadarFt: 80 }); // ~4 km consecutive
+    expect(state.noeConsecutiveDistanceKm).toBeLessThan(15);
     expect(napOfTheEarth.evaluate(flightSample(), state)).toBe(false);
   });
 
-  it('awards achievement for 50 km consecutive after a broken run', () => {
+  it('awards achievement for 15 km consecutive after a broken run', () => {
     const state = new PilotState();
     state.currentUnitCategory = 'HELICOPTER';
-    applyNoeSamples(state, 31, { positionStepM: 1000, altRadarFt: 80 }); // ~30 km — breaks
+    applyNoeSamples(state, 11, { positionStepM: 1000, altRadarFt: 80 }); // ~10 km — breaks
     applyNoeSamples(state, 3,  { positionStepM: 1000, altRadarFt: 200 }); // resets consecutive
-    applyNoeSamples(state, 52, { positionStepM: 1000, altRadarFt: 80 }); // ~51 km consecutive
+    applyNoeSamples(state, 17, { positionStepM: 1000, altRadarFt: 80 }); // ~16 km consecutive
     expect(napOfTheEarth.evaluate(flightSample(), state)).toBe(true);
   });
 

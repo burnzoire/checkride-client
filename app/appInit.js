@@ -185,6 +185,10 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   // (due to the async CheckridePlayers injection race) can still be attributed correctly.
   const ucidByName = new Map();
   udpServer.onEvent = (event) => {
+    if (event.playerUcid === '') {
+      event.playerUcid = null;
+    }
+
     if (event.playerUcid && event.playerName) {
       ucidByName.set(event.playerName, event.playerUcid);
     } else if (!event.playerUcid && event.playerName) {

@@ -953,4 +953,66 @@ describe('initApp', () => {
     expect(achievementEngineMock.loadAchievementsFromApi).not.toHaveBeenCalled();
   });
 
+  it('does not initialize pilot session when connect arrives with empty string UCID', async () => {
+    const connectEvent = { type: 'connect', playerUcid: '', playerName: 'Maverick' };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+
+    EventFactory.create.mockResolvedValue({ prepare: jest.fn().mockReturnValue(null) });
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() },
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(connectEvent);
+
+    expect(achievementEngineMock.resetPilot).not.toHaveBeenCalled();
+    expect(achievementEngineMock.loadAchievementsFromApi).not.toHaveBeenCalled();
+  });
+
+  it('resolves null UCID on mission events from a prior connect event with the same playerName', async () => {
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+      buildSnapshot: jest.fn().mockReturnValue(null),
+    };
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: { saveEvent: jest.fn().mockResolvedValue({}), fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }) },
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() },
+      achievementEngine: achievementEngineMock,
+    });
+
+    EventFactory.create.mockResolvedValue({ prepare: jest.fn().mockReturnValue(null) });
+
+    // GameGUI change_slot arrives with real UCID
+    await udpServer.onEvent({ type: 'change_slot', playerUcid: 'real-ucid', playerName: 'Maverick', flyable: true });
+
+    achievementEngineMock.evaluate.mockClear();
+
+    // Mission-script event arrives with null UCID but matching playerName
+    const missionEvent = { type: 'flight_sample_enrichment', persist: false, playerUcid: null, playerName: 'Maverick' };
+    await udpServer.onEvent(missionEvent);
+
+    expect(achievementEngineMock.evaluate).toHaveBeenCalledWith(
+      expect.objectContaining({ playerUcid: 'real-ucid', playerName: 'Maverick' })
+    );
+  });
+
 });

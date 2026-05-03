@@ -226,12 +226,46 @@ end
 CheckrideCallbackRouter.MissionBridgePollInterval = 0.1
 CheckrideCallbackRouter.MissionBridgeMaxEventsPerPoll = 8
 CheckrideCallbackRouter._lastBridgePoll = 0
+-- Periodic UCID patch: net.get_player_info(id,'ucid') may return "" at
+-- onPlayerConnect/onMissionLoadEnd time if DCS auth hasn't completed yet.
+-- Re-scan every 30 s and ADD any newly-available UCIDs to CheckridePlayers
+-- without clearing existing entries.
+CheckrideCallbackRouter.PlayerUcidSyncInterval = 30
+CheckrideCallbackRouter._lastPlayerUcidSync = 0
+
+function CheckrideCallbackRouter.patchMissingPlayerUcids()
+    local players = net.get_player_list()
+    if not players then return end
+
+    local statements = { 'CheckridePlayers = CheckridePlayers or {}' }
+    local addedCount = 0
+
+    for _, id in ipairs(players) do
+        local name = net.get_player_info(id, 'name')
+        local ucid = net.get_player_info(id, 'ucid')
+        if name and ucid and name ~= '' and ucid ~= '' then
+            table.insert(statements, string.format('CheckridePlayers[%q]=%q', name, ucid))
+            addedCount = addedCount + 1
+        end
+    end
+
+    if addedCount == 0 then return end
+
+    local _, ok = net.dostring_in(CHECKRIDE_MISSION_STATE, table.concat(statements, ';'))
+    if not ok then
+        checkrideLogError('patchMissingPlayerUcids failed to update mission UCID map')
+    end
+end
 
 function CheckrideCallbackRouter.onSimulationFrame()
     local now = DCS.getRealTime()
     if (now - CheckrideCallbackRouter._lastBridgePoll) >= CheckrideCallbackRouter.MissionBridgePollInterval then
         CheckrideCallbackRouter._lastBridgePoll = now
         CheckrideCallbackRouter.pollMissionEventBridge()
+    end
+    if (now - CheckrideCallbackRouter._lastPlayerUcidSync) >= CheckrideCallbackRouter.PlayerUcidSyncInterval then
+        CheckrideCallbackRouter._lastPlayerUcidSync = now
+        CheckrideCallbackRouter.patchMissingPlayerUcids()
     end
     forwardToCheckride('onSimulationFrame')
 end

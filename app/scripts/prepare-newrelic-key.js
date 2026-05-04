@@ -7,8 +7,7 @@ const path = require('path');
 
 const APP_DIR = path.resolve(__dirname, '..');
 const TOKEN = '__NEW_RELIC_LICENSE_KEY__';
-const SOURCE = path.join(APP_DIR, 'clients', 'newRelicClient.js');
-const OUTPUT = path.join(APP_DIR, 'build', 'clients-stamped', 'newRelicClient.js');
+const TARGET = path.join(APP_DIR, 'clients', 'newRelicClient.js');
 
 function readEnvFile(envPath) {
   if (!fs.existsSync(envPath)) return {};
@@ -24,14 +23,16 @@ function readEnvFile(envPath) {
 const envVars = readEnvFile(path.join(APP_DIR, '.env'));
 const licenseKey = process.env.NEW_RELIC_LICENSE_KEY || envVars.NEW_RELIC_LICENSE_KEY;
 
-fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
-
 if (!licenseKey) {
   console.warn('prepare-newrelic-key: NEW_RELIC_LICENSE_KEY not set — New Relic logging will be disabled in this build.');
-  fs.copyFileSync(SOURCE, OUTPUT);
   process.exit(0);
 }
 
-const source = fs.readFileSync(SOURCE, 'utf8');
-fs.writeFileSync(OUTPUT, source.replaceAll(TOKEN, licenseKey), 'utf8');
-console.log('prepare-newrelic-key: license key stamped into build/clients-stamped/newRelicClient.js');
+const source = fs.readFileSync(TARGET, 'utf8');
+if (!source.includes(TOKEN)) {
+  console.log('prepare-newrelic-key: token already replaced, skipping.');
+  process.exit(0);
+}
+
+fs.writeFileSync(TARGET, source.replaceAll(TOKEN, licenseKey), 'utf8');
+console.log('prepare-newrelic-key: license key stamped into clients/newRelicClient.js');

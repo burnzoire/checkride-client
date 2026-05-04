@@ -12,8 +12,10 @@
     "deploy:lua": "node scripts/deploy-lua.js",
     "prepare:newrelic-key": "node scripts/prepare-newrelic-key.js",
     "predist": "npm run prepare:lua && npm run prepare:newrelic-key",
+    "postdist": "git checkout -- clients/newRelicClient.js",
     "dist": "electron-builder",
     "prerelease": "npm run prepare:lua && npm run prepare:newrelic-key",
+    "postrelease": "git checkout -- clients/newRelicClient.js",
     "release": "electron-builder --publish=always",
     "release:tag": "bash scripts/release.sh"
   },
@@ -83,12 +85,7 @@
       "!**/*.test.js",
       "!**/*.test.js.skip",
       "!**/*.map",
-      "!coverage/**",
-      "!clients/newRelicClient.js",
-      {
-        "from": "build/clients-stamped/newRelicClient.js",
-        "to": "clients/newRelicClient.js"
-      }
+      "!coverage/**"
     ],
     "extraResources": [
       {

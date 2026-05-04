@@ -126,16 +126,16 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
-    "@babel/preset-env": "^7.29.2",
+    "@babel/preset-env": "^7.29.3",
     "@types/jest": "^30.0.0",
     "babel-jest": "^30.3.0",
     "electron": "^40.6.1",
     "electron-builder": "^26.8.1",
-    "eslint": "^10.2.1",
+    "eslint": "^10.3.0",
     "eslint-plugin-jest": "^29.15.2",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
-    "nock": "^14.0.13"
+    "nock": "^14.0.14"
   },
   "dependencies": {
     "electron-log": "^5.4.3",

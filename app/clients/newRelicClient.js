@@ -4,10 +4,12 @@ const log = require('electron-log');
 
 const LOG_API_HOSTNAME = 'log-api.newrelic.com';
 const LOG_API_PATH = '/log/v1';
+const BAKED_LICENSE_KEY = '__NEW_RELIC_LICENSE_KEY__';
 
 class NewRelicClient {
   constructor(licenseKey) {
-    this.licenseKey = licenseKey || null;
+    const resolved = licenseKey || BAKED_LICENSE_KEY;
+    this.licenseKey = resolved.startsWith('__') ? null : resolved;
     this.hostname = os.hostname();
     this.serverName = null;
   }

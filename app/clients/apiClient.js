@@ -329,7 +329,11 @@ class APIClient {
             reject(new APIClientError(`Heartbeat failed with status ${response.statusCode}`));
             return;
           }
-          resolve({ ok: true });
+          try {
+            resolve(JSON.parse(Buffer.concat(body).toString()));
+          } catch {
+            resolve({ ok: true });
+          }
         });
         response.on('error', (error) => {
           reject(new APIClientError(`Heartbeat request failed: ${error}`));

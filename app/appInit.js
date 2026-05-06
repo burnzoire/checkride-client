@@ -9,6 +9,7 @@ const { EventFactory, InvalidEventTypeError } = require('./factories/eventFactor
 const { APIClient } = require('./clients/apiClient');
 const { HealthChecker } = require('./services/healthChecker');
 const { HeartbeatService } = require('./services/heartbeatService');
+const { NewRelicClient } = require('./clients/newRelicClient');
 const { version: CLIENT_VERSION } = require('./package.json');
 
 
@@ -176,7 +177,7 @@ function maybeWarnLuaVersionMismatch({ event, onLuaVersionMismatch, warnedMismat
     .catch((error) => log.error('Failed to handle Lua version mismatch warning:', error));
 }
 
-function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates = true, onLuaVersionMismatch }) {
+function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates = true, onLuaVersionMismatch, newRelicClient }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
   const pilotStatePublishState = new Map();
@@ -184,6 +185,8 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   // Built from connect/change_slot events so mission-script events with null playerUcid
   // (due to the async CheckridePlayers injection race) can still be attributed correctly.
   const ucidByName = new Map();
+  // Rate-limit UCID-missing NR logs to first occurrence per player name per session.
+  const reportedMissingUcidKeys = new Set();
   udpServer.onEvent = (event) => {
     if (event.playerUcid && event.playerName) {
       ucidByName.set(event.playerName, event.playerUcid);
@@ -191,6 +194,20 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
       const resolvedUcid = ucidByName.get(event.playerName);
       if (resolvedUcid) {
         event.playerUcid = resolvedUcid;
+      }
+    }
+
+    if (event.type === 'flight_sample_enrichment' && !event.playerUcid && newRelicClient) {
+      const missingKey = event.playerName || '__no_name__';
+      if (!reportedMissingUcidKeys.has(missingKey)) {
+        reportedMissingUcidKeys.add(missingKey);
+        newRelicClient.recordLog('flight_sample_enrichment missing ucid', {
+          logType: 'ucid_missing_flight_sample',
+          clientVersion: CLIENT_VERSION,
+          playerName: event.playerName || null,
+          source: event.source || null,
+          ucidMapSize: ucidByName.size,
+        });
       }
     }
 
@@ -391,9 +408,24 @@ async function initApp({ onLuaVersionMismatch } = {}) {
     pilotStatePublisher.start()
   }
 
-  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates, onLuaVersionMismatch })
+  const newRelicClient = new NewRelicClient(process.env.NEW_RELIC_LICENSE_KEY);
 
-  const healthChecker = new HealthChecker(apiClient, store)
+  newRelicClient.recordLog('checkride-client started', {
+    logType: 'startup',
+    clientVersion: CLIENT_VERSION,
+    apiPort,
+    usesSsl: useSsl,
+  });
+
+  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates, onLuaVersionMismatch, newRelicClient })
+
+  const healthChecker = new HealthChecker(apiClient, store, undefined, (healthy) => {
+    newRelicClient.recordLog('api health state changed', {
+      logType: 'health_change',
+      clientVersion: CLIENT_VERSION,
+      healthy,
+    });
+  })
   healthChecker.start()
 
   let connectedPlayerCount = 0;
@@ -403,7 +435,7 @@ async function initApp({ onLuaVersionMismatch } = {}) {
     return originalOnEvent(event);
   };
 
-  const heartbeatService = new HeartbeatService(apiClient, undefined, () => connectedPlayerCount)
+  const heartbeatService = new HeartbeatService(apiClient, undefined, () => connectedPlayerCount, newRelicClient)
   heartbeatService.start()
 
   return { udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, healthChecker, heartbeatService };

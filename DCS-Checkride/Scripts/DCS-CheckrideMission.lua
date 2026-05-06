@@ -1936,6 +1936,14 @@ function CheckrideMission.onKill(event)
         end
     end
 
+    -- Detect collision kill: event.weapon is a Unit object when the killer rammed the target.
+    -- A normal weapon kill has event.weapon as a Weapon object (Object.Category.WEAPON).
+    local isCollision = false
+    if event.weapon then
+        local okCat, weapCat = pcall(function() return event.weapon:getCategory() end)
+        isCollision = okCat and weapCat == Object.Category.UNIT
+    end
+
     local message = {
         type               = "kill_enrichment",
         source             = "mission",
@@ -1950,7 +1958,7 @@ function CheckrideMission.onKill(event)
         killedAtMs         = pending and pending.killedAtMs or event.time,
         victimRoles        = pending and pending.victimRoles or nil,
         weaponGuidance     = pending and pending.weaponGuidance or nil,
-        weaponClass        = pending and pending.weaponClass or nil,
+        weaponClass        = pending and pending.weaponClass or (isCollision and "COLLISION" or nil),
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,

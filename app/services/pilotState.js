@@ -118,6 +118,7 @@ class PilotState {
       victimPositionX:     event.victimPositionX ?? null,
       victimPositionY:     event.victimPositionY ?? null,
       pilotAltitudeFt:     this.currentAltitudeFt,
+      pilotSpeedKts:       this.currentSpeedKts,
       pilotSpeedMach:      this.currentSpeedMach,
       night:               event.night ?? null,
       killerUnitCategory:  event.killerUnitCategory ?? null,

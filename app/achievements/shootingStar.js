@@ -1,10 +1,10 @@
 const Achievement = require('./achievement');
 
-class MixedBag extends Achievement {
+class ShootingStar extends Achievement {
   constructor() {
     super({
-      id: 'mixed_bag',
-      name: 'Mixed Bag',
+      id: 'shooting_star',
+      name: 'Shooting Star',
       description: 'Score a Fox 1, Fox 2, and Fox 3 air-to-air kill in a single sortie.',
       triggerType: 'kill_enrichment',
       iconHint: 'Three different missile types',
@@ -21,4 +21,4 @@ class MixedBag extends Achievement {
   }
 }
 
-module.exports = new MixedBag();
+module.exports = new ShootingStar();

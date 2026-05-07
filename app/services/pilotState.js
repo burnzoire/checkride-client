@@ -417,6 +417,12 @@ class PilotState {
     this.aircraftStatus = 'ground';
   }
 
+  applyLandingEnrichment(event) {
+    const fuelState = this._normalizeFiniteNumber(event.fuelState ?? event.fuel_state);
+    this.lastLandingFuelState = fuelState;
+    this.lastLandingFriendlyBase = event.landedAtFriendlyBase === true;
+  }
+
   applyPilotDown(event) {
     this.inAir = false;
     const deathTypes = ['crash', 'eject', 'pilot_death', 'self_kill'];
@@ -575,6 +581,8 @@ applyGunBurstStart(event) {
     this.noeConsecutiveDistanceKm = 0;
     this.longestNoeConsecutiveDistanceKm = 0;
 
+    this.lastLandingFuelState = null;
+    this.lastLandingFriendlyBase = false;
   }
 
   _computeMissileDistanceNm(missile) {

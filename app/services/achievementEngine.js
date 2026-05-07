@@ -93,6 +93,7 @@ class AchievementEngine {
       grading:             { ucidField: 'playerUcid', stateMethod: 'applyGrading' },
       takeoff:             { ucidField: 'playerUcid', stateMethod: 'applyTakeoff' },
       landing:             { ucidField: 'playerUcid', stateMethod: 'applyLanding' },
+      landing_enrichment:  { ucidField: 'playerUcid', stateMethod: 'applyLandingEnrichment' },
       crash:               { ucidField: 'playerUcid', stateMethod: 'applyPilotDown' },
       eject:               { ucidField: 'playerUcid', stateMethod: 'applyPilotDown' },
       pilot_death:         { ucidField: 'playerUcid', stateMethod: 'applyPilotDown' },

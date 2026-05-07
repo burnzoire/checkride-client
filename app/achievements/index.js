@@ -30,12 +30,20 @@ const gunship = require('./gunship');
 const deathFromBelow = require('./deathFromBelow');
 const napOfTheEarth = require('./napOfTheEarth');
 const fiveHundredMiles = require('./fiveHundredMiles');
+const wheelsUp = require('./wheelsUp');
+const homeBase = require('./homeBase');
+const splashOne = require('./splashOne');
+const shack = require('./shack');
+const nightStalker = require('./nightStalker');
+const instantAce = require('./instantAce');
+const airWolf = require('./airWolf');
 const dropShot = require('./dropShot');
 const unicornShot = require('./unicornShot');
 const foxFour = require('./foxFour');
-const mixedBag = require('./mixedBag');
+const shootingStar = require('./shootingStar');
 const perfectContact = require('./perfectContact');
 const onePassHaulAss = require('./onePassHaulAss');
+const thereAndBackAgain = require('./thereAndBackAgain');
 
 const ALL_ACHIEVEMENTS = [
   carrierQualified,
@@ -66,12 +74,20 @@ const ALL_ACHIEVEMENTS = [
   deathFromBelow,
   napOfTheEarth,
   fiveHundredMiles,
+  wheelsUp,
+  homeBase,
+  splashOne,
+  shack,
+  nightStalker,
+  instantAce,
+  airWolf,
   dropShot,
   unicornShot,
   foxFour,
-  mixedBag,
+  shootingStar,
   perfectContact,
   onePassHaulAss,
+  thereAndBackAgain,
 ];
 
 module.exports = ALL_ACHIEVEMENTS;

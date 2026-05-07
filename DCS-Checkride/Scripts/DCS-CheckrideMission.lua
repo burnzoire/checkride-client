@@ -37,6 +37,7 @@ CheckrideMission.RefuelDetection = {
 CheckrideMission.pilotCarrierByUcid = {}
 
 CheckrideMission.TakeoffEventId = nil
+CheckrideMission.LandEventId = nil
 CheckrideMission.KillEventId = nil
 CheckrideMission.ShotEventId = nil
 CheckrideMission.HitEventId = nil
@@ -1262,6 +1263,7 @@ function CheckrideMission.ensureWorldHandler()
 
     CheckrideMission.LandingQualityEventId = world.event.S_EVENT_LANDING_QUALITY_MARK
     CheckrideMission.TakeoffEventId        = world.event.S_EVENT_TAKEOFF
+    CheckrideMission.LandEventId           = world.event.S_EVENT_LAND
     CheckrideMission.KillEventId           = world.event.S_EVENT_KILL
     CheckrideMission.ShotEventId           = world.event.S_EVENT_SHOT
     CheckrideMission.HitEventId            = world.event.S_EVENT_HIT
@@ -1305,6 +1307,10 @@ function CheckrideMission.EventHandler:onEvent(event)
 
     if CheckrideMission.TakeoffEventId and event.id == CheckrideMission.TakeoffEventId then
         CheckrideMission.onTakeoff(event)
+    end
+
+    if CheckrideMission.LandEventId and event.id == CheckrideMission.LandEventId then
+        CheckrideMission.onLand(event)
     end
 
     if CheckrideMission.KillEventId and event.id == CheckrideMission.KillEventId then
@@ -1742,6 +1748,55 @@ function CheckrideMission.onLandingQualityMark(event)
     )
 
     CheckrideMission.sendEvent(message)
+end
+
+-- ============================================================================
+-- Landing Enrichment
+-- Emits a landing_enrichment event with fuel state and airbase coalition data.
+-- Used to evaluate Dead Stick (fuel exhaustion landing) and Home Base (friendly
+-- airbase landing). place:getCoalition() is only available in mission scripting.
+-- ============================================================================
+function CheckrideMission.onLand(event)
+    local initiator = event.initiator
+    if not initiator then return end
+
+    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end
+
+    local place = event.place
+
+    local airdromeName = nil
+    local landedAtAirbase = place ~= nil
+    local landedAtFriendlyBase = false
+
+    if place then
+        local okName, name = pcall(function() return place:getName() end)
+        if okName and name and name ~= "" then airdromeName = name end
+
+        local pilotCoal = nil
+        local baseCoal = nil
+        pcall(function() pilotCoal = initiator:getCoalition() end)
+        pcall(function() baseCoal = place:getCoalition() end)
+        if pilotCoal and baseCoal then
+            landedAtFriendlyBase = pilotCoal == baseCoal
+        end
+    end
+
+    local fuelState = nil
+    local okFuel, fuel = pcall(function() return initiator:getFuel() end)
+    if okFuel and type(fuel) == "number" then fuelState = fuel end
+
+    CheckrideMission.sendEnrichmentEvent({
+        type                 = "landing_enrichment",
+        source               = "mission",
+        playerUcid           = ucid,
+        playerName           = playerName,
+        airdromeName         = airdromeName,
+        landedAtAirbase      = landedAtAirbase,
+        landedAtFriendlyBase = landedAtFriendlyBase,
+        fuelState            = fuelState,
+        missionTime          = event.time,
+    })
 end
 
 -- ============================================================================

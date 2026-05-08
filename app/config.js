@@ -34,10 +34,6 @@ const schema = {
     type: 'boolean',
     default: true,
   },
-  publish_pilot_state_updates: {
-    type: 'boolean',
-    default: false,
-  },
 };
 
 const store = new Store({ schema });

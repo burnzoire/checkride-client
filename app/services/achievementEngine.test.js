@@ -110,6 +110,8 @@ const PILOTSTATE_TO_SNAPSHOT = {
   noeDistanceKm:        'state.noeDistanceKm',
   noeConsecutiveDistanceKm: 'state.noeConsecutiveDistanceKm',
   longestNoeConsecutiveDistanceKm: null, // rolled up into gauges.longest_noe_distance_nm
+  lastLandingFuelState:     null, // landing_enrichment-only, not included in snapshot
+  lastLandingFriendlyBase:  null, // landing_enrichment-only, not included in snapshot
 };
 
 function hasPath(obj, path) {

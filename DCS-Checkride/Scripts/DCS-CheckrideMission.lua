@@ -37,6 +37,7 @@ CheckrideMission.RefuelDetection = {
 CheckrideMission.pilotCarrierByUcid = {}
 
 CheckrideMission.TakeoffEventId = nil
+CheckrideMission.LandEventId = nil
 CheckrideMission.KillEventId = nil
 CheckrideMission.ShotEventId = nil
 CheckrideMission.HitEventId = nil
@@ -342,6 +343,10 @@ end
 
 function CheckrideMission.emitFlightSampleForEntry(entry, now)
     if not entry or not entry.unit then
+        return
+    end
+
+    if not entry.playerUcid then
         return
     end
 
@@ -1262,6 +1267,7 @@ function CheckrideMission.ensureWorldHandler()
 
     CheckrideMission.LandingQualityEventId = world.event.S_EVENT_LANDING_QUALITY_MARK
     CheckrideMission.TakeoffEventId        = world.event.S_EVENT_TAKEOFF
+    CheckrideMission.LandEventId           = world.event.S_EVENT_LAND
     CheckrideMission.KillEventId           = world.event.S_EVENT_KILL
     CheckrideMission.ShotEventId           = world.event.S_EVENT_SHOT
     CheckrideMission.HitEventId            = world.event.S_EVENT_HIT
@@ -1305,6 +1311,10 @@ function CheckrideMission.EventHandler:onEvent(event)
 
     if CheckrideMission.TakeoffEventId and event.id == CheckrideMission.TakeoffEventId then
         CheckrideMission.onTakeoff(event)
+    end
+
+    if CheckrideMission.LandEventId and event.id == CheckrideMission.LandEventId then
+        CheckrideMission.onLand(event)
     end
 
     if CheckrideMission.KillEventId and event.id == CheckrideMission.KillEventId then
@@ -1745,6 +1755,55 @@ function CheckrideMission.onLandingQualityMark(event)
 end
 
 -- ============================================================================
+-- Landing Enrichment
+-- Emits a landing_enrichment event with fuel state and airbase coalition data.
+-- Used to evaluate Dead Stick (fuel exhaustion landing) and Home Base (friendly
+-- airbase landing). place:getCoalition() is only available in mission scripting.
+-- ============================================================================
+function CheckrideMission.onLand(event)
+    local initiator = event.initiator
+    if not initiator then return end
+
+    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end
+
+    local place = event.place
+
+    local airdromeName = nil
+    local landedAtAirbase = place ~= nil
+    local landedAtFriendlyBase = false
+
+    if place then
+        local okName, name = pcall(function() return place:getName() end)
+        if okName and name and name ~= "" then airdromeName = name end
+
+        local pilotCoal = nil
+        local baseCoal = nil
+        pcall(function() pilotCoal = initiator:getCoalition() end)
+        pcall(function() baseCoal = place:getCoalition() end)
+        if pilotCoal and baseCoal then
+            landedAtFriendlyBase = pilotCoal == baseCoal
+        end
+    end
+
+    local fuelState = nil
+    local okFuel, fuel = pcall(function() return initiator:getFuel() end)
+    if okFuel and type(fuel) == "number" then fuelState = fuel end
+
+    CheckrideMission.sendEnrichmentEvent({
+        type                 = "landing_enrichment",
+        source               = "mission",
+        playerUcid           = ucid,
+        playerName           = playerName,
+        airdromeName         = airdromeName,
+        landedAtAirbase      = landedAtAirbase,
+        landedAtFriendlyBase = landedAtFriendlyBase,
+        fuelState            = fuelState,
+        missionTime          = event.time,
+    })
+end
+
+-- ============================================================================
 -- Takeoff Enrichment
 -- Emits a takeoff_enrichment event so the client can track whether the pilot
 -- launched from a carrier and store their takeoff position for kill distance.
@@ -1936,6 +1995,14 @@ function CheckrideMission.onKill(event)
         end
     end
 
+    -- Detect collision kill: event.weapon is a Unit object when the killer rammed the target.
+    -- A normal weapon kill has event.weapon as a Weapon object (Object.Category.WEAPON).
+    local isCollision = false
+    if event.weapon then
+        local okCat, weapCat = pcall(function() return event.weapon:getCategory() end)
+        isCollision = okCat and weapCat == Object.Category.UNIT
+    end
+
     local message = {
         type               = "kill_enrichment",
         source             = "mission",
@@ -1950,7 +2017,7 @@ function CheckrideMission.onKill(event)
         killedAtMs         = pending and pending.killedAtMs or event.time,
         victimRoles        = pending and pending.victimRoles or nil,
         weaponGuidance     = pending and pending.weaponGuidance or nil,
-        weaponClass        = pending and pending.weaponClass or nil,
+        weaponClass        = pending and pending.weaponClass or (isCollision and "COLLISION" or nil),
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,

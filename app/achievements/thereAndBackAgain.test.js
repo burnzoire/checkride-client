@@ -69,6 +69,20 @@ describe('ThereAndBackAgain — evaluate', () => {
     expect(thereAndBackAgain.evaluate(landingEvent({ airdromeName: 'Batumi' }), state)).toBe(false);
   });
 
+  it('returns true when launched from carrier and returned to same carrier', () => {
+    const state = new PilotState();
+    state.applyTakeoffEnrichment({ launchedFromCarrier: true, takeoffLocation: 'CVN-73' });
+    flyKm(state, MIN_DISTANCE_KM + 1);
+    expect(thereAndBackAgain.evaluate(landingEvent({ airdromeName: 'CVN-73' }), state)).toBe(true);
+  });
+
+  it('returns false when launched from carrier and landed at different location', () => {
+    const state = new PilotState();
+    state.applyTakeoffEnrichment({ launchedFromCarrier: true, takeoffLocation: 'CVN-73' });
+    flyKm(state, MIN_DISTANCE_KM + 1);
+    expect(thereAndBackAgain.evaluate(landingEvent({ airdromeName: 'Batumi' }), state)).toBe(false);
+  });
+
   it('returns false when airdromeName is missing from event', () => {
     const state = new PilotState();
     state.applyTakeoffEnrichment({ launchedFromCarrier: false, takeoffLocation: 'Batumi' });

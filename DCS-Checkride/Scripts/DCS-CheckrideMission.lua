@@ -346,6 +346,10 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
         return
     end
 
+    if not entry.playerUcid then
+        return
+    end
+
     local unit = entry.unit
     local okExist, exists = pcall(function() return unit:isExist() end)
     if not okExist or not exists then

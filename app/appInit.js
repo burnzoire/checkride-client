@@ -192,7 +192,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
       if (event.type === 'connect' && dcsChatClient?.send) {
         dcsChatClient.send(
-          'You can view your pilot progression any time at https://www.checkride.oversweep.com',
+          'You can view your pilot progression any time at https://checkride.oversweep.com',
           true,
           { kind: 'info', playerUcid: event.playerUcid }
         ).catch((error) => log.error(`Failed to send welcome message to ${event.playerUcid}:`, error));

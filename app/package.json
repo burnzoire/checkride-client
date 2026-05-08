@@ -143,7 +143,6 @@
   "dependencies": {
     "electron-log": "^5.4.3",
     "electron-store": "^11.0.2",
-    "uuid": "^8.3.2",
-    "ws": "^8.20.0"
+    "uuid": "^8.3.2"
   }
 }

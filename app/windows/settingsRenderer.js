@@ -10,7 +10,6 @@
   const discordWebhookInput = getField('discord_webhook_path');
   const apiTokenInput = getField('api_token');
   const missionScriptingInput = getField('mission_scripting_enabled');
-  const publishPilotStateUpdatesInput = getField('publish_pilot_state_updates');
 
   function populateForm(config) {
     if (!config) {
@@ -24,7 +23,6 @@
     if (discordWebhookInput) discordWebhookInput.value = config.discord_webhook_path ?? '';
     if (apiTokenInput) apiTokenInput.value = config.api_token ?? '';
     if (missionScriptingInput) missionScriptingInput.checked = config.mission_scripting_enabled !== false;
-    if (publishPilotStateUpdatesInput) publishPilotStateUpdatesInput.checked = Boolean(config.publish_pilot_state_updates);
   }
 
   function readForm() {
@@ -36,7 +34,6 @@
       discord_webhook_path: discordWebhookInput?.value.trim() ?? '',
       api_token: apiTokenInput?.value.trim() ?? '',
       mission_scripting_enabled: Boolean(missionScriptingInput?.checked),
-      publish_pilot_state_updates: Boolean(publishPilotStateUpdatesInput?.checked),
     };
   }
 

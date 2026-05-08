@@ -9,7 +9,6 @@ describe('settingsRenderer', () => {
     discord_webhook_path: '/hook',
     api_token: 'token',
     mission_scripting_enabled: true,
-    publish_pilot_state_updates: true,
   };
 
   let loadMock;
@@ -32,7 +31,6 @@ describe('settingsRenderer', () => {
       '  <input id="discord_webhook_path" name="discord_webhook_path" type="text" />',
       '  <input id="api_token" name="api_token" type="text" />',
       '  <input id="mission_scripting_enabled" name="mission_scripting_enabled" type="checkbox" />',
-      '  <input id="publish_pilot_state_updates" name="publish_pilot_state_updates" type="checkbox" />',
       '  <button id="cancel-button" type="button">Cancel</button>',
       '  <button type="submit">Save</button>',
       '</form>',
@@ -78,7 +76,6 @@ describe('settingsRenderer', () => {
     expect(document.getElementById('discord_webhook_path').value).toBe('/hook');
     expect(document.getElementById('api_token').value).toBe('token');
     expect(document.getElementById('mission_scripting_enabled').checked).toBe(true);
-    expect(document.getElementById('publish_pilot_state_updates').checked).toBe(true);
   });
 
   it('submits updated configuration and closes the window', async () => {
@@ -92,7 +89,6 @@ describe('settingsRenderer', () => {
     document.getElementById('discord_webhook_path').value = ' /new ';
     document.getElementById('api_token').value = ' secret ';
     document.getElementById('mission_scripting_enabled').checked = false;
-    document.getElementById('publish_pilot_state_updates').checked = true;
 
     form.dispatchEvent(new Event('submit', { cancelable: true }));
     await flushPromises();
@@ -105,7 +101,6 @@ describe('settingsRenderer', () => {
       discord_webhook_path: '/new',
       api_token: 'secret',
       mission_scripting_enabled: false,
-      publish_pilot_state_updates: true,
     });
     expect(closeMock).toHaveBeenCalled();
   });
@@ -177,7 +172,6 @@ describe('settingsRenderer', () => {
       discord_webhook_path: '',
       api_token: '',
       mission_scripting_enabled: false,
-      publish_pilot_state_updates: false,
     });
     expect(closeMock).toHaveBeenCalled();
   });

@@ -1,7 +1,6 @@
 const { DiscordClient } = require('./clients/discordClient');
 const { DCSChatClient, DEFAULT_DCS_CHAT_HOST } = require('./clients/dcsChatClient');
 const UDPServer = require('./services/udpServer');
-const PilotStatePublisher = require('./services/pilotStatePublisher');
 const GaugeSync = require('./services/gaugeSync');
 const { EventProcessor } = require('./services/eventProcessor');
 const AchievementEngine = require('./services/achievementEngine');
@@ -18,11 +17,6 @@ const store = require('./config');
 
 const DEFAULT_UDP_PORT = 41234;
 const DEFAULT_DCS_CHAT_UDP_PORT = 41235;
-const PILOT_STATE_SAMPLE_PUBLISH_MIN_INTERVAL_MS = 5000;
-const PILOT_STATE_THROTTLED_EVENT_TYPES = new Set([
-  'flight_sample_enrichment',
-  'weapon_sample_enrichment',
-]);
 // Emoji enrichment utility for Discord summaries
 const EVENT_EMOJIS = {
   kill: ':dart: ',
@@ -76,7 +70,7 @@ function buildPilotSnapshot({ engine, event, unlockedAchievements }) {
   return snapshot;
 }
 
-function handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements, publishToCable = true }) {
+function handlePilotSnapshot({ gaugeSync, engine, event, unlockedAchievements }) {
   const snapshot = buildPilotSnapshot({ engine, event, unlockedAchievements });
   if (!snapshot) return;
 
@@ -85,39 +79,9 @@ function handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, un
     log.debug(`Pilot state snapshot: pilot=${event.playerUcid} trigger=${event.type} inAir=${snapshotInAir}`);
   }
 
-  if (event.type === 'shot_enrichment') {
-    log.info(`Publishing shot pilot state snapshot: ${JSON.stringify(snapshot)}`);
-  }
-
   if (gaugeSync && typeof gaugeSync.syncSnapshot === 'function') {
     gaugeSync.syncSnapshot(snapshot);
   }
-
-  if (!publishToCable) return;
-  if (!pilotStatePublisher || typeof pilotStatePublisher.publish !== 'function') return;
-
-  pilotStatePublisher.publish(snapshot)
-    .catch((error) => log.error(`Failed to publish pilot state for ${event.playerUcid}:`, error));
-}
-
-function shouldPublishPilotStateUpdate(event, publishStateByPilotAndType) {
-  if (!event?.playerUcid || !event?.type) {
-    return false;
-  }
-
-  if (!PILOT_STATE_THROTTLED_EVENT_TYPES.has(event.type)) {
-    return true;
-  }
-
-  const key = `${event.playerUcid}:${event.type}`;
-  const nowMs = Date.now();
-  const lastPublishedAtMs = publishStateByPilotAndType.get(key) || 0;
-  if ((nowMs - lastPublishedAtMs) < PILOT_STATE_SAMPLE_PUBLISH_MIN_INTERVAL_MS) {
-    return false;
-  }
-
-  publishStateByPilotAndType.set(key, nowMs);
-  return true;
 }
 
 function shouldRefreshPilotSession(event) {
@@ -177,10 +141,9 @@ function maybeWarnLuaVersionMismatch({ event, onLuaVersionMismatch, warnedMismat
     .catch((error) => log.error('Failed to handle Lua version mismatch warning:', error));
 }
 
-function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates = true, onLuaVersionMismatch, newRelicClient }) {
+function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
-  const pilotStatePublishState = new Map();
   const warnedMismatchKeys = new Set();
   // Built from connect/change_slot events so mission-script events with null playerUcid
   // (due to the async CheckridePlayers injection race) can still be attributed correctly.
@@ -242,8 +205,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         log.debug(`State-only event (persist=false): ${JSON.stringify(event)}`)
       }
       const newlyUnlocked = engine.evaluate(event);
-      const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
-      handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements: newlyUnlocked, publishToCable: shouldPublishToCable });
+      handlePilotSnapshot({ gaugeSync, engine, event, unlockedAchievements: newlyUnlocked });
       let last = Promise.resolve();
       newlyUnlocked.forEach((achievement, i) => {
         const pilotName = event.playerName || 'Unknown Pilot';
@@ -278,14 +240,12 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         if (!preparedPayload) {
           log.debug(`Skipping event with empty prepared payload: ${event.type}`);
           unlockedAchievements = engine.evaluate(event);
-          const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
-          handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements, publishToCable: shouldPublishToCable });
+          handlePilotSnapshot({ gaugeSync, engine, event, unlockedAchievements });
           return null;
         }
 
         unlockedAchievements = engine.evaluate(event);
-        const shouldPublishToCable = publishPilotStateUpdates && shouldPublishPilotStateUpdate(event, pilotStatePublishState);
-        handlePilotSnapshot({ pilotStatePublisher, gaugeSync, engine, event, unlockedAchievements, publishToCable: shouldPublishToCable });
+        handlePilotSnapshot({ gaugeSync, engine, event, unlockedAchievements });
 
         if (event.persist === false) {
           if (event.type !== 'flight_sample_enrichment') {
@@ -394,19 +354,6 @@ async function initApp({ onLuaVersionMismatch } = {}) {
   const eventProcessor = new EventProcessor()
   const achievementEngine = new AchievementEngine()
   const gaugeSync = new GaugeSync(apiClient)
-  const publishPilotStateUpdates = store.get('publish_pilot_state_updates', false)
-  log.info(`Pilot state websocket publishing ${publishPilotStateUpdates ? 'enabled' : 'disabled'} (publish_pilot_state_updates=${publishPilotStateUpdates})`)
-  const pilotStatePublisher = new PilotStatePublisher({
-    useSsl,
-    host: apiHost,
-    port: apiPort,
-    token: apiToken,
-    pathPrefix,
-  })
-
-  if (publishPilotStateUpdates) {
-    pilotStatePublisher.start()
-  }
 
   const newRelicClient = new NewRelicClient(process.env.NEW_RELIC_LICENSE_KEY);
 
@@ -417,7 +364,7 @@ async function initApp({ onLuaVersionMismatch } = {}) {
     usesSsl: useSsl,
   });
 
-  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, publishPilotStateUpdates, onLuaVersionMismatch, newRelicClient })
+  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient })
 
   const healthChecker = new HealthChecker(apiClient, store, undefined, (healthy) => {
     newRelicClient.recordLog('api health state changed', {
@@ -438,7 +385,7 @@ async function initApp({ onLuaVersionMismatch } = {}) {
   const heartbeatService = new HeartbeatService(apiClient, undefined, () => connectedPlayerCount, newRelicClient)
   heartbeatService.start()
 
-  return { udpServer, apiClient, discordClient, dcsChatClient, pilotStatePublisher, gaugeSync, eventProcessor, achievementEngine, healthChecker, heartbeatService };
+  return { udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, healthChecker, heartbeatService };
 }
 
 module.exports = { initApp, attachEventPipeline };

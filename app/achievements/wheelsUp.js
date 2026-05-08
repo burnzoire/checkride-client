@@ -12,8 +12,8 @@ class WheelsUp extends Achievement {
     });
   }
 
-  evaluate(_event, _state) {
-    return true;
+  evaluate(event, _state) {
+    return !Array.isArray(event.unitAttributes) || !event.unitAttributes.includes('Helicopters');
   }
 }
 

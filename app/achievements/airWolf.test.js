@@ -92,3 +92,22 @@ describe('AirWolf — evaluate', () => {
     ]))).toBe(true);
   });
 });
+
+describe('AirWolf — via applyKill', () => {
+  it('captures pilotSpeedKts from currentSpeedKts at kill time', () => {
+    const state = new PilotState();
+    state.applyFlightSampleEnrichment({ speedKts: 80, inAir: true });
+    for (let i = 0; i < 3; i++) {
+      state.applyKill({ victimUnitCategory: 'ground', killerUnitCategory: 'HELICOPTER', victimRoles: [] });
+    }
+    expect(airWolf.evaluate(KILL_EVENT, state)).toBe(true);
+  });
+
+  it('does not count kills when no flight sample has arrived before the kill', () => {
+    const state = new PilotState();
+    for (let i = 0; i < 3; i++) {
+      state.applyKill({ victimUnitCategory: 'ground', killerUnitCategory: 'HELICOPTER', victimRoles: [] });
+    }
+    expect(airWolf.evaluate(KILL_EVENT, state)).toBe(false);
+  });
+});

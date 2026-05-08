@@ -64,3 +64,17 @@ describe('NightStalker — evaluate', () => {
     expect(nightStalker.evaluate(KILL_EVENT, state)).toBe(false);
   });
 });
+
+describe('NightStalker — via applyKill', () => {
+  it('captures night flag from kill event', () => {
+    const state = new PilotState();
+    state.applyKill({ victimUnitCategory: 'air', night: true, victimRoles: [], killedAtMs: 1000 });
+    expect(nightStalker.evaluate(KILL_EVENT, state)).toBe(true);
+  });
+
+  it('returns false when kill event has night: false', () => {
+    const state = new PilotState();
+    state.applyKill({ victimUnitCategory: 'air', night: false, victimRoles: [], killedAtMs: 1000 });
+    expect(nightStalker.evaluate(KILL_EVENT, state)).toBe(false);
+  });
+});

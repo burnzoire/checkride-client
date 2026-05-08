@@ -36,3 +36,25 @@ describe('PerfectContact — evaluate', () => {
     expect(perfectContact.evaluate(REFUEL_EVENT, stateWith(0))).toBe(false);
   });
 });
+
+describe('PerfectContact — via applyRefuelEnrichment', () => {
+  it('earns the achievement when durationSeconds reaches 120 via state', () => {
+    const state = new PilotState();
+    state.applyRefuelEnrichment({ refuelStatus: 'completed', fuelGain: 0.3, durationSeconds: 120 });
+    expect(perfectContact.evaluate(REFUEL_EVENT, state)).toBe(true);
+  });
+
+  it('does not earn with durationSeconds below 120', () => {
+    const state = new PilotState();
+    state.applyRefuelEnrichment({ refuelStatus: 'completed', fuelGain: 0.3, durationSeconds: 119 });
+    expect(perfectContact.evaluate(REFUEL_EVENT, state)).toBe(false);
+  });
+
+  it('tracks the longest contact across multiple refuels', () => {
+    const state = new PilotState();
+    state.applyRefuelEnrichment({ refuelStatus: 'completed', fuelGain: 0.1, durationSeconds: 90 });
+    state.applyRefuelEnrichment({ refuelStatus: 'completed', fuelGain: 0.1, durationSeconds: 60 });
+    state.applyRefuelEnrichment({ refuelStatus: 'completed', fuelGain: 0.1, durationSeconds: 125 });
+    expect(perfectContact.evaluate(REFUEL_EVENT, state)).toBe(true);
+  });
+});

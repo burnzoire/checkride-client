@@ -141,4 +141,40 @@ describe('OnePassHaulAss — evaluate', () => {
     const state = stateWith(kills, [{ category: 3, count: 0, typeName: 'MK-82', displayName: 'Mk-82' }]);
     expect(onePassHaulAss.evaluate(KILL_EVENT, state)).toBe(false);
   });
+
+  it('returns true with an empty payload array when bomb kills are in the window', () => {
+    const state = stateWith(passKills(5), []);
+    expect(onePassHaulAss.evaluate(KILL_EVENT, state)).toBe(true);
+  });
+});
+
+describe('OnePassHaulAss — via applyKill', () => {
+  it('captures pilotSpeedKts from currentSpeedKts at kill time', () => {
+    const state = new PilotState();
+    state.applyFlightSampleEnrichment({ speedKts: 450, inAir: true });
+    for (let i = 0; i < 5; i++) {
+      state.applyKill({
+        victimUnitCategory: 'ground',
+        weaponClass: 'BOMB',
+        killedAtMs: 1000 + i * 2,
+        victimRoles: [],
+      });
+    }
+    state.currentPayload = [{ category: 3, count: 0, typeName: 'MK-82', displayName: 'Mk-82' }];
+    expect(onePassHaulAss.evaluate(KILL_EVENT, state)).toBe(true);
+  });
+
+  it('does not count kills when no flight sample has arrived before the kill', () => {
+    const state = new PilotState();
+    for (let i = 0; i < 5; i++) {
+      state.applyKill({
+        victimUnitCategory: 'ground',
+        weaponClass: 'BOMB',
+        killedAtMs: 1000 + i * 2,
+        victimRoles: [],
+      });
+    }
+    state.currentPayload = [{ category: 3, count: 0, typeName: 'MK-82', displayName: 'Mk-82' }];
+    expect(onePassHaulAss.evaluate(KILL_EVENT, state)).toBe(false);
+  });
 });

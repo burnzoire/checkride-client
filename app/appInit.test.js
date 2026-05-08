@@ -16,7 +16,7 @@ const { DCSChatClient } = require('./clients/dcsChatClient');
 const UDPServer = require('./services/udpServer');
 const { EventFactory } = require('./factories/eventFactory');
 const store = require('./config');
-const { initApp, attachEventPipeline } = require('./appInit');
+const { initApp, attachEventPipeline, buildBaseUrl } = require('./appInit');
 const log = require('electron-log');
 const { EventProcessor } = require('./services/eventProcessor');
 const { HealthChecker } = require('./services/healthChecker');
@@ -855,4 +855,101 @@ describe('initApp', () => {
     expect(achievementEngineMock.loadAchievementsFromApi).not.toHaveBeenCalled();
   });
 
+  it('sends welcome message with pilotProgressionUrl on connect', async () => {
+    const connectEvent = { type: 'connect', playerUcid: 'ucid-1', playerName: 'Maverick' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'connect', event_data: {} } }),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+      pilotProgressionUrl: 'https://my.server.example',
+    });
+
+    await udpServer.onEvent(connectEvent);
+
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith(
+      'You can view your pilot progression any time at https://my.server.example',
+      true,
+      { kind: 'info', playerUcid: 'ucid-1' }
+    );
+  });
+
+  it('falls back to hardcoded URL when pilotProgressionUrl is not provided', async () => {
+    const connectEvent = { type: 'connect', playerUcid: 'ucid-1', playerName: 'Maverick' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'connect', event_data: {} } }),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+    });
+
+    await udpServer.onEvent(connectEvent);
+
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith(
+      'You can view your pilot progression any time at https://checkride.oversweep.com',
+      true,
+      { kind: 'info', playerUcid: 'ucid-1' }
+    );
+  });
+
+});
+
+describe('buildBaseUrl', () => {
+  it('builds https URL omitting default port 443', () => {
+    expect(buildBaseUrl(true, 'example.com', '443')).toBe('https://example.com');
+  });
+
+  it('builds http URL omitting default port 80', () => {
+    expect(buildBaseUrl(false, 'example.com', '80')).toBe('http://example.com');
+  });
+
+  it('includes non-default port for https', () => {
+    expect(buildBaseUrl(true, 'example.com', '8443')).toBe('https://example.com:8443');
+  });
+
+  it('includes non-default port for http', () => {
+    expect(buildBaseUrl(false, 'localhost', '3000')).toBe('http://localhost:3000');
+  });
+
+  it('omits port when port is falsy', () => {
+    expect(buildBaseUrl(true, 'example.com', '')).toBe('https://example.com');
+  });
 });

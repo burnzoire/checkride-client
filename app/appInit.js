@@ -141,7 +141,15 @@ function maybeWarnLuaVersionMismatch({ event, onLuaVersionMismatch, warnedMismat
     .catch((error) => log.error('Failed to handle Lua version mismatch warning:', error));
 }
 
-function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient }) {
+function buildBaseUrl(useSsl, host, port) {
+  const scheme = useSsl ? 'https' : 'http';
+  const portNum = parseInt(port, 10);
+  const isDefaultPort = (useSsl && portNum === 443) || (!useSsl && portNum === 80);
+  const portSuffix = isDefaultPort || !portNum ? '' : `:${portNum}`;
+  return `${scheme}://${host}${portSuffix}`;
+}
+
+function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
   const warnedMismatchKeys = new Set();
@@ -191,8 +199,9 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         .catch((error) => log.error(`Failed to load achievements for pilot ${event.playerUcid}:`, error))
 
       if (event.type === 'connect' && dcsChatClient?.send) {
+        const url = pilotProgressionUrl || 'https://checkride.oversweep.com';
         dcsChatClient.send(
-          'You can view your pilot progression any time at https://checkride.oversweep.com',
+          `You can view your pilot progression any time at ${url}`,
           true,
           { kind: 'info', playerUcid: event.playerUcid }
         ).catch((error) => log.error(`Failed to send welcome message to ${event.playerUcid}:`, error));
@@ -364,7 +373,8 @@ async function initApp({ onLuaVersionMismatch } = {}) {
     usesSsl: useSsl,
   });
 
-  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient })
+  const pilotProgressionUrl = buildBaseUrl(useSsl, apiHost, apiPort);
+  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl })
 
   const healthChecker = new HealthChecker(apiClient, store, undefined, (healthy) => {
     newRelicClient.recordLog('api health state changed', {
@@ -388,4 +398,4 @@ async function initApp({ onLuaVersionMismatch } = {}) {
   return { udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, healthChecker, heartbeatService };
 }
 
-module.exports = { initApp, attachEventPipeline };
+module.exports = { initApp, attachEventPipeline, buildBaseUrl };

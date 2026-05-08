@@ -17,7 +17,11 @@ Function DcsPathPage
   ${NSD_CreateLabel} 0 0 100% 20u "Select your DCS Saved Games folder (e.g. C:\\Users\\<you>\\Saved Games\\DCS)"
   Pop $1
 
-  ${NSD_CreateDirRequest} 0 22u 100% 12u "$PROFILE\Saved Games\DCS"
+  ReadRegStr $0 HKCU "Software\Checkride Client" "DcsPath"
+  ${If} $0 == ""
+    StrCpy $0 "$PROFILE\Saved Games\DCS"
+  ${EndIf}
+  ${NSD_CreateDirRequest} 0 22u 100% 12u "$0"
   Pop $DcsPath
 
   nsDialogs::Show
@@ -29,6 +33,7 @@ Function DcsPathPageLeave
     MessageBox MB_ICONEXCLAMATION "Please select a folder."
     Abort
   ${EndIf}
+  WriteRegStr HKCU "Software\Checkride Client" "DcsPath" "$DcsPath"
 FunctionEnd
 
 !macro customInstall

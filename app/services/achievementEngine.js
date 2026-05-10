@@ -77,15 +77,23 @@ class AchievementEngine {
   evaluate(event) {
     if (event.type === 'friendly_killed_enrichment') {
       if (event.killerObjectId != null) {
-        this.recentFriendlyKillers.set(String(event.killerObjectId), Date.now());
+        this.recentFriendlyKillers.set(String(event.killerObjectId), {
+          wallClockMs: Date.now(),
+          missionTime: event.missionTime ?? null,
+        });
       }
       return [];
     }
 
     if (event.type === 'kill_enrichment' && event.victimObjectId != null) {
-      const killedFriendlyAt = this.recentFriendlyKillers.get(String(event.victimObjectId));
-      if (killedFriendlyAt != null && (Date.now() - killedFriendlyAt) <= AVENGER_TTL_MS) {
-        event.avengedFriendly = true;
+      const entry = this.recentFriendlyKillers.get(String(event.victimObjectId));
+      if (entry != null) {
+        const withinTtl = (Date.now() - entry.wallClockMs) <= AVENGER_TTL_MS;
+        const afterFriendlyDied = entry.missionTime == null || event.missionTime == null ||
+          event.missionTime > entry.missionTime;
+        if (withinTtl && afterFriendlyDied) {
+          event.avengedFriendly = true;
+        }
       }
     }
 

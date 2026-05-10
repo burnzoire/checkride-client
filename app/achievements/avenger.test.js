@@ -12,6 +12,7 @@ function killEvent(overrides = {}) {
     victimUnitCategory: 'air',
     victimObjectId: 42,
     isEnemy: true,
+    missionTime: 200,
     ...overrides,
   };
 }
@@ -23,6 +24,7 @@ function friendlyKilledEvent(overrides = {}) {
     killerTypeName: 'MiG-29',
     victimPlayerName: 'Goose',
     victimPlayerUcid: 'goose-ucid',
+    missionTime: 100,
     ...overrides,
   };
 }
@@ -113,5 +115,14 @@ describe('Avenger — engine integration', () => {
     const unlocked = engine.evaluate(killEvent({ victimObjectId: 55 }));
 
     expect(unlocked.map(a => a.id)).toContain('avenger');
+  });
+
+  it('does not unlock when the kill happened before the friendly died in mission time', () => {
+    const engine = new AchievementEngine([avenger]);
+
+    engine.evaluate(friendlyKilledEvent({ killerObjectId: 99, missionTime: 500 }));
+    const unlocked = engine.evaluate(killEvent({ victimObjectId: 99, missionTime: 300 }));
+
+    expect(unlocked.map(a => a.id)).not.toContain('avenger');
   });
 });

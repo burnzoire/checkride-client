@@ -226,12 +226,18 @@ end
 CheckrideCallbackRouter.MissionBridgePollInterval = 0.1
 CheckrideCallbackRouter.MissionBridgeMaxEventsPerPoll = 8
 CheckrideCallbackRouter._lastBridgePoll = 0
+CheckrideCallbackRouter.PlayerSyncInterval = 30
+CheckrideCallbackRouter._lastPlayerSync = 0
 
 function CheckrideCallbackRouter.onSimulationFrame()
     local now = DCS.getRealTime()
     if (now - CheckrideCallbackRouter._lastBridgePoll) >= CheckrideCallbackRouter.MissionBridgePollInterval then
         CheckrideCallbackRouter._lastBridgePoll = now
         CheckrideCallbackRouter.pollMissionEventBridge()
+    end
+    if (now - CheckrideCallbackRouter._lastPlayerSync) >= CheckrideCallbackRouter.PlayerSyncInterval then
+        CheckrideCallbackRouter._lastPlayerSync = now
+        CheckrideCallbackRouter.syncAllPlayers()
     end
     forwardToCheckride('onSimulationFrame')
 end

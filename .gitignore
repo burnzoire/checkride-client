@@ -163,7 +163,6 @@ dist
 
 # DCS reference data tool — generated artifacts
 dev/tools/checkride-enricher-mission.lua
-dev/tools/dcs-reference-data.json
 
 # macos
 .DS_Store

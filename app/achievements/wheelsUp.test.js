@@ -22,12 +22,16 @@ describe('WheelsUp — evaluate', () => {
     expect(wheelsUp.evaluate(takeoffEvent({ unitAttributes: ['Planes', 'Fighters'] }), state)).toBe(true);
   });
 
+  it('returns true for a VTOL aircraft that also carries Helicopters attribute', () => {
+    expect(wheelsUp.evaluate(takeoffEvent({ unitAttributes: ['Planes', 'Helicopters', 'VTOL planes'] }), state)).toBe(true);
+  });
+
   it('returns true when unitAttributes is absent', () => {
     expect(wheelsUp.evaluate(takeoffEvent(), state)).toBe(true);
   });
 
-  it('returns true when unitAttributes is empty', () => {
-    expect(wheelsUp.evaluate(takeoffEvent({ unitAttributes: [] }), state)).toBe(true);
+  it('returns false when unitAttributes is empty', () => {
+    expect(wheelsUp.evaluate(takeoffEvent({ unitAttributes: [] }), state)).toBe(false);
   });
 
   it('returns false for a helicopter takeoff', () => {

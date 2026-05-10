@@ -333,10 +333,18 @@ function CheckrideMission.refreshTelemetryRoster(now)
         return
     end
 
-    cfg.lastRosterRefreshAt = now
-    cfg.roster = buildTelemetryRoster()
+    local ok, result = pcall(buildTelemetryRoster)
+    if ok and type(result) == 'table' then
+        cfg.roster = result
+        cfg.lastRosterRefreshAt = now
+    else
+        CheckrideMission.log('[checkride] buildTelemetryRoster failed: ' .. tostring(result))
+    end
 
-    if cfg.nextPilotIndex > #cfg.roster then
+    local rosterSize = #(cfg.roster or {})
+    if rosterSize <= 0 then
+        cfg.nextPilotIndex = 0
+    elseif not cfg.nextPilotIndex or cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
         cfg.nextPilotIndex = 1
     end
 end
@@ -346,7 +354,7 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
         return
     end
 
-    if not entry.playerUcid then
+    if not entry.playerUcid and not entry.playerName then
         return
     end
 
@@ -470,33 +478,45 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
 end
 
 function CheckrideMission.sampleTelemetryTick(_, now)
-    local cfg = CheckrideMission.FlightSample
-    local minTick = cfg.minTickSeconds or 0.25
+    local ok, nextTime = pcall(function()
+        local cfg = CheckrideMission.FlightSample
+        local minTick = cfg.minTickSeconds or 0.25
 
-    if not cfg.enabled then
-        return now + minTick
-    end
-
-    CheckrideMission.refreshTelemetryRoster(now)
-
-    local rosterSize = #cfg.roster
-    local tickSeconds = math.max(minTick, (cfg.targetSampleIntervalSeconds or 4.0) / math.max(1, rosterSize))
-
-    if rosterSize > 0 then
-        if cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
-            cfg.nextPilotIndex = 1
+        if not cfg.enabled then
+            return now + minTick
         end
 
-        local entry = cfg.roster[cfg.nextPilotIndex]
-        cfg.nextPilotIndex = cfg.nextPilotIndex + 1
-        if cfg.nextPilotIndex > rosterSize then
-            cfg.nextPilotIndex = 1
+        CheckrideMission.refreshTelemetryRoster(now)
+
+        local roster = cfg.roster or {}
+        local rosterSize = #roster
+        local tickSeconds = math.max(minTick, (cfg.targetSampleIntervalSeconds or 4.0) / math.max(1, rosterSize))
+
+        if rosterSize > 0 then
+            if not cfg.nextPilotIndex or cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
+                cfg.nextPilotIndex = 1
+            end
+
+            local entry = roster[cfg.nextPilotIndex]
+            cfg.nextPilotIndex = cfg.nextPilotIndex + 1
+            if cfg.nextPilotIndex > rosterSize then
+                cfg.nextPilotIndex = 1
+            end
+
+            if entry then
+                CheckrideMission.emitFlightSampleForEntry(entry, now)
+            end
         end
 
-        CheckrideMission.emitFlightSampleForEntry(entry, now)
+        return now + tickSeconds
+    end)
+
+    if not ok then
+        CheckrideMission.log('[checkride] telemetry tick crashed: ' .. tostring(nextTime))
+        return timer.getTime() + 1
     end
 
-    return now + tickSeconds
+    return nextTime
 end
 
 function CheckrideMission.startTelemetrySampler()
@@ -560,12 +580,13 @@ local function getObjectSpeedMps(object)
 end
 
 function CheckrideMission.sampleActiveWeaponsTick(_, now)
+    local ok, nextTime = pcall(function()
     local cfg = CheckrideMission.WeaponSample
     if not cfg.enabled then
         return now + (cfg.tickSeconds or 1.0)
     end
 
-    for weaponKey, shotState in pairs(CheckrideMission.activeWeaponShots) do
+    for weaponKey, shotState in pairs(CheckrideMission.activeWeaponShots or {}) do
         if shotState and shotState.inFlight ~= false then
             local firedAt = shotState.firedAt or now
             local ageSeconds = now - firedAt
@@ -637,7 +658,7 @@ function CheckrideMission.sampleActiveWeaponsTick(_, now)
     end
 
     -- Inbound missile expiry: if weapon ref is gone and no hit was recorded, the player evaded.
-    for weaponKey, track in pairs(CheckrideMission.activeInboundMissiles) do
+    for weaponKey, track in pairs(CheckrideMission.activeInboundMissiles or {}) do
         local isValid = false
         if track.weaponRef then
             local okExist, exists = pcall(function() return track.weaponRef:isExist() end)
@@ -654,6 +675,14 @@ function CheckrideMission.sampleActiveWeaponsTick(_, now)
     end
 
     return now + (cfg.tickSeconds or 1.0)
+    end)
+
+    if not ok then
+        CheckrideMission.log('[checkride] weapon tick crashed: ' .. tostring(nextTime))
+        return timer.getTime() + 1
+    end
+
+    return nextTime
 end
 
 function CheckrideMission.startWeaponSampler()

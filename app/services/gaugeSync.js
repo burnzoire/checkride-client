@@ -57,7 +57,7 @@ class GaugeSync {
         });
       })
       .catch((error) => {
-        log.warn(`GaugeSync failed to load gauges for ${playerUcid}:`, error?.message || error);
+        log.warn(`GaugeSync unexpected error syncing snapshot for ${playerUcid}:`, error?.message || error);
       });
   }
 
@@ -120,6 +120,7 @@ class GaugeSync {
   submitGaugeUpdate({ playerUcid, playerName, gaugeId, value }) {
     const inflightKey = `${playerUcid}:${gaugeId}`;
     if (this.inflightByGauge.has(inflightKey)) {
+      this.handleSettlingGauge({ playerUcid, playerName, gaugeId, value, settleForMs: DEFAULT_SETTLE_FOR_MS, flushNow: false });
       return;
     }
 
@@ -132,9 +133,11 @@ class GaugeSync {
       comparison: 'max',
     })
       .then((response) => {
+        const serverValue = this.normalizeNumber(response?.value);
+        const bestKnownValue = (serverValue !== null && serverValue > value) ? serverValue : value;
         const nextPilotGauges = this.gaugesByPilot.get(playerUcid) || {};
         nextPilotGauges[gaugeId] = {
-          value: this.normalizeNumber(response?.value) ?? value,
+          value: bestKnownValue,
           updated_at: response?.updated_at || null,
         };
         this.gaugesByPilot.set(playerUcid, nextPilotGauges);
@@ -161,6 +164,11 @@ class GaugeSync {
         const gauges = response?.gauges && typeof response.gauges === 'object' ? response.gauges : {};
         this.gaugesByPilot.set(playerUcid, gauges);
         return gauges;
+      })
+      .catch((error) => {
+        log.warn(`GaugeSync failed to load gauges for ${playerUcid}, proceeding with empty state:`, error?.message || error);
+        this.gaugesByPilot.set(playerUcid, {});
+        return {};
       })
       .finally(() => {
         this.loadingByPilot.delete(playerUcid);

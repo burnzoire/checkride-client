@@ -178,6 +178,7 @@ return '__CHECKRIDE_MISSION_OK__:' .. tostring(CheckrideMission.version or 'unkn
 end
 
 function CheckrideCallbackRouter.syncAllPlayers()
+    CheckrideCallbackRouter._lastPlayerSync = DCS.getRealTime()
     local players = net.get_player_list()
     if not players then return end
 

@@ -1,7 +1,11 @@
 const homeBase = require('./homeBase');
 const PilotState = require('../services/pilotState');
 
-const state = new PilotState();
+function stateWithDistance(km) {
+  const state = new PilotState();
+  state.sortieDistanceKm = km;
+  return state;
+}
 
 describe('HomeBase — metadata', () => {
   it('has id home_base', () => {
@@ -14,19 +18,23 @@ describe('HomeBase — metadata', () => {
 });
 
 describe('HomeBase — evaluate', () => {
-  it('returns true when landed at a friendly airbase', () => {
-    expect(homeBase.evaluate({ landedAtFriendlyBase: true }, state)).toBe(true);
+  it('returns true when landed at a friendly airbase with sufficient distance', () => {
+    expect(homeBase.evaluate({ landedAtFriendlyBase: true }, stateWithDistance(1))).toBe(true);
+  });
+
+  it('returns false when distance is under 1 km', () => {
+    expect(homeBase.evaluate({ landedAtFriendlyBase: true }, stateWithDistance(0.9))).toBe(false);
   });
 
   it('returns false when landed at an enemy airbase', () => {
-    expect(homeBase.evaluate({ landedAtFriendlyBase: false }, state)).toBe(false);
+    expect(homeBase.evaluate({ landedAtFriendlyBase: false }, stateWithDistance(5))).toBe(false);
   });
 
   it('returns false when landedAtFriendlyBase is null', () => {
-    expect(homeBase.evaluate({ landedAtFriendlyBase: null }, state)).toBe(false);
+    expect(homeBase.evaluate({ landedAtFriendlyBase: null }, stateWithDistance(5))).toBe(false);
   });
 
   it('returns false for a field landing (no airbase)', () => {
-    expect(homeBase.evaluate({ landedAtFriendlyBase: false, landedAtAirbase: false }, state)).toBe(false);
+    expect(homeBase.evaluate({ landedAtFriendlyBase: false, landedAtAirbase: false }, stateWithDistance(5))).toBe(false);
   });
 });

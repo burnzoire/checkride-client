@@ -12,8 +12,8 @@ class HomeBase extends Achievement {
     });
   }
 
-  evaluate(event, _state) {
-    return event.landedAtFriendlyBase === true;
+  evaluate(event, state) {
+    return event.landedAtFriendlyBase === true && state.sortieDistanceKm >= 1;
   }
 }
 

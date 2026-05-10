@@ -4,17 +4,16 @@ class WheelsUp extends Achievement {
   constructor() {
     super({
       id: 'wheels_up',
-      name: 'Wheels Up',
+      name: 'Airborne',
       description: 'Complete your first ever takeoff.',
       triggerType: 'takeoff',
-      iconHint: 'Aircraft lifting off runway',
-      iconDescription: 'A fighter jet rotating off a runway with gear retracting, seen from the side.',
+      iconHint: 'Aircraft lifting off',
+      iconDescription: 'An aircraft lifting off, seen from the side.',
     });
   }
 
-  evaluate(event, _state) {
-    if (!Array.isArray(event.unitAttributes)) return true;
-    return event.unitAttributes.includes('Planes');
+  evaluate(_event, _state) {
+    return true;
   }
 }
 

@@ -161,6 +161,10 @@ dist
 # Claude Code local settings
 .claude/settings.local.json
 
+# DCS reference data tool — generated artifacts
+dev/tools/checkride-enricher-mission.lua
+dev/tools/dcs-reference-data.json
+
 # macos
 .DS_Store
 

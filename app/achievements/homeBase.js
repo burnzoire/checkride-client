@@ -5,7 +5,7 @@ class HomeBase extends Achievement {
     super({
       id: 'home_base',
       name: 'Home Base',
-      description: 'Complete your first ever landing at a friendly airbase.',
+      description: 'Return to the airbase you took off from.',
       triggerType: 'landing_enrichment',
       iconHint: 'Aircraft touching down on friendly runway',
       iconDescription: 'A fighter jet touching down on a runway with a friendly flag visible at the airbase.',
@@ -13,7 +13,10 @@ class HomeBase extends Achievement {
   }
 
   evaluate(event, state) {
-    return event.landedAtFriendlyBase === true && state.sortieDistanceKm >= 1;
+    return event.airdromeName != null
+      && state.takeoffLocation != null
+      && event.airdromeName === state.takeoffLocation
+      && state.sortieDistanceKm >= 1;
   }
 }
 

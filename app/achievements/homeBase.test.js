@@ -1,9 +1,10 @@
 const homeBase = require('./homeBase');
 const PilotState = require('../services/pilotState');
 
-function stateWithDistance(km) {
+function stateWith({ km = 5, takeoffLocation = 'Batumi' } = {}) {
   const state = new PilotState();
   state.sortieDistanceKm = km;
+  state.takeoffLocation = takeoffLocation;
   return state;
 }
 
@@ -18,23 +19,27 @@ describe('HomeBase — metadata', () => {
 });
 
 describe('HomeBase — evaluate', () => {
-  it('returns true when landed at a friendly airbase with sufficient distance', () => {
-    expect(homeBase.evaluate({ landedAtFriendlyBase: true }, stateWithDistance(1))).toBe(true);
+  it('returns true when landed at the takeoff airbase with sufficient distance', () => {
+    expect(homeBase.evaluate({ airdromeName: 'Batumi' }, stateWith())).toBe(true);
+  });
+
+  it('returns true for a FARP landing when FARP name matches takeoff location', () => {
+    expect(homeBase.evaluate({ airdromeName: 'FARP Two Streams' }, stateWith({ takeoffLocation: 'FARP Two Streams' }))).toBe(true);
   });
 
   it('returns false when distance is under 1 km', () => {
-    expect(homeBase.evaluate({ landedAtFriendlyBase: true }, stateWithDistance(0.9))).toBe(false);
+    expect(homeBase.evaluate({ airdromeName: 'Batumi' }, stateWith({ km: 0.9 }))).toBe(false);
   });
 
-  it('returns false when landed at an enemy airbase', () => {
-    expect(homeBase.evaluate({ landedAtFriendlyBase: false }, stateWithDistance(5))).toBe(false);
+  it('returns false when landed at a different airbase', () => {
+    expect(homeBase.evaluate({ airdromeName: 'Kobuleti' }, stateWith())).toBe(false);
   });
 
-  it('returns false when landedAtFriendlyBase is null', () => {
-    expect(homeBase.evaluate({ landedAtFriendlyBase: null }, stateWithDistance(5))).toBe(false);
+  it('returns false when airdromeName is null (field landing)', () => {
+    expect(homeBase.evaluate({ airdromeName: null }, stateWith())).toBe(false);
   });
 
-  it('returns false for a field landing (no airbase)', () => {
-    expect(homeBase.evaluate({ landedAtFriendlyBase: false, landedAtAirbase: false }, stateWithDistance(5))).toBe(false);
+  it('returns false when takeoffLocation is null', () => {
+    expect(homeBase.evaluate({ airdromeName: 'Batumi' }, stateWith({ takeoffLocation: null }))).toBe(false);
   });
 });

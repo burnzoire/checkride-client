@@ -1963,6 +1963,10 @@ function CheckrideMission.onKill(event)
     -- Fallback: recover weaponGuidance/weaponClass from the outbound shot record for
     -- proximity-fused missiles (e.g. AIM-54C Phoenix) that detonate without triggering
     -- onHit against the victim unit, leaving no pending kill data.
+    -- This guard only runs when pending is nil, so onHit did not fire for this victim —
+    -- the shot record is still live in activeWeaponShots and safe to consume here.
+    -- The pairs() scan mirrors findInFlightWeaponCandidates; typical in-flight shot
+    -- counts are small (single digits), so the linear search is acceptable.
     local fallbackGuidance = nil
     local fallbackWeaponClass = nil
     if not pending and victimObjectId then

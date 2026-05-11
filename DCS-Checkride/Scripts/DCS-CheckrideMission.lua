@@ -1500,9 +1500,16 @@ function CheckrideMission.onShot(event)
         return
     end
 
+    local weaponGuidance = nil
+    local okWDesc, wDesc = pcall(function() return weapon:getDesc() end)
+    if okWDesc and wDesc then
+        weaponGuidance = GUIDANCE_NAMES[wDesc.guidance] or (wDesc.guidance and tostring(wDesc.guidance)) or nil
+    end
+
     CheckrideMission.activeWeaponShots[weaponKey] = {
         weaponKey = weaponKey,
         weaponClass = weaponClass,
+        weaponGuidance = weaponGuidance,
         startX = startPoint.x,
         startY = startPoint.z,
         startAlt = startPoint.y,
@@ -1517,12 +1524,6 @@ function CheckrideMission.onShot(event)
         firedAt = event.time,
         lastDataAt = event.time,
     }
-
-    local weaponGuidance = nil
-    local okWDesc, wDesc = pcall(function() return weapon:getDesc() end)
-    if okWDesc and wDesc then
-        weaponGuidance = GUIDANCE_NAMES[wDesc.guidance] or (wDesc.guidance and tostring(wDesc.guidance)) or nil
-    end
 
     local message = {
         type = "shot_enrichment",
@@ -1959,6 +1960,22 @@ function CheckrideMission.onKill(event)
         CheckrideMission.pendingKillsByObjectId[victimObjectId] = nil
     end
 
+    -- Fallback: recover weaponGuidance/weaponClass from the outbound shot record for
+    -- proximity-fused missiles (e.g. AIM-54C Phoenix) that detonate without triggering
+    -- onHit against the victim unit, leaving no pending kill data.
+    local fallbackGuidance = nil
+    local fallbackWeaponClass = nil
+    if not pending and victimObjectId then
+        for _, shot in pairs(CheckrideMission.activeWeaponShots) do
+            if shot.playerUcid == ucid and shot.targetObjectId == victimObjectId then
+                fallbackGuidance = shot.weaponGuidance
+                fallbackWeaponClass = shot.weaponClass
+                CheckrideMission.activeWeaponShots[shot.weaponKey] = nil
+                break
+            end
+        end
+    end
+
     -- Victim unit category — try live target first, fall back gracefully
     local victimUnitCategory = "other"
     local victimAirType = nil
@@ -2045,8 +2062,8 @@ function CheckrideMission.onKill(event)
         killerUnitCategory = killerUnitCategory,
         killedAtMs         = pending and pending.killedAtMs or event.time,
         victimRoles        = pending and pending.victimRoles or nil,
-        weaponGuidance     = pending and pending.weaponGuidance or nil,
-        weaponClass        = pending and pending.weaponClass or (isCollision and "COLLISION" or nil),
+        weaponGuidance     = (pending and pending.weaponGuidance) or fallbackGuidance,
+        weaponClass        = (pending and pending.weaponClass) or fallbackWeaponClass or (isCollision and "COLLISION" or nil),
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,

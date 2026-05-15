@@ -183,12 +183,13 @@ describe("CheckrideMission.sampleTelemetryTick", function()
             scheduleFunction = function() end,
         }
 
-        local nextTime = CheckrideMission.sampleTelemetryTick(nil, nil)
-        assert.is_truthy(type(nextTime) == "number")
-        assert.is_truthy(nextTime > 0)
+        local nextTimeA = CheckrideMission.sampleTelemetryTick(nil, nil)
+        local nextTimeB = CheckrideMission.sampleTelemetryTick(nil, nil)
+        assert.are.equal(4.25, nextTimeA)
+        assert.are.equal(4.25, nextTimeB)
     end)
 
-    it("reuses stale roster when mission time goes backward", function()
+    it("reuses cached roster when mission time decreases", function()
         local captured = loader.capture_events()
 
         local staleUnit = stubs.make_unit({ playerName = "Ghost", exists = false })
@@ -215,6 +216,7 @@ describe("CheckrideMission.sampleTelemetryTick", function()
         CheckrideMission.sampleTelemetryTick(nil, 10)
         assert.are.equal(0, #captured)
         assert.are.equal(100, CheckrideMission.FlightSample.lastRosterRefreshAt)
+        assert.are.equal("Ghost", CheckrideMission.FlightSample.roster[1].playerName)
     end)
 
     it("continues sampling from cached roster during rapid roster churn between refreshes", function()
@@ -246,6 +248,8 @@ describe("CheckrideMission.sampleTelemetryTick", function()
             end
         end
         assert.are.equal(2, #enrichments)
+        assert.are.equal("ChurnPilot", enrichments[1].playerName)
+        assert.are.equal("ChurnPilot", enrichments[2].playerName)
     end)
 
     it("keeps previous roster when buildTelemetryRoster fails and still ticks", function()
@@ -291,7 +295,9 @@ describe("CheckrideMission.sampleTelemetryTick", function()
         _G.CheckrideLookupUCID = nil
 
         CheckrideMission.sampleTelemetryTick(nil, 10)
-        assert.are.equal(1, #(CheckrideMission.FlightSample.roster or {}))
+        local roster = CheckrideMission.FlightSample.roster or {}
+        assert.are.equal(1, #roster)
+        assert.are.equal("DuplicateName", roster[1].playerName)
     end)
 
     it("excludes units with blank or missing playerName from telemetry roster", function()
@@ -363,10 +369,9 @@ describe("CheckrideMission.sampleTelemetryTick", function()
         CheckrideMission.FlightSample.nextPilotIndex = 1
 
         local nextTime = CheckrideMission.sampleTelemetryTick(nil, 10)
+        CheckrideMission.emitFlightSampleForEntry = originalEmit
         assert.is_truthy(nextTime > 10)
         assert.are.equal(1, CheckrideMission.FlightSample.nextPilotIndex)
-
-        CheckrideMission.emitFlightSampleForEntry = originalEmit
     end)
 
     it("does not halt future samples when one pilot entry is malformed", function()
@@ -393,8 +398,10 @@ describe("CheckrideMission.sampleTelemetryTick", function()
         CheckrideMission.FlightSample.nextPilotIndex = 1
 
         CheckrideMission.sampleTelemetryTick(nil, 10)
+        assert.are.equal(2, CheckrideMission.FlightSample.nextPilotIndex)
         CheckrideMission.FlightSample.lastRosterRefreshAt = 11
         CheckrideMission.sampleTelemetryTick(nil, 11)
+        assert.are.equal(1, CheckrideMission.FlightSample.nextPilotIndex)
 
         local enrichments = {}
         for _, c in ipairs(captured) do
@@ -416,5 +423,9 @@ describe("CheckrideMission.sampleTelemetryTick", function()
         end
 
         assert.are.equal(200, #CheckrideMission.EventQueue)
+        local first = CheckrideMissionPopEvent()
+        local second = CheckrideMissionPopEvent()
+        assert.is_truthy(string.find(first, '"playerName":"P1"', 1, true) ~= nil)
+        assert.is_truthy(string.find(second, '"playerName":"P2"', 1, true) ~= nil)
     end)
 end)

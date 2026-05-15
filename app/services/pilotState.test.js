@@ -152,6 +152,21 @@ describe('PilotState — sortie fields', () => {
       state.applyKill({ victimUnitCategory: 'air', carrierDistanceNm: null });
       expect(state.kills[0].carrierDistanceNm).toBeNull();
     });
+
+    it('stores weaponGuidance from the kill event', () => {
+      state.applyKill({ victimUnitCategory: 'air', weaponGuidance: 'RADAR_ACTIVE' });
+      expect(state.kills[0].weaponGuidance).toBe('RADAR_ACTIVE');
+    });
+
+    it('defaults weaponGuidance to null when absent', () => {
+      state.applyKill({ victimUnitCategory: 'air' });
+      expect(state.kills[0].weaponGuidance).toBeNull();
+    });
+
+    it('stores weaponClass from the kill event', () => {
+      state.applyKill({ victimUnitCategory: 'air', weaponClass: 'AAM' });
+      expect(state.kills[0].weaponClass).toBe('AAM');
+    });
   });
 
   describe('applyRefuelEnrichment', () => {

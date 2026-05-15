@@ -61,4 +61,12 @@ describe('ShootingStar — evaluate', () => {
       { victimUnitCategory: 'ground', weaponGuidance: 'RADAR_ACTIVE' },
     ]))).toBe(false);
   });
+
+  it('does not count a null-guidance air kill (e.g. gun) toward fox types', () => {
+    expect(shootingStar.evaluate(KILL_EVENT, stateWith([
+      fox1Kill,
+      fox2Kill,
+      { victimUnitCategory: 'air', weaponGuidance: null },
+    ]))).toBe(false);
+  });
 });

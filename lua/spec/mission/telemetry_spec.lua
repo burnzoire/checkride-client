@@ -423,8 +423,8 @@ describe("CheckrideMission.sampleTelemetryTick", function()
         end
 
         assert.are.equal(200, #CheckrideMission.EventQueue)
-        local first = CheckrideMissionPopEvent()
-        local second = CheckrideMissionPopEvent()
+        local first = CheckrideMission.PopEvent()
+        local second = CheckrideMission.PopEvent()
         assert.is_truthy(string.find(first, '"playerName":"P1"', 1, true) ~= nil)
         assert.is_truthy(string.find(second, '"playerName":"P2"', 1, true) ~= nil)
     end)

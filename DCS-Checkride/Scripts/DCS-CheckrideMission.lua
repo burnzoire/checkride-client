@@ -149,7 +149,7 @@ function CheckrideMission.queueEvent(encodedMessage)
     CheckrideMission.EventQueue[#CheckrideMission.EventQueue + 1] = encodedMessage
 end
 
-function CheckrideMissionPopEvent()
+function CheckrideMission.PopEvent()
     if not CheckrideMission or not CheckrideMission.EventQueue then
         return ""
     end
@@ -257,8 +257,12 @@ local function appendSidePlayers(target, side)
     end
 
     local ok, players = pcall(function() return coalition.getPlayers(side) end)
-    if not ok or type(players) ~= "table" then
-        return
+    if not ok then
+        error("coalition.getPlayers raised error: " .. tostring(players))
+    end
+
+    if type(players) ~= "table" then
+        error("coalition.getPlayers returned " .. tostring(type(players)))
     end
 
     for _, unit in ipairs(players) do

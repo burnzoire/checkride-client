@@ -13,7 +13,7 @@ local function checkrideLogWarn(message)
     log.write('DCS-Checkride-Hook', warningLevel, tostring(message))
 end
 
-local CHECKRIDE_CLIENT_VERSION = '1.3.2-beta3'
+local CHECKRIDE_CLIENT_VERSION = '1.4.3'
 checkrideLogInfo('Hook version: ' .. CHECKRIDE_CLIENT_VERSION)
 
 local status, result = pcall(function() local dcsSr=require('lfs');dofile(dcsSr.writedir()..[[Mods\Services\DCS-Checkride\Scripts\DCS-CheckrideGameGUI.lua]]); end,nil)
@@ -56,8 +56,8 @@ function CheckrideCallbackRouter.pollMissionEventBridge()
     for _ = 1, maxPerPoll do
         local t0 = DCS.getRealTime()
         local encodedEvent, ok = net.dostring_in(CHECKRIDE_MISSION_STATE, [[
-            if CheckrideMissionPopEvent then
-                return CheckrideMissionPopEvent()
+            if CheckrideMission.PopEvent then
+                return CheckrideMission.PopEvent()
             end
             return ''
         ]])

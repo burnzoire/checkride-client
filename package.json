@@ -1,0 +1,7 @@
+{
+  "name": "checkride-client-lua-tests",
+  "private": true,
+  "scripts": {
+    "lua:test": "busted lua/ -o lua/outputHandlers/asciiTree.lua"
+  }
+}

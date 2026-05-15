@@ -149,7 +149,7 @@ function CheckrideMission.queueEvent(encodedMessage)
     CheckrideMission.EventQueue[#CheckrideMission.EventQueue + 1] = encodedMessage
 end
 
-function CheckrideMissionPopEvent()
+function CheckrideMission.PopEvent()
     if not CheckrideMission or not CheckrideMission.EventQueue then
         return ""
     end
@@ -160,10 +160,6 @@ function CheckrideMissionPopEvent()
 
     local encoded = table.remove(CheckrideMission.EventQueue, 1)
     return encoded or ""
-end
-
-function CheckrideMission.PopEvent()
-    return CheckrideMissionPopEvent()
 end
 
 -- ============================================================================

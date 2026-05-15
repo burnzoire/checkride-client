@@ -477,16 +477,41 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
     CheckrideMission.sendEnrichmentEvent(message)
 end
 
+local function resolveTickNow(now, fallbackSeconds)
+    if isFiniteNumber(now) then
+        return now
+    end
+
+    if timer and timer.getTime then
+        local ok, value = pcall(function() return timer.getTime() end)
+        if ok and isFiniteNumber(value) then
+            return value
+        end
+    end
+
+    return fallbackSeconds or 0
+end
+
+local function resolveNextTickTime(candidate, now, fallbackSeconds)
+    local safeNow = resolveTickNow(now, 0)
+    local minAdvance = fallbackSeconds or 1
+    if isFiniteNumber(candidate) and candidate > safeNow then
+        return candidate
+    end
+    return safeNow + minAdvance
+end
+
 function CheckrideMission.sampleTelemetryTick(_, now)
     local ok, nextTime = pcall(function()
         local cfg = CheckrideMission.FlightSample
         local minTick = cfg.minTickSeconds or 0.25
+        local safeNow = resolveTickNow(now, minTick)
 
         if not cfg.enabled then
-            return now + minTick
+            return safeNow + minTick
         end
 
-        CheckrideMission.refreshTelemetryRoster(now)
+        CheckrideMission.refreshTelemetryRoster(safeNow)
 
         local roster = cfg.roster or {}
         local rosterSize = #roster
@@ -504,19 +529,22 @@ function CheckrideMission.sampleTelemetryTick(_, now)
             end
 
             if entry then
-                CheckrideMission.emitFlightSampleForEntry(entry, now)
+                local emitOk, emitErr = pcall(CheckrideMission.emitFlightSampleForEntry, entry, safeNow)
+                if not emitOk then
+                    CheckrideMission.log('[checkride] flight sample emit failed: ' .. tostring(emitErr))
+                end
             end
         end
 
-        return now + tickSeconds
+        return safeNow + tickSeconds
     end)
 
     if not ok then
         CheckrideMission.log('[checkride] telemetry tick crashed: ' .. tostring(nextTime))
-        return timer.getTime() + 1
+        return resolveNextTickTime(nil, now, 1)
     end
 
-    return nextTime
+    return resolveNextTickTime(nextTime, now, 1)
 end
 
 function CheckrideMission.startTelemetrySampler()

@@ -257,8 +257,12 @@ local function appendSidePlayers(target, side)
     end
 
     local ok, players = pcall(function() return coalition.getPlayers(side) end)
-    if not ok or type(players) ~= "table" then
-        return
+    if not ok then
+        error("coalition.getPlayers raised error: " .. tostring(players))
+    end
+
+    if type(players) ~= "table" then
+        error("coalition.getPlayers returned " .. tostring(type(players)))
     end
 
     for _, unit in ipairs(players) do

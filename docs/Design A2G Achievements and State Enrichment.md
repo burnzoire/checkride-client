@@ -172,7 +172,7 @@ Fields marked *kills[]* are additions to entries in the existing `kills` array. 
 | `nearby_shot` *(new, non-persisted)* | Mission | `S_EVENT_SHOT` AI path → queue → bridge → UDP |
 | `gun_burst_start/end` *(new)* | Mission | `S_EVENT_SHOOTING_START/END` → queue → bridge → UDP |
 
-The bridge is `CheckrideCallbackRouter.pollMissionEventBridge()`, which calls `net.dostring_in('server', 'CheckrideMissionPopEvent()')` every 100ms and forwards each dequeued string via `Checkride.sendEncodedEvent()`.
+The bridge is `CheckrideCallbackRouter.pollMissionEventBridge()`, which calls `net.dostring_in('server', 'CheckrideMission.PopEvent()')` every 100ms and forwards each dequeued string via `Checkride.sendEncodedEvent()`.
 
 `nearby_shot` events carry `persist: false` (set by `CheckrideMission.sendEnrichmentEvent`), so the Electron daemon drops them after achievement evaluation and never forwards them to the API.
 

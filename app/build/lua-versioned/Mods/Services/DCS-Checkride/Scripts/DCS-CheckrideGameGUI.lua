@@ -2,7 +2,7 @@
 -- DCS-Checkride Game Event Tracker
 -- ============================================================================
 Checkride = {}
-Checkride.clientVersion = "1.3.2-beta3"
+Checkride.clientVersion = "1.4.3"
 Checkride.version = Checkride.clientVersion
 Checkride.clients = {}
 

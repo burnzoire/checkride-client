@@ -71,6 +71,47 @@ describe("CheckrideCallbackRouter.pollMissionEventBridge", function()
         assert.are.equal('{"type":"grading"}', forwarded[1])
     end)
 
+    it("treats a missing mission-side CheckrideMission table as an empty queue", function()
+        local bridgeOk = nil
+        local bridgeResult = nil
+        local forwardedCount = 0
+
+        _G.net = {
+            log             = function() end,
+            get_player_info = function() return nil end,
+            get_player_list = function() return {} end,
+            dostring_in     = function(state, code)
+                local savedMission = _G.CheckrideMission
+                _G.CheckrideMission = nil
+
+                local loader = loadstring or load
+                local chunk, err = loader(code)
+                if not chunk then
+                    _G.CheckrideMission = savedMission
+                    return err, false
+                end
+
+                local ok, result = pcall(chunk)
+                _G.CheckrideMission = savedMission
+                bridgeOk = ok
+                bridgeResult = result
+                return ok and result or result, ok
+            end,
+        }
+        _G.Checkride = {
+            missionScriptingEnabled = true,
+            sendEncodedEvent        = function()
+                forwardedCount = forwardedCount + 1
+            end,
+        }
+
+        CheckrideCallbackRouter.pollMissionEventBridge()
+
+        assert.is_true(bridgeOk)
+        assert.are.equal('', bridgeResult)
+        assert.are.equal(0, forwardedCount)
+    end)
+
     it("stops polling after receiving an empty event string", function()
         local poll_count = 0
         _G.net = {

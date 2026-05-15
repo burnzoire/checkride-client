@@ -376,12 +376,18 @@ describe("CheckrideMission.sampleTelemetryTick", function()
 
     it("does not halt future samples when one pilot entry is malformed", function()
         local captured = loader.capture_events()
+        local malformedAmmoItem = setmetatable({}, {
+            __index = function()
+                error("bad ammo payload")
+            end,
+        })
+
         local badUnit = stubs.make_unit({
             playerName = "Bad",
             exists = true,
             velocity = { x = 100, y = 0, z = 0 },
             point = { x = 1, y = 1000, z = 2 },
-            ammo = "not-a-table",
+            ammo = { malformedAmmoItem },
         })
         local goodUnit = stubs.make_unit({
             playerName = "Good",

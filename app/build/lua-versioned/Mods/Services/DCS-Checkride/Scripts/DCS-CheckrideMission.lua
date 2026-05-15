@@ -6,7 +6,7 @@
 -- Queues encoded events for retrieval via net.dostring_in from GameGUI/hook.
 -- ============================================================================
 CheckrideMission = {}
-CheckrideMission.clientVersion = "1.3.2-beta3"
+CheckrideMission.clientVersion = "1.4.3"
 CheckrideMission.version = CheckrideMission.clientVersion
 CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 
@@ -37,6 +37,7 @@ CheckrideMission.RefuelDetection = {
 CheckrideMission.pilotCarrierByUcid = {}
 
 CheckrideMission.TakeoffEventId = nil
+CheckrideMission.LandEventId = nil
 CheckrideMission.KillEventId = nil
 CheckrideMission.ShotEventId = nil
 CheckrideMission.HitEventId = nil
@@ -148,7 +149,7 @@ function CheckrideMission.queueEvent(encodedMessage)
     CheckrideMission.EventQueue[#CheckrideMission.EventQueue + 1] = encodedMessage
 end
 
-function CheckrideMissionPopEvent()
+function CheckrideMission.PopEvent()
     if not CheckrideMission or not CheckrideMission.EventQueue then
         return ""
     end
@@ -256,8 +257,12 @@ local function appendSidePlayers(target, side)
     end
 
     local ok, players = pcall(function() return coalition.getPlayers(side) end)
-    if not ok or type(players) ~= "table" then
-        return
+    if not ok then
+        error("coalition.getPlayers raised error: " .. tostring(players))
+    end
+
+    if type(players) ~= "table" then
+        error("coalition.getPlayers returned " .. tostring(type(players)))
     end
 
     for _, unit in ipairs(players) do
@@ -332,16 +337,28 @@ function CheckrideMission.refreshTelemetryRoster(now)
         return
     end
 
-    cfg.lastRosterRefreshAt = now
-    cfg.roster = buildTelemetryRoster()
+    local ok, result = pcall(buildTelemetryRoster)
+    if ok and type(result) == 'table' then
+        cfg.roster = result
+        cfg.lastRosterRefreshAt = now
+    else
+        CheckrideMission.log('[checkride] buildTelemetryRoster failed: ' .. tostring(result))
+    end
 
-    if cfg.nextPilotIndex > #cfg.roster then
+    local rosterSize = #(cfg.roster or {})
+    if rosterSize <= 0 then
+        cfg.nextPilotIndex = 0
+    elseif not cfg.nextPilotIndex or cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
         cfg.nextPilotIndex = 1
     end
 end
 
 function CheckrideMission.emitFlightSampleForEntry(entry, now)
     if not entry or not entry.unit then
+        return
+    end
+
+    if not entry.playerUcid and not entry.playerName then
         return
     end
 
@@ -464,34 +481,74 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
     CheckrideMission.sendEnrichmentEvent(message)
 end
 
+local function resolveTickNow(now, fallbackSeconds)
+    if isFiniteNumber(now) then
+        return now
+    end
+
+    if timer and timer.getTime then
+        local ok, value = pcall(function() return timer.getTime() end)
+        if ok and isFiniteNumber(value) then
+            return value
+        end
+    end
+
+    return fallbackSeconds or 0
+end
+
+local function resolveNextTickTime(candidate, now, fallbackSeconds)
+    local safeNow = resolveTickNow(now, 0)
+    local minAdvance = fallbackSeconds or 1
+    if isFiniteNumber(candidate) and candidate > safeNow then
+        return candidate
+    end
+    return safeNow + minAdvance
+end
+
 function CheckrideMission.sampleTelemetryTick(_, now)
-    local cfg = CheckrideMission.FlightSample
-    local minTick = cfg.minTickSeconds or 0.25
+    local ok, nextTime = pcall(function()
+        local cfg = CheckrideMission.FlightSample
+        local minTick = cfg.minTickSeconds or 0.25
+        local safeNow = resolveTickNow(now, minTick)
 
-    if not cfg.enabled then
-        return now + minTick
-    end
-
-    CheckrideMission.refreshTelemetryRoster(now)
-
-    local rosterSize = #cfg.roster
-    local tickSeconds = math.max(minTick, (cfg.targetSampleIntervalSeconds or 4.0) / math.max(1, rosterSize))
-
-    if rosterSize > 0 then
-        if cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
-            cfg.nextPilotIndex = 1
+        if not cfg.enabled then
+            return safeNow + minTick
         end
 
-        local entry = cfg.roster[cfg.nextPilotIndex]
-        cfg.nextPilotIndex = cfg.nextPilotIndex + 1
-        if cfg.nextPilotIndex > rosterSize then
-            cfg.nextPilotIndex = 1
+        CheckrideMission.refreshTelemetryRoster(safeNow)
+
+        local roster = cfg.roster or {}
+        local rosterSize = #roster
+        local tickSeconds = math.max(minTick, (cfg.targetSampleIntervalSeconds or 4.0) / math.max(1, rosterSize))
+
+        if rosterSize > 0 then
+            if not cfg.nextPilotIndex or cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
+                cfg.nextPilotIndex = 1
+            end
+
+            local entry = roster[cfg.nextPilotIndex]
+            cfg.nextPilotIndex = cfg.nextPilotIndex + 1
+            if cfg.nextPilotIndex > rosterSize then
+                cfg.nextPilotIndex = 1
+            end
+
+            if entry then
+                local emitOk, emitErr = pcall(CheckrideMission.emitFlightSampleForEntry, entry, safeNow)
+                if not emitOk then
+                    CheckrideMission.log('[checkride] flight sample emit failed: ' .. tostring(emitErr))
+                end
+            end
         end
 
-        CheckrideMission.emitFlightSampleForEntry(entry, now)
+        return safeNow + tickSeconds
+    end)
+
+    if not ok then
+        CheckrideMission.log('[checkride] telemetry tick crashed: ' .. tostring(nextTime))
+        return resolveNextTickTime(nil, now, 1)
     end
 
-    return now + tickSeconds
+    return resolveNextTickTime(nextTime, now, 1)
 end
 
 function CheckrideMission.startTelemetrySampler()
@@ -555,12 +612,13 @@ local function getObjectSpeedMps(object)
 end
 
 function CheckrideMission.sampleActiveWeaponsTick(_, now)
+    local ok, nextTime = pcall(function()
     local cfg = CheckrideMission.WeaponSample
     if not cfg.enabled then
         return now + (cfg.tickSeconds or 1.0)
     end
 
-    for weaponKey, shotState in pairs(CheckrideMission.activeWeaponShots) do
+    for weaponKey, shotState in pairs(CheckrideMission.activeWeaponShots or {}) do
         if shotState and shotState.inFlight ~= false then
             local firedAt = shotState.firedAt or now
             local ageSeconds = now - firedAt
@@ -632,7 +690,7 @@ function CheckrideMission.sampleActiveWeaponsTick(_, now)
     end
 
     -- Inbound missile expiry: if weapon ref is gone and no hit was recorded, the player evaded.
-    for weaponKey, track in pairs(CheckrideMission.activeInboundMissiles) do
+    for weaponKey, track in pairs(CheckrideMission.activeInboundMissiles or {}) do
         local isValid = false
         if track.weaponRef then
             local okExist, exists = pcall(function() return track.weaponRef:isExist() end)
@@ -649,6 +707,14 @@ function CheckrideMission.sampleActiveWeaponsTick(_, now)
     end
 
     return now + (cfg.tickSeconds or 1.0)
+    end)
+
+    if not ok then
+        CheckrideMission.log('[checkride] weapon tick crashed: ' .. tostring(nextTime))
+        return timer.getTime() + 1
+    end
+
+    return nextTime
 end
 
 function CheckrideMission.startWeaponSampler()
@@ -1262,6 +1328,7 @@ function CheckrideMission.ensureWorldHandler()
 
     CheckrideMission.LandingQualityEventId = world.event.S_EVENT_LANDING_QUALITY_MARK
     CheckrideMission.TakeoffEventId        = world.event.S_EVENT_TAKEOFF
+    CheckrideMission.LandEventId           = world.event.S_EVENT_LAND
     CheckrideMission.KillEventId           = world.event.S_EVENT_KILL
     CheckrideMission.ShotEventId           = world.event.S_EVENT_SHOT
     CheckrideMission.HitEventId            = world.event.S_EVENT_HIT
@@ -1305,6 +1372,10 @@ function CheckrideMission.EventHandler:onEvent(event)
 
     if CheckrideMission.TakeoffEventId and event.id == CheckrideMission.TakeoffEventId then
         CheckrideMission.onTakeoff(event)
+    end
+
+    if CheckrideMission.LandEventId and event.id == CheckrideMission.LandEventId then
+        CheckrideMission.onLand(event)
     end
 
     if CheckrideMission.KillEventId and event.id == CheckrideMission.KillEventId then
@@ -1745,6 +1816,55 @@ function CheckrideMission.onLandingQualityMark(event)
 end
 
 -- ============================================================================
+-- Landing Enrichment
+-- Emits a landing_enrichment event with fuel state and airbase coalition data.
+-- Used to evaluate Dead Stick (fuel exhaustion landing) and Home Base (friendly
+-- airbase landing). place:getCoalition() is only available in mission scripting.
+-- ============================================================================
+function CheckrideMission.onLand(event)
+    local initiator = event.initiator
+    if not initiator then return end
+
+    local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
+    if not playerName then return end
+
+    local place = event.place
+
+    local airdromeName = nil
+    local landedAtAirbase = place ~= nil
+    local landedAtFriendlyBase = false
+
+    if place then
+        local okName, name = pcall(function() return place:getName() end)
+        if okName and name and name ~= "" then airdromeName = name end
+
+        local pilotCoal = nil
+        local baseCoal = nil
+        pcall(function() pilotCoal = initiator:getCoalition() end)
+        pcall(function() baseCoal = place:getCoalition() end)
+        if pilotCoal and baseCoal then
+            landedAtFriendlyBase = pilotCoal == baseCoal
+        end
+    end
+
+    local fuelState = nil
+    local okFuel, fuel = pcall(function() return initiator:getFuel() end)
+    if okFuel and type(fuel) == "number" then fuelState = fuel end
+
+    CheckrideMission.sendEnrichmentEvent({
+        type                 = "landing_enrichment",
+        source               = "mission",
+        playerUcid           = ucid,
+        playerName           = playerName,
+        airdromeName         = airdromeName,
+        landedAtAirbase      = landedAtAirbase,
+        landedAtFriendlyBase = landedAtFriendlyBase,
+        fuelState            = fuelState,
+        missionTime          = event.time,
+    })
+end
+
+-- ============================================================================
 -- Takeoff Enrichment
 -- Emits a takeoff_enrichment event so the client can track whether the pilot
 -- launched from a carrier and store their takeoff position for kill distance.
@@ -1936,6 +2056,14 @@ function CheckrideMission.onKill(event)
         end
     end
 
+    -- Detect collision kill: event.weapon is a Unit object when the killer rammed the target.
+    -- A normal weapon kill has event.weapon as a Weapon object (Object.Category.WEAPON).
+    local isCollision = false
+    if event.weapon then
+        local okCat, weapCat = pcall(function() return event.weapon:getCategory() end)
+        isCollision = okCat and weapCat == Object.Category.UNIT
+    end
+
     local message = {
         type               = "kill_enrichment",
         source             = "mission",
@@ -1950,7 +2078,7 @@ function CheckrideMission.onKill(event)
         killedAtMs         = pending and pending.killedAtMs or event.time,
         victimRoles        = pending and pending.victimRoles or nil,
         weaponGuidance     = pending and pending.weaponGuidance or nil,
-        weaponClass        = pending and pending.weaponClass or nil,
+        weaponClass        = pending and pending.weaponClass or (isCollision and "COLLISION" or nil),
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,

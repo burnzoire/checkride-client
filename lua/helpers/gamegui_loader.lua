@@ -32,7 +32,8 @@ local function make_udp_socket(sent_log)
                 local item = table.remove(M.receive_queue, 1)
                 return item, "127.0.0.1", 41235
             end
-            return nil
+            -- Match the real socket.udp behaviour: nil + reason on no data.
+            return nil, "timeout"
         end,
     }
 end

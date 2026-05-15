@@ -855,7 +855,129 @@ describe('initApp', () => {
     expect(achievementEngineMock.loadAchievementsFromApi).not.toHaveBeenCalled();
   });
 
-  it('sends welcome message with pilotProgressionUrl on connect', async () => {
+  it('sends welcome message with pilotProgressionUrl on flyable change_slot', async () => {
+    const changeSlotEvent = { type: 'change_slot', flyable: true, playerUcid: 'ucid-1', playerName: 'Maverick' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'change_slot', event_data: {} } }),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+      pilotProgressionUrl: 'https://my.server.example',
+    });
+
+    await udpServer.onEvent(changeSlotEvent);
+
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith(
+      'You can view your pilot progression any time at https://my.server.example',
+      true,
+      { kind: 'info', playerUcid: 'ucid-1' }
+    );
+  });
+
+  it('only sends welcome message once per session even with multiple flyable slot changes', async () => {
+    const changeSlotEvent = { type: 'change_slot', flyable: true, playerUcid: 'ucid-1', playerName: 'Maverick' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'change_slot', event_data: {} } }),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+      pilotProgressionUrl: 'https://my.server.example',
+    });
+
+    await udpServer.onEvent(changeSlotEvent);
+    await udpServer.onEvent(changeSlotEvent);
+
+    const welcomeCalls = dcsChatClientMock.send.mock.calls.filter(
+      ([msg]) => typeof msg === 'string' && msg.includes('pilot progression')
+    );
+    expect(welcomeCalls).toHaveLength(1);
+  });
+
+  it('sends welcome message again after reconnect', async () => {
+    const connectEvent = { type: 'connect', playerUcid: 'ucid-1', playerName: 'Maverick' };
+    const changeSlotEvent = { type: 'change_slot', flyable: true, playerUcid: 'ucid-1', playerName: 'Maverick' };
+    const connectGameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'connect', event_data: {} } }),
+    };
+    const changeSlotGameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'change_slot', event_data: {} } }),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+      pilotProgressionUrl: 'https://my.server.example',
+    });
+
+    EventFactory.create.mockResolvedValue(changeSlotGameEvent);
+    await udpServer.onEvent(changeSlotEvent);
+
+    EventFactory.create.mockResolvedValue(connectGameEvent);
+    await udpServer.onEvent(connectEvent); // reconnect clears the welcomed state
+
+    EventFactory.create.mockResolvedValue(changeSlotGameEvent);
+    await udpServer.onEvent(changeSlotEvent);
+
+    const welcomeCalls = dcsChatClientMock.send.mock.calls.filter(
+      ([msg]) => typeof msg === 'string' && msg.includes('pilot progression')
+    );
+    expect(welcomeCalls).toHaveLength(2);
+  });
+
+  it('does not send welcome message on connect', async () => {
     const connectEvent = { type: 'connect', playerUcid: 'ucid-1', playerName: 'Maverick' };
     const gameEvent = {
       prepare: jest.fn().mockReturnValue({ event: { event_type: 'connect', event_data: {} } }),
@@ -886,17 +1008,55 @@ describe('initApp', () => {
 
     await udpServer.onEvent(connectEvent);
 
-    expect(dcsChatClientMock.send).toHaveBeenCalledWith(
-      'You can view your pilot progression any time at https://my.server.example',
-      true,
-      { kind: 'info', playerUcid: 'ucid-1' }
+    expect(dcsChatClientMock.send).not.toHaveBeenCalledWith(
+      expect.stringContaining('pilot progression'),
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it('does not send welcome message on non-flyable change_slot', async () => {
+    const changeSlotEvent = { type: 'change_slot', flyable: false, playerUcid: 'ucid-1', playerName: 'Maverick' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'change_slot', event_data: {} } }),
+    };
+    const achievementEngineMock = {
+      evaluate: jest.fn().mockReturnValue([]),
+      loadAchievementsFromApi: jest.fn().mockResolvedValue(),
+      resetPilot: jest.fn(),
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue({ publish: true }),
+      saveAchievement: jest.fn().mockResolvedValue({}),
+      fetchPilotAchievements: jest.fn().mockResolvedValue({ achievement_ids: [] }),
+    };
+    const dcsChatClientMock = { send: jest.fn().mockResolvedValue(), sendConfig: jest.fn().mockResolvedValue() };
+
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const udpServer = {};
+    attachEventPipeline({
+      udpServer,
+      apiClient: apiClientMock,
+      discordClient: { send: jest.fn().mockResolvedValue() },
+      dcsChatClient: dcsChatClientMock,
+      achievementEngine: achievementEngineMock,
+      pilotProgressionUrl: 'https://my.server.example',
+    });
+
+    await udpServer.onEvent(changeSlotEvent);
+
+    expect(dcsChatClientMock.send).not.toHaveBeenCalledWith(
+      expect.stringContaining('pilot progression'),
+      expect.anything(),
+      expect.anything()
     );
   });
 
   it('falls back to hardcoded URL when pilotProgressionUrl is not provided', async () => {
-    const connectEvent = { type: 'connect', playerUcid: 'ucid-1', playerName: 'Maverick' };
+    const changeSlotEvent = { type: 'change_slot', flyable: true, playerUcid: 'ucid-1', playerName: 'Maverick' };
     const gameEvent = {
-      prepare: jest.fn().mockReturnValue({ event: { event_type: 'connect', event_data: {} } }),
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'change_slot', event_data: {} } }),
     };
     const achievementEngineMock = {
       evaluate: jest.fn().mockReturnValue([]),
@@ -921,7 +1081,7 @@ describe('initApp', () => {
       achievementEngine: achievementEngineMock,
     });
 
-    await udpServer.onEvent(connectEvent);
+    await udpServer.onEvent(changeSlotEvent);
 
     expect(dcsChatClientMock.send).toHaveBeenCalledWith(
       'You can view your pilot progression any time at https://checkride.oversweep.com',

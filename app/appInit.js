@@ -153,6 +153,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
   const warnedMismatchKeys = new Set();
+  const welcomedUcids = new Set();
   // Built from connect/change_slot events so mission-script events with null playerUcid
   // (due to the async CheckridePlayers injection race) can still be attributed correctly.
   const ucidByName = new Map();
@@ -194,11 +195,16 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     }
 
     if (shouldRefreshPilotSession(event)) {
+      if (event.type === 'connect') {
+        welcomedUcids.delete(event.playerUcid);
+      }
+
       engine.resetPilot(event.playerUcid);
       engine.loadAchievementsFromApi(event.playerUcid, apiClient)
         .catch((error) => log.error(`Failed to load achievements for pilot ${event.playerUcid}:`, error))
 
-      if (event.type === 'connect' && dcsChatClient?.send) {
+      if (event.type === 'change_slot' && event.flyable && dcsChatClient?.send && !welcomedUcids.has(event.playerUcid)) {
+        welcomedUcids.add(event.playerUcid);
         const url = pilotProgressionUrl || 'https://checkride.oversweep.com';
         dcsChatClient.send(
           `You can view your pilot progression any time at ${url}`,

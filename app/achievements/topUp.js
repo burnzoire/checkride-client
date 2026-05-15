@@ -1,13 +1,13 @@
 const Achievement = require('./achievement');
 
-const TWENTY_MINUTES_MS = 20 * 60 * 1000;
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 
 class TopUp extends Achievement {
   constructor() {
     super({
       id: 'quick_tank',
       name: 'Top Up',
-      description: 'Make tanker contact within 20 minutes of takeoff.',
+      description: 'Make tanker contact within 15 minutes of takeoff.',
       triggerType: 'refuel_enrichment',
       iconHint: 'Rapid post-takeoff tanker join-up',
       iconDescription: 'A fighter quickly joining on a tanker shortly after launch with stopwatch motif indicating rapid contact.',
@@ -27,7 +27,7 @@ class TopUp extends Achievement {
     if (!Number.isFinite(contactAtMs)) return false;
 
     const delta = contactAtMs - state.lastTakeoffAtMs;
-    return delta >= 0 && delta <= TWENTY_MINUTES_MS;
+    return delta >= 0 && delta <= FIFTEEN_MINUTES_MS;
   }
 }
 

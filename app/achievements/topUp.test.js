@@ -11,15 +11,15 @@ describe('TopUp — metadata', () => {
 });
 
 describe('TopUp — evaluate', () => {
-  it('returns true when refuel starts within 20 minutes of takeoff using missionTime', () => {
+  it('returns true when refuel starts within 15 minutes of takeoff using missionTime', () => {
     const state = { lastTakeoffAtMs: 180000 };
-    const result = topUp.evaluate({ refuelStatus: 'started', fuelGain: 0.04, startedAtMissionTime: 1200 }, state);
+    const result = topUp.evaluate({ refuelStatus: 'started', fuelGain: 0.04, startedAtMissionTime: 900 }, state);
     expect(result).toBe(true);
   });
 
-  it('returns false when refuel starts after 20 minutes using missionTime', () => {
+  it('returns false when refuel starts after 15 minutes using missionTime', () => {
     const state = { lastTakeoffAtMs: 120000 };
-    const result = topUp.evaluate({ refuelStatus: 'started', fuelGain: 0.04, startedAtMissionTime: 1321 }, state);
+    const result = topUp.evaluate({ refuelStatus: 'started', fuelGain: 0.04, startedAtMissionTime: 1021 }, state);
     expect(result).toBe(false);
   });
 

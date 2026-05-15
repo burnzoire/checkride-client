@@ -162,6 +162,10 @@ function CheckrideMissionPopEvent()
     return encoded or ""
 end
 
+function CheckrideMission.PopEvent()
+    return CheckrideMissionPopEvent()
+end
+
 -- ============================================================================
 -- Event Queue Send
 -- ============================================================================

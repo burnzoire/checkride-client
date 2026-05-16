@@ -228,11 +228,30 @@ CheckrideCallbackRouter.MissionBridgeMaxEventsPerPoll = 8
 CheckrideCallbackRouter._lastBridgePoll = 0
 
 function CheckrideCallbackRouter.onSimulationFrame()
-    local now = DCS.getRealTime()
-    if (now - CheckrideCallbackRouter._lastBridgePoll) >= CheckrideCallbackRouter.MissionBridgePollInterval then
-        CheckrideCallbackRouter._lastBridgePoll = now
+    local now = nil
+    if DCS and type(DCS.getRealTime) == 'function' then
+        local okNow, value = pcall(DCS.getRealTime)
+        if okNow and type(value) == 'number' then
+            now = value
+        end
+    end
+
+    local shouldPollBridge = false
+    if now ~= nil then
+        if (now - (CheckrideCallbackRouter._lastBridgePoll or 0)) >= CheckrideCallbackRouter.MissionBridgePollInterval then
+            CheckrideCallbackRouter._lastBridgePoll = now
+            shouldPollBridge = true
+        end
+    else
+        -- Fallback: if real-time is unavailable in this frame, keep polling so
+        -- mission-side telemetry events (flight samples) can still drain.
+        shouldPollBridge = true
+    end
+
+    if shouldPollBridge then
         CheckrideCallbackRouter.pollMissionEventBridge()
     end
+
     forwardToCheckride('onSimulationFrame')
 end
 

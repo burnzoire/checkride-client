@@ -78,6 +78,43 @@ describe("CheckrideCallbackRouter", function()
             CheckrideCallbackRouter.onSimulationFrame()
             assert.is_truthy(poll_count >= 0)  -- may be throttled on first call
         end)
+
+        it("keeps polling mission bridge when DCS.getRealTime returns nil", function()
+            local bridgePolls = 0
+            _G.DCS = { getRealTime = function() return nil end, setUserCallbacks = function() end }
+            CheckrideCallbackRouter.pollMissionEventBridge = function()
+                bridgePolls = bridgePolls + 1
+            end
+            _G.Checkride = {
+                onSimulationFrame = function() end,
+            }
+
+            assert.has_no.errors(function()
+                CheckrideCallbackRouter.onSimulationFrame()
+            end)
+            assert.are.equal(1, bridgePolls)
+        end)
+
+        it("keeps polling mission bridge when DCS.getRealTime raises an error", function()
+            local bridgePolls = 0
+            _G.DCS = {
+                getRealTime = function()
+                    error("clock failed")
+                end,
+                setUserCallbacks = function() end,
+            }
+            CheckrideCallbackRouter.pollMissionEventBridge = function()
+                bridgePolls = bridgePolls + 1
+            end
+            _G.Checkride = {
+                onSimulationFrame = function() end,
+            }
+
+            assert.has_no.errors(function()
+                CheckrideCallbackRouter.onSimulationFrame()
+            end)
+            assert.are.equal(1, bridgePolls)
+        end)
     end)
 
     -- -------------------------------------------------------------------------

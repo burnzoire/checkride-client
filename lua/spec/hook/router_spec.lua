@@ -90,8 +90,31 @@ describe("CheckrideCallbackRouter", function()
             }
 
             assert.has_no.errors(function()
-                CheckrideCallbackRouter.onSimulationFrame()
+                for _ = 1, 5 do
+                    CheckrideCallbackRouter.onSimulationFrame()
+                end
             end)
+            assert.are.equal(0, bridgePolls)
+            CheckrideCallbackRouter.onSimulationFrame()
+            assert.are.equal(1, bridgePolls)
+        end)
+
+        it("throttles fallback mission bridge polling when DCS.getRealTime stays nil", function()
+            local bridgePolls = 0
+            _G.DCS = { getRealTime = function() return nil end, setUserCallbacks = function() end }
+            CheckrideCallbackRouter.pollMissionEventBridge = function()
+                bridgePolls = bridgePolls + 1
+            end
+            _G.Checkride = {
+                onSimulationFrame = function() end,
+            }
+
+            for _ = 1, 5 do
+                CheckrideCallbackRouter.onSimulationFrame()
+            end
+            assert.are.equal(0, bridgePolls)
+
+            CheckrideCallbackRouter.onSimulationFrame()
             assert.are.equal(1, bridgePolls)
         end)
 
@@ -111,8 +134,12 @@ describe("CheckrideCallbackRouter", function()
             }
 
             assert.has_no.errors(function()
-                CheckrideCallbackRouter.onSimulationFrame()
+                for _ = 1, 5 do
+                    CheckrideCallbackRouter.onSimulationFrame()
+                end
             end)
+            assert.are.equal(0, bridgePolls)
+            CheckrideCallbackRouter.onSimulationFrame()
             assert.are.equal(1, bridgePolls)
         end)
     end)

@@ -226,6 +226,8 @@ end
 CheckrideCallbackRouter.MissionBridgePollInterval = 0.1
 CheckrideCallbackRouter.MissionBridgeMaxEventsPerPoll = 8
 CheckrideCallbackRouter._lastBridgePoll = 0
+CheckrideCallbackRouter._fallbackFramePollEvery = 6
+CheckrideCallbackRouter._fallbackFrameCounter = 0
 
 function CheckrideCallbackRouter.onSimulationFrame()
     local now = nil
@@ -238,14 +240,20 @@ function CheckrideCallbackRouter.onSimulationFrame()
 
     local shouldPollBridge = false
     if now ~= nil then
-        if (now - (CheckrideCallbackRouter._lastBridgePoll or 0)) >= CheckrideCallbackRouter.MissionBridgePollInterval then
+        CheckrideCallbackRouter._fallbackFrameCounter = 0
+        if (now - CheckrideCallbackRouter._lastBridgePoll) >= CheckrideCallbackRouter.MissionBridgePollInterval then
             CheckrideCallbackRouter._lastBridgePoll = now
             shouldPollBridge = true
         end
     else
-        -- Fallback: if real-time is unavailable in this frame, keep polling so
-        -- mission-side telemetry events (flight samples) can still drain.
-        shouldPollBridge = true
+        -- Fallback: if real-time is unavailable, keep polling at a reduced
+        -- frame cadence so mission-side telemetry events can still drain.
+        local pollEvery = CheckrideCallbackRouter._fallbackFramePollEvery
+        CheckrideCallbackRouter._fallbackFrameCounter = CheckrideCallbackRouter._fallbackFrameCounter + 1
+        if CheckrideCallbackRouter._fallbackFrameCounter >= pollEvery then
+            shouldPollBridge = true
+            CheckrideCallbackRouter._fallbackFrameCounter = 0
+        end
     end
 
     if shouldPollBridge then

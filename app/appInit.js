@@ -379,7 +379,7 @@ async function initApp({ onLuaVersionMismatch } = {}) {
     usesSsl: useSsl,
   });
 
-  const pilotProgressionUrl = buildBaseUrl(useSsl, apiHost, apiPort);
+  const pilotProgressionUrl = `${useSsl ? 'https' : 'http'}://${apiHost}`;
   attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl })
 
   const healthChecker = new HealthChecker(apiClient, store, undefined, (healthy) => {

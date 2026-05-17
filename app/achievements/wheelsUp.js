@@ -4,7 +4,7 @@ class WheelsUp extends Achievement {
   constructor() {
     super({
       id: 'wheels_up',
-      name: 'Wheels Up',
+      name: 'Airborne',
       description: 'Complete your first ever takeoff.',
       triggerType: 'takeoff',
       iconHint: 'Aircraft lifting off runway',

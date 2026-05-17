@@ -135,14 +135,22 @@ describe("CheckrideMission.startPilotSampler", function()
         assert.is_nil(nextTime)
     end)
 
-    it("returns nil and stops when playerName no longer matches (pilot left)", function()
+    it("keeps ticking even when getPlayerName returns nil (airborne unit)", function()
+        local captured = loader.capture_events()
         local fire = capture_pilot_tick()
-        local unit = stubs.make_unit({ playerName = "", exists = true })
+        local unit = stubs.make_unit({ playerName = nil, exists = true })
 
         CheckrideMission.startPilotSampler(unit, "Maverick", "ucid-mav")
         local nextTime = fire(10)
 
-        assert.is_nil(nextTime)
+        assert.is_truthy(nextTime and nextTime > 10)
+        local enrichments = {}
+        for _, c in ipairs(captured) do
+            if c.type == "flight_sample_enrichment" then
+                table.insert(enrichments, c)
+            end
+        end
+        assert.are.equal(1, #enrichments)
     end)
 
     it("old tick returns nil after a new sampler is started for the same pilot key", function()

@@ -33,11 +33,9 @@ function M.reset_state()
     CheckrideMission.WorldHandlerRegistered = false
     local fs = CheckrideMission.FlightSample
     if fs then
-        fs.enabled             = true
-        fs.roster              = {}
-        fs.nextPilotIndex      = 1
-        fs.lastRosterRefreshAt = 0
+        fs.enabled = true
     end
+    CheckrideMission.PilotGenerations = {}
     -- Restore original senders (undone any per-test capture).
     if _orig_sendEvent then
         CheckrideMission.sendEvent          = _orig_sendEvent

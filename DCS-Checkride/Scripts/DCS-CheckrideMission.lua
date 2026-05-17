@@ -402,15 +402,10 @@ function CheckrideMission.startPilotSampler(unit, playerName, ucid)
 
     local function pilotTick(_, now)
         if CheckrideMission.PilotGenerations[pilotKey] ~= myGen then return nil end
-        if not CheckrideMission.FlightSample.enabled then return nil end
 
         local safeNow = resolveTickNow(now, 0)
 
-        local okExist, unitExists = pcall(function() return unit:isExist() end)
-        if not okExist or not unitExists then return nil end
-
-        local okName, currentName = pcall(function() return unit:getPlayerName() end)
-        if not okName or currentName ~= playerName then return nil end
+        if not unit:isExist() then return nil end
 
         local emitOk, emitErr = pcall(CheckrideMission.emitFlightSampleForEntry, entry, safeNow)
         if not emitOk then
@@ -1186,10 +1181,7 @@ function CheckrideMission.ensureWorldHandler()
     CheckrideMission.HitEventId             = world.event.S_EVENT_HIT
     CheckrideMission.ShootingStartEventId   = world.event.S_EVENT_SHOOTING_START
     CheckrideMission.ShootingEndEventId     = world.event.S_EVENT_SHOOTING_END
-    -- Optional: force immediate roster refresh when pilot enters or leaves a unit.
-    -- These event IDs may be nil on older DCS versions and are handled defensively.
     CheckrideMission.PlayerEnterUnitEventId = world.event.S_EVENT_PLAYER_ENTER_UNIT
-    CheckrideMission.PlayerLeaveUnitEventId = world.event.S_EVENT_PLAYER_LEAVE_UNIT
 
     -- Remove any previously registered handler before re-registering.
     -- If world identity changed (mission reload), the old handler object may still
@@ -1222,11 +1214,11 @@ end
 function CheckrideMission.EventHandler:onEvent(event)
     if not event then return end
 
-    if CheckrideMission.PlayerEnterUnitEventId and event.id == CheckrideMission.PlayerEnterUnitEventId then
+    if event.id == CheckrideMission.PlayerEnterUnitEventId then
         local initiator = event.initiator
         if initiator then
-            local okName, playerName = pcall(function() return initiator:getPlayerName() end)
-            if okName and type(playerName) == "string" and playerName ~= "" then
+            local playerName = initiator:getPlayerName()
+            if type(playerName) == "string" and playerName ~= "" then
                 local ucid = CheckrideLookupUCID and CheckrideLookupUCID(playerName) or nil
                 CheckrideMission.startPilotSampler(initiator, playerName, ucid)
             end

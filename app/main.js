@@ -2,6 +2,7 @@ const { Menu, Tray, app, globalShortcut, ipcMain, nativeImage, dialog } = requir
 const path = require('path');
 const contextMenuTemplate = require('./tray/contextMenuTemplate');
 const { initApp, attachEventPipeline } = require('./appInit');
+const { SortieLogger } = require('./services/sortieLogger');
 const store = require('./config');
 const { showSettingsWindow } = require('./windows/settingsWindow');
 const { showTelemetryWindow } = require('./windows/telemetryWindow');
@@ -24,6 +25,7 @@ let discordClient;
 let dcsChatClient;
 let eventProcessor;
 let gaugeSync;
+let sortieLogger;
 let achievementEngine;
 let demoController;
 let healthChecker;
@@ -174,8 +176,11 @@ function showLuaVersionMismatchDialog({ luaClientVersion, clientVersion }) {
 }
 
 async function bootstrap() {
+  sortieLogger = new SortieLogger(path.join(app.getPath('userData'), 'logs'));
+
   const appInitResult = await initApp({
     onLuaVersionMismatch: showLuaVersionMismatchDialog,
+    sortieLogger,
   });
   udpServer = appInitResult.udpServer;
   apiClient = appInitResult.apiClient;
@@ -273,6 +278,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
       discordClient,
       dcsChatClient,
       gaugeSync,
+      sortieLogger,
       eventProcessor,
       achievementEngine,
     });
@@ -296,6 +302,17 @@ ipcMain.handle('telemetry:snapshot', () => {
   return { pilots: achievementEngine.getAllPilotSnapshots() };
 });
 
+ipcMain.handle('sortie:open-file', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Open Sortie Log',
+    filters: [{ name: 'Sortie Logs', extensions: ['jsonl'] }],
+    properties: ['openFile'],
+  });
+  if (canceled || filePaths.length === 0) return null;
+  const { readFileSync } = require('fs');
+  return readFileSync(filePaths[0], 'utf8');
+});
+
 app.whenReady().then(bootstrap);
 
 app.on('window-all-closed', (event) => {
@@ -306,6 +323,7 @@ app.on('window-all-closed', (event) => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  sortieLogger?.closeAll();
   if (demoController?.isRunning) {
     demoController.stop();
   }

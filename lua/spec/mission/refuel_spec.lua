@@ -104,8 +104,9 @@ describe("CheckrideMission.trackRefuelFromFuelSample", function()
 
         CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5,  true,  100)
         CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.52, true,  104)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.54, true,  108)
         -- Pilot lands.
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.52, false, 200)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.54, false, 200)
 
         assert.is_nil(CheckrideMission.activeRefuelByPilot[key])
 
@@ -114,6 +115,41 @@ describe("CheckrideMission.trackRefuelFromFuelSample", function()
             if c.type == "aar" then aar_ev = c end
         end
         assert.is_not_nil(aar_ev)
+    end)
+
+    it("does not emit aar on a single-sample fuel spike (glitch suppression)", function()
+        local captured = loader.capture_events()
+        local entry = make_entry()
+
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5,  true, 100)
+        -- One sample with fuel gain (glitch).
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.52, true, 104)
+        -- Fuel flat → would finalize with only 1 gain sample.
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.52, true, 108)
+
+        local aar_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "aar" then aar_ev = c end
+        end
+        assert.is_nil(aar_ev)
+    end)
+
+    it("does not emit aar when accumulated gain is below minAccumulatedGain threshold", function()
+        local captured = loader.capture_events()
+        local entry = make_entry()
+
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5000, true, 100)
+        -- Two tiny gain samples totalling 0.002 < 0.005 threshold.
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5010, true, 104)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5020, true, 108)
+        -- Flat → finalize.
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5020, true, 112)
+
+        local aar_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "aar" then aar_ev = c end
+        end
+        assert.is_nil(aar_ev)
     end)
 
     it("ignores nil entry", function()

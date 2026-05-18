@@ -30,6 +30,8 @@ CheckrideMission.WeaponSample = {
 CheckrideMission.RefuelDetection = {
     enabled = true,
     minFuelGainStep = 0.0005,
+    minAccumulatedGain = 0.005,
+    minGainSamples = 2,
 }
 
 -- Maps ucid (or fallback playerName) to the carrier Unit the pilot launched from.
@@ -1018,6 +1020,15 @@ local function finalizeRefuelSegment(session, playerUcid, playerName, unitType)
         return
     end
 
+    local minAccumulatedGain = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minAccumulatedGain) or 0.005
+    local minGainSamples = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minGainSamples) or 2
+    if session.accumulatedFuelGain < minAccumulatedGain then
+        return
+    end
+    if not session.gainSampleCount or session.gainSampleCount < minGainSamples then
+        return
+    end
+
     if not isFiniteNumber(session.segmentStartedAt) or not isFiniteNumber(session.lastGainAt) then
         return
     end
@@ -1097,6 +1108,7 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
             lastSampleTime = now,
             lastFuelState = currentFuelState,
             accumulatedFuelGain = 0,
+            gainSampleCount = 0,
             segmentStartedAt = nil,
             lastGainAt = nil,
             system = getRefuelingSystemName(entry.unit),
@@ -1132,6 +1144,7 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
         end
 
         active.accumulatedFuelGain = math.max(0, (active.accumulatedFuelGain or 0) + fuelDelta)
+        active.gainSampleCount = (active.gainSampleCount or 0) + 1
         active.lastGainAt = now
         active.lastSampleTime = now
         active.lastFuelState = currentFuelState
@@ -1150,6 +1163,7 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
             lastSampleTime = now,
             lastFuelState = currentFuelState,
             accumulatedFuelGain = 0,
+            gainSampleCount = 0,
             segmentStartedAt = nil,
             lastGainAt = nil,
             system = getRefuelingSystemName(entry.unit),

@@ -99,12 +99,14 @@
               callback: v => formatTimeSec(v),
             },
             grid: { color: THEME.grid },
+            afterFit(scale) { scale.paddingRight = 16; },
           },
           y: {
             display: true,
             title: { display: true, text: yLabel, color: THEME.tick, font: { size: 10 } },
             ticks: { color: THEME.tick, maxTicksLimit: 5 },
             grid: { color: THEME.grid },
+            afterFit(scale) { scale.width = 70; },
           },
         },
         plugins: {
@@ -162,10 +164,17 @@
       }
     }
 
+    const xMin = sampleTimes.length > 0 ? sampleTimes[0] : 0;
+    const xMax = sampleTimes.length > 0 ? sampleTimes[sampleTimes.length - 1] : 100;
+
     charts[0].data.datasets[0].data = speedData;
     charts[1].data.datasets[0].data = altData;
     charts[2].data.datasets[0].data = fuelData;
-    charts.forEach(c => c.update('none'));
+    charts.forEach(c => {
+      c.options.scales.x.min = xMin;
+      c.options.scales.x.max = xMax;
+      c.update('none');
+    });
   }
 
   function setScrub(tSec) {

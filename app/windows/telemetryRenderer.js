@@ -138,7 +138,7 @@
 
     scrubberLabel.textContent = formatAbsTime(ev.t) + '  +' + formatDuration(tSec);
     renderDetail(ev, pilot);
-    SortieGauges.render(ev?.state?.gauges ?? null);
+    SortieGauges.render(ev?.state?.gauges ?? null, ev?.state?.telemetry ?? null, ev?.state?.state ?? null);
   }
 
   function renderDetail(ev, pilot) {

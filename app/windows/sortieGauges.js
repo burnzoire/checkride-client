@@ -14,8 +14,7 @@
     const angle = f * Math.PI;
     const endX = (50 - 40 * Math.cos(angle)).toFixed(2);
     const endY = (50 - 40 * Math.sin(angle)).toFixed(2);
-    const large = f > 0.5 ? 1 : 0;
-    return `M 10 50 A 40 40 0 ${large} 1 ${endX} ${endY}`;
+    return `M 10 50 A 40 40 0 0 1 ${endX} ${endY}`;
   }
 
   function fmtVal(value, decimals) {
@@ -28,11 +27,11 @@
   const KM_TO_NM = 1 / 1.852;
 
   const ARC_GAUGES = [
-    { key: 'highest_speed_kts',   label: 'Top Speed',  unit: 'kts', max: 1500, color: '#7eb8f7', decimals: 0 },
-    { key: 'highest_speed_mach',  label: 'Mach',       unit: 'M',   max: 2.5,  color: '#7eb8f7', decimals: 2, prefix: 'M' },
-    { key: 'highest_altitude_ft', label: 'Max Alt',    unit: 'ft',  max: 60000,color: '#7abf6a', decimals: 0 },
-    { key: 'sortie_distance_km',  label: 'Sortie Dist',unit: 'nm',  max: 1000, color: '#c07be0', decimals: 0, convert: v => v * KM_TO_NM },
-    { key: 'noe_distance_km',     label: 'NOE Dist',   unit: 'nm',  max: 100,  color: '#e0a76b', decimals: 1, convert: v => v * KM_TO_NM },
+    { key: 'highest_speed_kts',   label: 'Top Speed',  unit: 'kts', max: 1500, color: '#7eb8f7', decimals: 0,                                currentKey: 'speedKts',         currentSource: 'telemetry' },
+    { key: 'highest_speed_mach',  label: 'Mach',       unit: 'M',   max: 2.5,  color: '#7eb8f7', decimals: 2, prefix: 'M',                   currentKey: 'speedMach',        currentSource: 'telemetry' },
+    { key: 'highest_altitude_ft', label: 'Max Alt',    unit: 'ft',  max: 100000,color: '#7abf6a', decimals: 0,                                currentKey: 'altBaroFt',        currentSource: 'telemetry' },
+    { key: 'sortie_distance_km',  label: 'Sortie Dist',unit: 'nm',  max: 500,  color: '#c07be0', decimals: 0, convert: v => v * KM_TO_NM,   currentKey: 'sortieDistanceKm', currentSource: 'state'    },
+    { key: 'noe_distance_km',     label: 'NOE Dist',   unit: 'nm',  max: 50,   color: '#e0a76b', decimals: 1, convert: v => v * KM_TO_NM,   currentKey: 'noeDistanceKm',    currentSource: 'state'    },
   ];
 
   const STAT_ROWS = [
@@ -44,7 +43,7 @@
     { key: 'longest_refuel_contact_seconds', label: 'Refuel contact', fmt: v => v != null ? Math.round(v) + 's' : '—' },
   ];
 
-  function renderArcGauge(cfg, gauges) {
+  function renderArcGauge(cfg, gauges, telemetry, pilotState) {
     let value = gauges?.[cfg.key];
     if (value != null && cfg.convert) value = cfg.convert(value);
     const valid = value != null && Number.isFinite(value) && value > 0;
@@ -56,12 +55,30 @@
       ? (cfg.prefix ? cfg.prefix + value.toFixed(cfg.decimals) : fmtVal(value, cfg.decimals))
       : '—';
 
+    let needleSvg = '';
+    if (cfg.currentKey) {
+      const source = cfg.currentSource === 'state' ? pilotState : telemetry;
+      let cur = source?.[cfg.currentKey];
+      if (cur != null && cfg.convert) cur = cfg.convert(cur);
+      if (cur != null && Number.isFinite(cur) && cur > 0) {
+        const cf = Math.min(cur / cfg.max, 0.9999);
+        const angle = cf * Math.PI;
+        const tipX = (50 - 33 * Math.cos(angle)).toFixed(2);
+        const tipY = (50 - 33 * Math.sin(angle)).toFixed(2);
+        needleSvg = `
+          <line x1="50" y1="50" x2="${tipX}" y2="${tipY}"
+                stroke="rgba(255,255,255,0.8)" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="50" cy="50" r="2.5" fill="rgba(255,255,255,0.8)"/>`;
+      }
+    }
+
     return `<div class="arc-gauge">
       <svg viewBox="0 0 100 56" xmlns="http://www.w3.org/2000/svg">
         <path d="M 10 50 A 40 40 0 0 1 90 50"
               fill="none" stroke="#2e3340" stroke-width="9" stroke-linecap="round"/>
         ${path ? `<path d="${path}"
               fill="none" stroke="${cfg.color}" stroke-width="9" stroke-linecap="round"/>` : ''}
+        ${needleSvg}
         <text x="50" y="43" text-anchor="middle"
               fill="${color}"
               font-size="13" font-weight="600"
@@ -75,13 +92,13 @@
     </div>`;
   }
 
-  function render(gauges) {
+  function render(gauges, telemetry, pilotState) {
     const el = document.getElementById('gauge-strip');
     if (!el) return;
 
     let html = '<div class="arc-grid">';
     for (const cfg of ARC_GAUGES) {
-      html += renderArcGauge(cfg, gauges);
+      html += renderArcGauge(cfg, gauges, telemetry, pilotState);
     }
     html += '</div>';
 

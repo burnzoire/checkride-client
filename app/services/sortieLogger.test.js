@@ -152,3 +152,70 @@ test('UCID with special characters is sanitized to safe directory name', () => {
 
   expect(fs.existsSync(path.join(tmpDir, 'ucid_with_special_chars'))).toBe(true);
 });
+
+describe('purgeLogs', () => {
+  test('deletes files older than the cutoff', () => {
+    const logger = new SortieLogger(tmpDir);
+    logger.startSortie('ucid1', 'Maverick');
+    logger.logSnapshot('ucid1', { state: {} });
+    logger.closeAll();
+
+    const ucidDir = path.join(tmpDir, 'ucid1');
+    const [file] = fs.readdirSync(ucidDir);
+    const filePath = path.join(ucidDir, file);
+
+    // backdate mtime to 8 days ago
+    const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    fs.utimesSync(filePath, old, old);
+
+    logger.purgeLogs(7 * 24 * 60 * 60 * 1000);
+
+    expect(fs.existsSync(filePath)).toBe(false);
+    expect(fs.existsSync(ucidDir)).toBe(false); // empty dir removed too
+  });
+
+  test('keeps files newer than the cutoff', () => {
+    const logger = new SortieLogger(tmpDir);
+    logger.startSortie('ucid1', 'Maverick');
+    logger.logSnapshot('ucid1', { state: {} });
+    logger.closeAll();
+
+    const ucidDir = path.join(tmpDir, 'ucid1');
+    const [file] = fs.readdirSync(ucidDir);
+
+    logger.purgeLogs(7 * 24 * 60 * 60 * 1000);
+
+    expect(fs.existsSync(path.join(ucidDir, file))).toBe(true);
+  });
+
+  test('only removes old files, leaves recent ones and keeps the directory', () => {
+    const logger = new SortieLogger(tmpDir);
+    logger.startSortie('ucid1', 'Maverick');
+    logger.logSnapshot('ucid1', { state: {} });
+    logger.endSortie('ucid1', 'land');
+    // start a second sortie to get a second file
+    logger.startSortie('ucid1', 'Maverick');
+    logger.logSnapshot('ucid1', { state: {} });
+    logger.closeAll();
+
+    const ucidDir = path.join(tmpDir, 'ucid1');
+    const files = fs.readdirSync(ucidDir).sort();
+    expect(files).toHaveLength(2);
+
+    // backdate only the first file
+    const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    fs.utimesSync(path.join(ucidDir, files[0]), old, old);
+
+    logger.purgeLogs(7 * 24 * 60 * 60 * 1000);
+
+    const remaining = fs.readdirSync(ucidDir);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]).toBe(files[1]);
+    expect(fs.existsSync(ucidDir)).toBe(true); // dir still has files
+  });
+
+  test('is a no-op when logs directory does not exist', () => {
+    const logger = new SortieLogger(path.join(tmpDir, 'nonexistent'));
+    expect(() => logger.purgeLogs()).not.toThrow();
+  });
+});

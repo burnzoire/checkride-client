@@ -3,6 +3,7 @@
 const path = require('path');
 
 const SAFE_RE = /[^a-zA-Z0-9_-]/g;
+const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 function safeUcid(ucid) {
   return String(ucid).replace(SAFE_RE, '_');
@@ -61,6 +62,43 @@ class SortieLogger {
   _closeActive(ucid) {
     if (this._sorties.has(ucid)) {
       this.endSortie(ucid, 'replaced');
+    }
+  }
+
+  purgeLogs(olderThanMs = RETENTION_MS) {
+    const cutoff = Date.now() - olderThanMs;
+    let ucidDirs;
+    try {
+      ucidDirs = this._fs.readdirSync(this._logsRoot, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of ucidDirs) {
+      if (!entry.isDirectory()) continue;
+      const ucidDir = path.join(this._logsRoot, entry.name);
+      let files;
+      try {
+        files = this._fs.readdirSync(ucidDir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const file of files) {
+        if (!file.isFile()) continue;
+        const filePath = path.join(ucidDir, file.name);
+        try {
+          const { mtimeMs } = this._fs.statSync(filePath);
+          if (mtimeMs < cutoff) this._fs.unlinkSync(filePath);
+        } catch {
+          // ignore individual file errors
+        }
+      }
+      // remove empty pilot directory
+      try {
+        const remaining = this._fs.readdirSync(ucidDir);
+        if (remaining.length === 0) this._fs.rmdirSync(ucidDir);
+      } catch {
+        // ignore
+      }
     }
   }
 

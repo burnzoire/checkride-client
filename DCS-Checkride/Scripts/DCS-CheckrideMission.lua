@@ -399,6 +399,7 @@ function CheckrideMission.startPilotSampler(unit, playerName, ucid)
     local pilotKey = ucid or playerName
     CheckrideMission.PilotGenerations[pilotKey] = (CheckrideMission.PilotGenerations[pilotKey] or 0) + 1
     local myGen = CheckrideMission.PilotGenerations[pilotKey]
+    CheckrideMission.log('starting pilot sampler: name=' .. tostring(playerName) .. ' ucid=' .. tostring(ucid) .. ' gen=' .. tostring(myGen))
     local entry = { unit = unit, playerName = playerName, playerUcid = ucid }
     local intervalSeconds = CheckrideMission.FlightSample.targetSampleIntervalSeconds or 4.0
 

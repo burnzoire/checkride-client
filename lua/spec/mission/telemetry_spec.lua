@@ -1,8 +1,20 @@
 -- lua/spec/mission/telemetry_spec.lua
--- Tests CheckrideMission.sampleTelemetryTick and isNight.
+-- Tests CheckrideMission.startPilotSampler, per-pilot tick behaviour, and isNight.
 
 local loader = require("helpers.mission_loader")
 local stubs  = require("stubs.dcs_globals")
+
+-- Helper: mock timer and capture the closure scheduled by startPilotSampler.
+-- Returns a fire() function that invokes the tick with the given `now` value.
+local function capture_pilot_tick(overrides)
+    local scheduledFn
+    _G.timer = {
+        getTime          = function() return overrides and overrides.getTime or 0 end,
+        getAbsTime       = function() return 43200 end,
+        scheduleFunction = function(fn, _, _) scheduledFn = fn end,
+    }
+    return function(now) return scheduledFn and scheduledFn(nil, now) end
+end
 
 describe("CheckrideMission.isNight", function()
     setup(function()
@@ -71,44 +83,19 @@ describe("CheckrideMission.isNight", function()
     end)
 end)
 
-describe("CheckrideMission.sampleTelemetryTick", function()
+describe("CheckrideMission.startPilotSampler", function()
     setup(function()
         loader.load()
     end)
 
     before_each(function()
         loader.reset_state()
-        _G.timer = {
-            getTime          = function() return 0 end,
-            getAbsTime       = function() return 43200 end,
-            scheduleFunction = function() end,
-        }
     end)
 
-    it("returns a future time when roster is empty", function()
-        local nextTime = CheckrideMission.sampleTelemetryTick(nil, 10)
-        assert.is_truthy(nextTime > 10)
-    end)
-
-    it("returns now + minTick when enabled and roster empty", function()
-        local minTick = CheckrideMission.FlightSample.minTickSeconds
-        local nextTime = CheckrideMission.sampleTelemetryTick(nil, 100)
-        -- Should be at least 100 + minTick
-        assert.is_truthy(nextTime >= 100 + minTick)
-    end)
-
-    it("returns minTick advance when sampler is disabled", function()
-        CheckrideMission.FlightSample.enabled = false
-        local nextTime = CheckrideMission.sampleTelemetryTick(nil, 50)
-        local minTick  = CheckrideMission.FlightSample.minTickSeconds
-        assert.are.equal(50 + minTick, nextTime)
-    end)
-
-    it("emits a flight_sample_enrichment for a roster entry", function()
+    it("emits a flight_sample_enrichment when the tick fires", function()
         local captured = loader.capture_events()
+        local fire = capture_pilot_tick()
 
-        -- Provide a mock unit visible to coalition.getPlayers so refreshRoster builds
-        -- a real roster rather than overwriting our manual injection.
         local unit = stubs.make_unit({
             playerName = "Maverick",
             exists     = true,
@@ -119,19 +106,14 @@ describe("CheckrideMission.sampleTelemetryTick", function()
             typeName   = "F/A-18C",
             desc       = { category = Unit.Category.AIRPLANE },
         })
-        _G.coalition = {
-            side       = { BLUE = 2, RED = 1, NEUTRAL = 0 },
-            getPlayers = function(side)
-                if side == 2 then return { unit } end
-                return {}
-            end,
-        }
         _G.CheckrideLookupUCID = function(name)
             if name == "Maverick" then return "ucid-mav" end
         end
 
-        CheckrideMission.sampleTelemetryTick(nil, 10)
+        CheckrideMission.startPilotSampler(unit, "Maverick", "ucid-mav")
+        local nextTime = fire(10)
 
+        assert.is_truthy(nextTime > 10)
         local enrichments = {}
         for _, c in ipairs(captured) do
             if c.type == "flight_sample_enrichment" then
@@ -143,280 +125,109 @@ describe("CheckrideMission.sampleTelemetryTick", function()
         assert.are.equal("ucid-mav", enrichments[1].playerUcid)
     end)
 
-    it("does not emit when the unit no longer exists", function()
-        local captured = loader.capture_events()
+    it("returns nil and stops when the unit no longer exists", function()
+        local fire = capture_pilot_tick()
         local unit = stubs.make_unit({ playerName = "Ghost", exists = false })
-        -- Prevent roster refresh so manually-set roster is used.
-        CheckrideMission.FlightSample.lastRosterRefreshAt = 10
-        CheckrideMission.FlightSample.roster = {
-            { unit = unit, playerName = "Ghost", playerUcid = "ucid-ghost" }
-        }
-        CheckrideMission.FlightSample.nextPilotIndex = 1
 
-        CheckrideMission.sampleTelemetryTick(nil, 10)
+        CheckrideMission.startPilotSampler(unit, "Ghost", "ucid-ghost")
+        local nextTime = fire(10)
 
-        assert.are.equal(0, #captured)
+        assert.is_nil(nextTime)
     end)
 
-    it("advances nextPilotIndex and wraps around", function()
-        -- Prevent roster refresh so our manual roster is preserved.
-        CheckrideMission.FlightSample.lastRosterRefreshAt = 10
-        CheckrideMission.FlightSample.roster = {
-            { unit = stubs.make_unit({ playerName = "A", exists = false }), playerName = "A" },
-            { unit = stubs.make_unit({ playerName = "B", exists = false }), playerName = "B" },
-        }
-        CheckrideMission.FlightSample.nextPilotIndex = 1
+    it("keeps ticking even when getPlayerName returns nil (airborne unit)", function()
+        local captured = loader.capture_events()
+        local fire = capture_pilot_tick()
+        local unit = stubs.make_unit({ playerName = nil, exists = true })
 
-        CheckrideMission.sampleTelemetryTick(nil, 10)
-        assert.are.equal(2, CheckrideMission.FlightSample.nextPilotIndex)
+        CheckrideMission.startPilotSampler(unit, "Maverick", "ucid-mav")
+        local nextTime = fire(10)
 
-        -- Prevent refresh on second tick too.
-        CheckrideMission.FlightSample.lastRosterRefreshAt = 11
-        CheckrideMission.sampleTelemetryTick(nil, 11)
-        assert.are.equal(1, CheckrideMission.FlightSample.nextPilotIndex)
+        assert.is_truthy(nextTime and nextTime > 10)
+        local enrichments = {}
+        for _, c in ipairs(captured) do
+            if c.type == "flight_sample_enrichment" then
+                table.insert(enrichments, c)
+            end
+        end
+        assert.are.equal(1, #enrichments)
     end)
 
-    it("keeps ticking when now is nil and timer.getTime fails", function()
+    it("old tick returns nil after a new sampler is started for the same pilot key", function()
+        local fire1 = capture_pilot_tick()
+        local unit = stubs.make_unit({ playerName = "Maverick", exists = true })
+
+        CheckrideMission.startPilotSampler(unit, "Maverick", "ucid-mav")
+        -- Immediately start a second sampler (slot change), which bumps the generation.
+        local fire2 = capture_pilot_tick()
+        CheckrideMission.startPilotSampler(unit, "Maverick", "ucid-mav")
+
+        -- fire1 belongs to gen=1, generation is now 2 → must self-terminate.
+        local nextTime1 = fire1(10)
+        assert.is_nil(nextTime1)
+
+        -- fire2 belongs to gen=2 → still alive.
+        local nextTime2 = fire2(10)
+        assert.is_truthy(nextTime2 and nextTime2 > 10)
+    end)
+
+    it("keeps scheduling when emitFlightSampleForEntry raises an error", function()
+        local fire = capture_pilot_tick()
+        local unit = stubs.make_unit({ playerName = "Viper", exists = true })
+
+        local original = CheckrideMission.emitFlightSampleForEntry
+        CheckrideMission.emitFlightSampleForEntry = function() error("emit failure") end
+
+        CheckrideMission.startPilotSampler(unit, "Viper", "ucid-viper")
+        local nextTime = fire(10)
+        CheckrideMission.emitFlightSampleForEntry = original
+
+        assert.is_truthy(nextTime and nextTime > 10)
+    end)
+
+    it("does nothing when FlightSample is disabled", function()
+        CheckrideMission.FlightSample.enabled = false
+        local scheduled = false
         _G.timer = {
-            getTime = function() error("clock unavailable") end,
-            getAbsTime = function() return 43200 end,
-            scheduleFunction = function() end,
+            getTime          = function() return 0 end,
+            scheduleFunction = function() scheduled = true end,
         }
+        local unit = stubs.make_unit({ playerName = "Ace", exists = true })
 
-        local nextTimeA = CheckrideMission.sampleTelemetryTick(nil, nil)
-        local nextTimeB = CheckrideMission.sampleTelemetryTick(nil, nil)
-        assert.are.equal(4.25, nextTimeA)
-        assert.are.equal(4.25, nextTimeB)
+        CheckrideMission.startPilotSampler(unit, "Ace", "ucid-ace")
+
+        assert.is_false(scheduled)
     end)
 
-    it("reuses cached roster when mission time decreases", function()
-        local captured = loader.capture_events()
+    it("increments PilotGenerations each time called for the same key", function()
+        local fire = capture_pilot_tick()
+        local unit = stubs.make_unit({ playerName = "Slider", exists = true })
 
-        local staleUnit = stubs.make_unit({ playerName = "Ghost", exists = false })
-        CheckrideMission.FlightSample.lastRosterRefreshAt = 100
-        CheckrideMission.FlightSample.roster = {
-            { unit = staleUnit, playerName = "Ghost", playerUcid = "ucid-ghost" },
-        }
-        CheckrideMission.FlightSample.nextPilotIndex = 1
+        CheckrideMission.startPilotSampler(unit, "Slider", "ucid-slider")
+        assert.are.equal(1, CheckrideMission.PilotGenerations["ucid-slider"])
 
-        local freshUnit = stubs.make_unit({
-            playerName = "Fresh",
-            exists = true,
-            velocity = { x = 200, y = 0, z = 0 },
-            point = { x = 1000, y = 2000, z = 3000 },
-        })
-        _G.coalition = {
-            side = { BLUE = 2, RED = 1, NEUTRAL = 0 },
-            getPlayers = function(side)
-                if side == 2 then return { freshUnit } end
-                return {}
-            end,
-        }
-
-        CheckrideMission.sampleTelemetryTick(nil, 10)
-        assert.are.equal(0, #captured)
-        assert.are.equal(100, CheckrideMission.FlightSample.lastRosterRefreshAt)
-        assert.are.equal("Ghost", CheckrideMission.FlightSample.roster[1].playerName)
+        local fire2 = capture_pilot_tick()
+        CheckrideMission.startPilotSampler(unit, "Slider", "ucid-slider")
+        assert.are.equal(2, CheckrideMission.PilotGenerations["ucid-slider"])
+        -- Suppress unused variable warning by referencing fire/fire2
+        assert.is_truthy(fire ~= nil and fire2 ~= nil)
     end)
 
-    it("continues sampling from cached roster during rapid roster churn between refreshes", function()
-        local captured = loader.capture_events()
-        local unit = stubs.make_unit({
-            playerName = "ChurnPilot",
-            exists = true,
-            velocity = { x = 210, y = 0, z = 0 },
-            point = { x = 1, y = 3000, z = 2 },
-        })
-
-        _G.coalition = {
-            side = { BLUE = 2, RED = 1, NEUTRAL = 0 },
-            getPlayers = function(side)
-                if side == 2 then return { unit } end
-                return {}
-            end,
+    it("TAKEOFF event starts a pilot sampler for the initiator", function()
+        local scheduled = false
+        _G.timer = {
+            getTime          = function() return 0 end,
+            scheduleFunction = function() scheduled = true end,
         }
+        _G.Airbase = { Category = { SHIP = 2 } }
 
-        CheckrideMission.sampleTelemetryTick(nil, 10)
+        local unit = stubs.make_unit({ playerName = "Goose", exists = true })
+        local place = { getDesc = function() return { category = 0 } end, getName = function() return "Airbase" end }
+        CheckrideMission.TakeoffEventId = 99
+        CheckrideMission.EventHandler:onEvent({ id = 99, initiator = unit, place = place })
 
-        _G.coalition.getPlayers = function() return {} end
-        CheckrideMission.sampleTelemetryTick(nil, 10.2)
-
-        local enrichments = {}
-        for _, c in ipairs(captured) do
-            if c.type == "flight_sample_enrichment" then
-                table.insert(enrichments, c)
-            end
-        end
-        assert.are.equal(2, #enrichments)
-        assert.are.equal("ChurnPilot", enrichments[1].playerName)
-        assert.are.equal("ChurnPilot", enrichments[2].playerName)
-    end)
-
-    it("keeps previous roster when buildTelemetryRoster fails and still ticks", function()
-        local captured = loader.capture_events()
-        local unit = stubs.make_unit({
-            playerName = "Fallback",
-            exists = true,
-            velocity = { x = 250, y = 0, z = 0 },
-            point = { x = 1, y = 4000, z = 2 },
-        })
-        CheckrideMission.FlightSample.roster = {
-            { unit = unit, playerName = "Fallback", playerUcid = "ucid-fallback" },
-        }
-        CheckrideMission.FlightSample.lastRosterRefreshAt = 0
-
-        _G.coalition = {
-            side = { BLUE = 2, RED = 1, NEUTRAL = 0 },
-            getPlayers = function() error("coalition unavailable") end,
-        }
-
-        local nextTime = CheckrideMission.sampleTelemetryTick(nil, 10)
-        assert.is_truthy(nextTime > 10)
-
-        local enrichments = {}
-        for _, c in ipairs(captured) do
-            if c.type == "flight_sample_enrichment" then
-                table.insert(enrichments, c)
-            end
-        end
-        assert.are.equal(1, #enrichments)
-    end)
-
-    it("deduplicates same-name players when UCID is unavailable", function()
-        local unitA = stubs.make_unit({ playerName = "DuplicateName", exists = true })
-        local unitB = stubs.make_unit({ playerName = "DuplicateName", exists = true })
-        _G.coalition = {
-            side = { BLUE = 2, RED = 1, NEUTRAL = 0 },
-            getPlayers = function(side)
-                if side == 2 then return { unitA, unitB } end
-                return {}
-            end,
-        }
-        _G.CheckrideLookupUCID = nil
-
-        CheckrideMission.sampleTelemetryTick(nil, 10)
-        local roster = CheckrideMission.FlightSample.roster or {}
-        assert.are.equal(1, #roster)
-        assert.are.equal("DuplicateName", roster[1].playerName)
-    end)
-
-    it("excludes units with blank or missing playerName from telemetry roster", function()
-        local good = stubs.make_unit({ playerName = "GoodPilot", exists = true })
-        local blank = stubs.make_unit({ playerName = "", exists = true })
-        local missing = stubs.make_unit({ exists = true })
-
-        _G.coalition = {
-            side = { BLUE = 2, RED = 1, NEUTRAL = 0 },
-            getPlayers = function(side)
-                if side == 2 then return { good, blank, missing } end
-                return {}
-            end,
-        }
-        _G.CheckrideLookupUCID = nil
-
-        CheckrideMission.sampleTelemetryTick(nil, 10)
-        local roster = CheckrideMission.FlightSample.roster or {}
-        assert.are.equal(1, #roster)
-        assert.are.equal("GoodPilot", roster[1].playerName)
-    end)
-
-    it("caps roster size to maxTrackedPilots when more than 64 pilots are present", function()
-        local many = {}
-        for i = 1, 70 do
-            many[i] = stubs.make_unit({ playerName = "Pilot-" .. tostring(i), exists = true })
-        end
-        _G.coalition = {
-            side = { BLUE = 2, RED = 1, NEUTRAL = 0 },
-            getPlayers = function(side)
-                if side == 2 then return many end
-                return {}
-            end,
-        }
-        _G.CheckrideLookupUCID = function(name) return "ucid-" .. tostring(name) end
-
-        CheckrideMission.sampleTelemetryTick(nil, 10)
-        assert.are.equal(64, #(CheckrideMission.FlightSample.roster or {}))
-    end)
-
-    it("applies minTick floor for large rosters instead of shrinking below 0.25s", function()
-        local roster = {}
-        for i = 1, 64 do
-            roster[i] = {
-                unit = stubs.make_unit({ playerName = "P" .. tostring(i), exists = false }),
-                playerName = "P" .. tostring(i),
-                playerUcid = "ucid-" .. tostring(i),
-            }
-        end
-
-        CheckrideMission.FlightSample.lastRosterRefreshAt = 10
-        CheckrideMission.FlightSample.roster = roster
-        CheckrideMission.FlightSample.nextPilotIndex = 1
-
-        local nextTime = CheckrideMission.sampleTelemetryTick(nil, 10)
-        assert.are.equal(10.25, nextTime)
-    end)
-
-    it("continues scheduling when emitFlightSampleForEntry raises an error", function()
-        local originalEmit = CheckrideMission.emitFlightSampleForEntry
-        CheckrideMission.emitFlightSampleForEntry = function()
-            error("emit failure")
-        end
-
-        CheckrideMission.FlightSample.lastRosterRefreshAt = 10
-        CheckrideMission.FlightSample.roster = {
-            { unit = stubs.make_unit({ playerName = "A", exists = true }), playerName = "A", playerUcid = "ucid-a" },
-        }
-        CheckrideMission.FlightSample.nextPilotIndex = 1
-
-        local nextTime = CheckrideMission.sampleTelemetryTick(nil, 10)
-        CheckrideMission.emitFlightSampleForEntry = originalEmit
-        assert.is_truthy(nextTime > 10)
-        assert.are.equal(1, CheckrideMission.FlightSample.nextPilotIndex)
-    end)
-
-    it("does not halt future samples when one pilot entry is malformed", function()
-        local captured = loader.capture_events()
-        local malformedAmmoItem = setmetatable({}, {
-            __index = function()
-                error("bad ammo payload")
-            end,
-        })
-
-        local badUnit = stubs.make_unit({
-            playerName = "Bad",
-            exists = true,
-            velocity = { x = 100, y = 0, z = 0 },
-            point = { x = 1, y = 1000, z = 2 },
-            ammo = { malformedAmmoItem },
-        })
-        local goodUnit = stubs.make_unit({
-            playerName = "Good",
-            exists = true,
-            velocity = { x = 120, y = 0, z = 0 },
-            point = { x = 1, y = 1200, z = 2 },
-        })
-
-        CheckrideMission.FlightSample.lastRosterRefreshAt = 10
-        CheckrideMission.FlightSample.roster = {
-            { unit = badUnit, playerName = "Bad", playerUcid = "ucid-bad" },
-            { unit = goodUnit, playerName = "Good", playerUcid = "ucid-good" },
-        }
-        CheckrideMission.FlightSample.nextPilotIndex = 1
-
-        CheckrideMission.sampleTelemetryTick(nil, 10)
-        assert.are.equal(2, CheckrideMission.FlightSample.nextPilotIndex)
-        CheckrideMission.FlightSample.lastRosterRefreshAt = 11
-        CheckrideMission.sampleTelemetryTick(nil, 11)
-        assert.are.equal(1, CheckrideMission.FlightSample.nextPilotIndex)
-
-        local enrichments = {}
-        for _, c in ipairs(captured) do
-            if c.type == "flight_sample_enrichment" then
-                table.insert(enrichments, c)
-            end
-        end
-        assert.are.equal(1, #enrichments)
-        assert.are.equal("Good", enrichments[1].playerName)
+        assert.is_true(scheduled)
+        assert.are.equal(1, CheckrideMission.PilotGenerations["Goose"])
     end)
 
     it("allows queue growth under sustained telemetry enqueue without consumer", function()

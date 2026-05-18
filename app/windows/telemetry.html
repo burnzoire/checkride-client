@@ -42,13 +42,25 @@
       flex-shrink: 0;
     }
 
-    #status-dot.stale { background: #8f6b3a; }
+    #status-dot.stale  { background: #8f6b3a; }
+    #status-dot.replay { background: #7a5abf; }
 
-    #pilot-count {
-      margin-left: auto;
+    #pilot-count { margin-left: auto; font-size: 12px; color: #666d7a; }
+    #sample-age  { font-size: 12px; white-space: nowrap; }
+
+    .header-btn {
       font-size: 12px;
-      color: #666d7a;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid #2e3340;
+      background: #1e2230;
+      color: #c8cdd6;
+      cursor: pointer;
+      white-space: nowrap;
     }
+
+    .header-btn:hover { background: #252a38; border-color: #4a5168; }
+    .header-btn.active { border-color: #7eb8f7; color: #7eb8f7; }
 
     .layout {
       display: flex;
@@ -85,14 +97,8 @@
       user-select: none;
     }
 
-    .pilot-item:hover {
-      background: #1e2230;
-    }
-
-    .pilot-item.selected {
-      background: #1e2a3a;
-      border-left-color: #7eb8f7;
-    }
+    .pilot-item:hover  { background: #1e2230; }
+    .pilot-item.selected { background: #1e2a3a; border-left-color: #7eb8f7; }
 
     .pilot-name {
       font-size: 13px;
@@ -103,14 +109,9 @@
       text-overflow: ellipsis;
     }
 
-    .pilot-status {
-      font-size: 11px;
-      color: #5a6272;
-      margin-top: 2px;
-    }
-
+    .pilot-status { font-size: 11px; color: #5a6272; margin-top: 2px; }
     .pilot-status.in-air { color: #3a8f5c; }
-    .pilot-status.dead { color: #e07b6b; }
+    .pilot-status.dead   { color: #e07b6b; }
 
     #empty-pilots {
       padding: 20px 12px;
@@ -119,12 +120,96 @@
       font-style: italic;
     }
 
-    /* ── State panel ────────────────────────────────────────────────────────── */
+    /* ── Main area ──────────────────────────────────────────────────────────── */
 
-    #state-panel {
+    #main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Charts ─────────────────────────────────────────────────────────────── */
+
+    #chart-area {
+      flex: 0 0 52%;
+      display: flex;
+      flex-direction: column;
+      padding: 10px 16px 0;
+      gap: 6px;
+      min-height: 0;
+    }
+
+    .chart-wrap {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+
+    .chart-wrap canvas { display: block; }
+
+    /* ── Scrubber ───────────────────────────────────────────────────────────── */
+
+    #scrubber-area {
+      flex-shrink: 0;
+      padding: 8px 16px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    #scrubber-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #scrubber-time-start,
+    #scrubber-time-end {
+      font-size: 10px;
+      color: #4d5464;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      min-width: 32px;
+    }
+
+    #scrubber-time-end { text-align: right; }
+
+    #scrubber {
+      flex: 1;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: #2e3340;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    #scrubber::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #7eb8f7;
+      cursor: pointer;
+    }
+
+    #scrubber-label {
+      font-size: 11px;
+      color: #7a8394;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    /* ── Detail panel ───────────────────────────────────────────────────────── */
+
+    #detail-panel {
       flex: 1;
       overflow-y: auto;
-      padding: 16px;
+      padding: 10px 16px 16px;
+      border-top: 1px solid #2e3340;
+      min-height: 0;
     }
 
     #no-selection {
@@ -137,9 +222,9 @@
       font-style: italic;
     }
 
-    .state-section {
-      margin-bottom: 16px;
-    }
+    /* ── Shared text styles ─────────────────────────────────────────────────── */
+
+    .state-section { margin-bottom: 14px; }
 
     .section-title {
       font-size: 10px;
@@ -158,27 +243,13 @@
       gap: 4px 12px;
     }
 
-    .kv-key {
-      font-size: 12px;
-      color: #7a8394;
-    }
-
-    .kv-value {
-      font-size: 12px;
-      color: #c8cdd6;
-      font-variant-numeric: tabular-nums;
-      word-break: break-all;
-    }
-
+    .kv-key   { font-size: 12px; color: #7a8394; }
+    .kv-value { font-size: 12px; color: #c8cdd6; font-variant-numeric: tabular-nums; word-break: break-all; }
     .kv-value.highlight { color: #7eb8f7; }
-    .kv-value.danger { color: #e07b6b; }
-    .kv-value.ok { color: #3a8f5c; }
+    .kv-value.danger    { color: #e07b6b; }
+    .kv-value.ok        { color: #3a8f5c; }
 
-    .kills-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11px;
-    }
+    .kills-table { width: 100%; border-collapse: collapse; font-size: 11px; }
 
     .kills-table th {
       text-align: left;
@@ -196,18 +267,59 @@
 
     .kills-table tr:last-child td { border-bottom: none; }
 
-    .badge {
-      display: inline-block;
-      font-size: 10px;
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-weight: 600;
-    }
-
+    .badge { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; }
     .badge-air    { background: #1a3a5c; color: #7eb8f7; }
     .badge-ground { background: #2a3320; color: #7abf6a; }
     .badge-ship   { background: #2a2040; color: #a07be0; }
     .badge-other  { background: #2a2a2a; color: #888; }
+
+    /* ── Gauge strip ────────────────────────────────────────────────────────── */
+
+    #gauge-strip {
+      width: 206px;
+      flex-shrink: 0;
+      background: #111318;
+      border-left: 1px solid #2e3340;
+      overflow-y: auto;
+      padding: 10px 6px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .arc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 0;
+    }
+
+    .arc-gauge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .arc-gauge svg { width: 100%; display: block; }
+
+    .arc-label {
+      font-size: 9px;
+      color: #4d5464;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-top: -4px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 4px 10px;
+      padding-top: 10px;
+      border-top: 1px solid #2e3340;
+    }
+
+    .stat-key { font-size: 11px; color: #7a8394; }
+    .stat-val { font-size: 11px; color: #c8cdd6; font-variant-numeric: tabular-nums; text-align: right; }
   </style>
 </head>
 <body>
@@ -215,17 +327,46 @@
     <span id="status-dot"></span>
     <h1>Pilot Telemetry</h1>
     <span id="pilot-count"></span>
+    <span id="sample-age"></span>
+    <button class="header-btn" id="btn-load-file">Load Replay</button>
+    <button class="header-btn" id="btn-back-live" style="display:none">Back to Live</button>
+    <input type="file" id="file-input" accept=".jsonl" style="display:none">
   </header>
+
   <div class="layout">
     <div id="pilot-list">
-      <div class="pilot-list-label">Active Pilots</div>
+      <div class="pilot-list-label" id="pilot-list-label">Active Pilots</div>
       <div id="pilot-list-items"></div>
     </div>
-    <div id="state-panel">
-      <div id="no-selection">Select a pilot to view telemetry</div>
+
+    <div id="main-area">
+      <div id="chart-area">
+        <div class="chart-wrap"><canvas id="chart-speed"></canvas></div>
+        <div class="chart-wrap"><canvas id="chart-altitude"></canvas></div>
+        <div class="chart-wrap"><canvas id="chart-fuel"></canvas></div>
+      </div>
+
+      <div id="scrubber-area">
+        <div id="scrubber-row">
+          <span id="scrubber-time-start">0s</span>
+          <input type="range" id="scrubber" min="0" max="1000" value="1000">
+          <span id="scrubber-time-end">—</span>
+        </div>
+        <div id="scrubber-label">—</div>
+      </div>
+
+      <div id="detail-panel">
+        <div id="no-selection">Select a pilot to view telemetry</div>
+      </div>
     </div>
+
+    <div id="gauge-strip"></div>
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="telemetryRenderFns.js"></script>
+  <script src="sortieCharts.js"></script>
+  <script src="sortieGauges.js"></script>
   <script src="telemetryRenderer.js"></script>
 </body>
 </html>

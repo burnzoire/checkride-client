@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('settings', {
 
 contextBridge.exposeInMainWorld('telemetry', {
   getSnapshot: () => ipcRenderer.invoke('telemetry:snapshot'),
+  openSortieFile: () => ipcRenderer.invoke('sortie:open-file'),
 });
 
 window.addEventListener('DOMContentLoaded', () => {

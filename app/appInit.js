@@ -70,7 +70,7 @@ function buildPilotSnapshot({ engine, event, unlockedAchievements }) {
   return snapshot;
 }
 
-function handlePilotSnapshot({ gaugeSync, engine, event, unlockedAchievements }) {
+function handlePilotSnapshot({ gaugeSync, sortieLogger, engine, event, unlockedAchievements }) {
   const snapshot = buildPilotSnapshot({ engine, event, unlockedAchievements });
   if (!snapshot) return;
 
@@ -81,6 +81,10 @@ function handlePilotSnapshot({ gaugeSync, engine, event, unlockedAchievements })
 
   if (gaugeSync && typeof gaugeSync.syncSnapshot === 'function') {
     gaugeSync.syncSnapshot(snapshot);
+  }
+
+  if (sortieLogger && event.type === 'flight_sample_enrichment' && event.playerUcid) {
+    sortieLogger.logSnapshot(event.playerUcid, snapshot);
   }
 }
 
@@ -149,7 +153,7 @@ function buildBaseUrl(useSsl, host, port) {
   return `${scheme}://${host}${portSuffix}`;
 }
 
-function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl }) {
+function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, sortieLogger, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
   const warnedMismatchKeys = new Set();
@@ -194,9 +198,17 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         .then(() => sendMissionScriptingConfig(dcsChatClient, missionScriptingEnabled, 'ready'))
     }
 
+    if (sortieLogger && event.playerUcid && ['land', 'crash', 'disconnect'].includes(event.type)) {
+      sortieLogger.endSortie(event.playerUcid, event.type);
+    }
+
     if (shouldRefreshPilotSession(event)) {
       if (event.type === 'connect') {
         welcomedUcids.delete(event.playerUcid);
+      }
+
+      if (sortieLogger && event.playerUcid) {
+        sortieLogger.startSortie(event.playerUcid, event.playerName);
       }
 
       engine.resetPilot(event.playerUcid);
@@ -220,7 +232,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         log.debug(`State-only event (persist=false): ${JSON.stringify(event)}`)
       }
       const newlyUnlocked = engine.evaluate(event);
-      handlePilotSnapshot({ gaugeSync, engine, event, unlockedAchievements: newlyUnlocked });
+      handlePilotSnapshot({ gaugeSync, sortieLogger, engine, event, unlockedAchievements: newlyUnlocked });
       let last = Promise.resolve();
       newlyUnlocked.forEach((achievement, i) => {
         const pilotName = event.playerName || 'Unknown Pilot';
@@ -255,12 +267,12 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         if (!preparedPayload) {
           log.debug(`Skipping event with empty prepared payload: ${event.type}`);
           unlockedAchievements = engine.evaluate(event);
-          handlePilotSnapshot({ gaugeSync, engine, event, unlockedAchievements });
+          handlePilotSnapshot({ gaugeSync, sortieLogger, engine, event, unlockedAchievements });
           return null;
         }
 
         unlockedAchievements = engine.evaluate(event);
-        handlePilotSnapshot({ gaugeSync, engine, event, unlockedAchievements });
+        handlePilotSnapshot({ gaugeSync, sortieLogger, engine, event, unlockedAchievements });
 
         if (event.persist === false) {
           if (event.type !== 'flight_sample_enrichment') {
@@ -348,7 +360,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   }
 }
 
-async function initApp({ onLuaVersionMismatch } = {}) {
+async function initApp({ onLuaVersionMismatch, sortieLogger } = {}) {
   const useSsl = store.get("use_ssl")
   const apiHost = store.get("server_host")
   const apiPort = store.get("server_port")
@@ -380,7 +392,7 @@ async function initApp({ onLuaVersionMismatch } = {}) {
   });
 
   const pilotProgressionUrl = `${useSsl ? 'https' : 'http'}://${apiHost}`;
-  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl })
+  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, sortieLogger, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl })
 
   const healthChecker = new HealthChecker(apiClient, store, undefined, (healthy) => {
     newRelicClient.recordLog('api health state changed', {

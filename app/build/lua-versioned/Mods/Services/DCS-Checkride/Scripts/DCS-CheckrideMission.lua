@@ -6,20 +6,16 @@
 -- Queues encoded events for retrieval via net.dostring_in from GameGUI/hook.
 -- ============================================================================
 CheckrideMission = {}
-CheckrideMission.clientVersion = "1.4.3"
+CheckrideMission.clientVersion = "1.4.6"
 CheckrideMission.version = CheckrideMission.clientVersion
 CheckrideMission.EventQueue = CheckrideMission.EventQueue or {}
 
 CheckrideMission.FlightSample = {
     enabled = true,
-    maxTrackedPilots = 64,
     targetSampleIntervalSeconds = 4.0,
     minTickSeconds = 0.25,
-    rosterRefreshSeconds = 1.0,
-    roster = {},
-    nextPilotIndex = 1,
-    lastRosterRefreshAt = 0,
 }
+CheckrideMission.PilotGenerations = {}
 
 CheckrideMission.WeaponSample = {
     enabled = true,
@@ -251,108 +247,6 @@ local function speedOfSoundAtPoint(point)
     return nil
 end
 
-local function appendSidePlayers(target, side)
-    if not coalition or not coalition.getPlayers then
-        return
-    end
-
-    local ok, players = pcall(function() return coalition.getPlayers(side) end)
-    if not ok then
-        error("coalition.getPlayers raised error: " .. tostring(players))
-    end
-
-    if type(players) ~= "table" then
-        error("coalition.getPlayers returned " .. tostring(type(players)))
-    end
-
-    for _, unit in ipairs(players) do
-        target[#target + 1] = unit
-    end
-end
-
-local function buildTelemetryRoster()
-    local units = {}
-
-    local redSide = coalition and coalition.side and coalition.side.RED or 1
-    local blueSide = coalition and coalition.side and coalition.side.BLUE or 2
-    local neutralSide = coalition and coalition.side and coalition.side.NEUTRAL or 0
-
-    appendSidePlayers(units, redSide)
-    appendSidePlayers(units, blueSide)
-    appendSidePlayers(units, neutralSide)
-
-    local entries = {}
-    local seen = {}
-
-    for _, unit in ipairs(units) do
-        local playerName = nil
-        local okName, name = pcall(function() return unit:getPlayerName() end)
-        if okName and name and name ~= "" then
-            playerName = name
-        end
-
-        if playerName then
-            local ucid = nil
-            if CheckrideLookupUCID then
-                ucid = CheckrideLookupUCID(playerName)
-            end
-
-            local identity = tostring(ucid or playerName)
-            if not seen[identity] then
-                seen[identity] = true
-                entries[#entries + 1] = {
-                    unit = unit,
-                    playerName = playerName,
-                    playerUcid = ucid,
-                }
-            end
-        end
-    end
-
-    table.sort(entries, function(a, b)
-        local ak = tostring(a.playerUcid or a.playerName or "")
-        local bk = tostring(b.playerUcid or b.playerName or "")
-        return ak < bk
-    end)
-
-    local maxPilots = CheckrideMission.FlightSample.maxTrackedPilots or 64
-    if #entries > maxPilots then
-        local trimmed = {}
-        for index = 1, maxPilots do
-            trimmed[index] = entries[index]
-        end
-        entries = trimmed
-    end
-
-    return entries
-end
-
-function CheckrideMission.refreshTelemetryRoster(now)
-    local cfg = CheckrideMission.FlightSample
-    if not cfg.enabled then
-        return
-    end
-
-    if (now - (cfg.lastRosterRefreshAt or 0)) < (cfg.rosterRefreshSeconds or 1.0) then
-        return
-    end
-
-    local ok, result = pcall(buildTelemetryRoster)
-    if ok and type(result) == 'table' then
-        cfg.roster = result
-        cfg.lastRosterRefreshAt = now
-    else
-        CheckrideMission.log('[checkride] buildTelemetryRoster failed: ' .. tostring(result))
-    end
-
-    local rosterSize = #(cfg.roster or {})
-    if rosterSize <= 0 then
-        cfg.nextPilotIndex = 0
-    elseif not cfg.nextPilotIndex or cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
-        cfg.nextPilotIndex = 1
-    end
-end
-
 function CheckrideMission.emitFlightSampleForEntry(entry, now)
     if not entry or not entry.unit then
         return
@@ -496,81 +390,34 @@ local function resolveTickNow(now, fallbackSeconds)
     return fallbackSeconds or 0
 end
 
-local function resolveNextTickTime(candidate, now, fallbackSeconds)
-    local safeNow = resolveTickNow(now, 0)
-    local minAdvance = fallbackSeconds or 1
-    if isFiniteNumber(candidate) and candidate > safeNow then
-        return candidate
-    end
-    return safeNow + minAdvance
-end
+function CheckrideMission.startPilotSampler(unit, playerName, ucid)
+    if not timer or not timer.scheduleFunction or not timer.getTime then return end
+    if not CheckrideMission.FlightSample.enabled then return end
 
-function CheckrideMission.sampleTelemetryTick(_, now)
-    local ok, nextTime = pcall(function()
-        local cfg = CheckrideMission.FlightSample
-        local minTick = cfg.minTickSeconds or 0.25
-        local safeNow = resolveTickNow(now, minTick)
+    local pilotKey = ucid or playerName
+    CheckrideMission.PilotGenerations[pilotKey] = (CheckrideMission.PilotGenerations[pilotKey] or 0) + 1
+    local myGen = CheckrideMission.PilotGenerations[pilotKey]
+    local entry = { unit = unit, playerName = playerName, playerUcid = ucid }
+    local intervalSeconds = CheckrideMission.FlightSample.targetSampleIntervalSeconds or 4.0
 
-        if not cfg.enabled then
-            return safeNow + minTick
+    local function pilotTick(_, now)
+        if CheckrideMission.PilotGenerations[pilotKey] ~= myGen then return nil end
+
+        local safeNow = resolveTickNow(now, 0)
+
+        if not unit:isExist() then return nil end
+
+        local emitOk, emitErr = pcall(CheckrideMission.emitFlightSampleForEntry, entry, safeNow)
+        if not emitOk then
+            CheckrideMission.log('[checkride] pilot sample emit failed: ' .. tostring(emitErr))
         end
 
-        CheckrideMission.refreshTelemetryRoster(safeNow)
-
-        local roster = cfg.roster or {}
-        local rosterSize = #roster
-        local tickSeconds = math.max(minTick, (cfg.targetSampleIntervalSeconds or 4.0) / math.max(1, rosterSize))
-
-        if rosterSize > 0 then
-            if not cfg.nextPilotIndex or cfg.nextPilotIndex < 1 or cfg.nextPilotIndex > rosterSize then
-                cfg.nextPilotIndex = 1
-            end
-
-            local entry = roster[cfg.nextPilotIndex]
-            cfg.nextPilotIndex = cfg.nextPilotIndex + 1
-            if cfg.nextPilotIndex > rosterSize then
-                cfg.nextPilotIndex = 1
-            end
-
-            if entry then
-                local emitOk, emitErr = pcall(CheckrideMission.emitFlightSampleForEntry, entry, safeNow)
-                if not emitOk then
-                    CheckrideMission.log('[checkride] flight sample emit failed: ' .. tostring(emitErr))
-                end
-            end
-        end
-
-        return safeNow + tickSeconds
-    end)
-
-    if not ok then
-        CheckrideMission.log('[checkride] telemetry tick crashed: ' .. tostring(nextTime))
-        return resolveNextTickTime(nil, now, 1)
+        return safeNow + intervalSeconds
     end
 
-    return resolveNextTickTime(nextTime, now, 1)
-end
-
-function CheckrideMission.startTelemetrySampler()
-    if not timer or not timer.scheduleFunction or not timer.getTime then
-        CheckrideMission.log("telemetry sampler unavailable: timer API missing")
-        return
-    end
-
-    local cfg = CheckrideMission.FlightSample
-    if not cfg.enabled then
-        CheckrideMission.log("telemetry sampler disabled")
-        return
-    end
-
-    local minTick = cfg.minTickSeconds or 0.25
-    timer.scheduleFunction(CheckrideMission.sampleTelemetryTick, nil, timer.getTime() + minTick)
-    CheckrideMission.log(
-        "telemetry sampler started: targetSampleInterval=" .. tostring(cfg.targetSampleIntervalSeconds or 4.0) ..
-        "s minTick=" .. tostring(minTick) ..
-        "s rosterRefresh=" .. tostring(cfg.rosterRefreshSeconds or 1.0) ..
-        "s maxTrackedPilots=" .. tostring(cfg.maxTrackedPilots or 64)
-    )
+    local minTick = CheckrideMission.FlightSample.minTickSeconds or 0.25
+    timer.scheduleFunction(pilotTick, nil, timer.getTime() + minTick)
+    CheckrideMission.log('pilot sampler started: ' .. tostring(playerName) .. ' gen=' .. tostring(myGen))
 end
 
 local function getObjectPoint(object)
@@ -1326,14 +1173,15 @@ function CheckrideMission.ensureWorldHandler()
         return '__CHECKRIDE_WORLD_WAIT__:missing_world_addEventHandler'
     end
 
-    CheckrideMission.LandingQualityEventId = world.event.S_EVENT_LANDING_QUALITY_MARK
-    CheckrideMission.TakeoffEventId        = world.event.S_EVENT_TAKEOFF
-    CheckrideMission.LandEventId           = world.event.S_EVENT_LAND
-    CheckrideMission.KillEventId           = world.event.S_EVENT_KILL
-    CheckrideMission.ShotEventId           = world.event.S_EVENT_SHOT
-    CheckrideMission.HitEventId            = world.event.S_EVENT_HIT
-    CheckrideMission.ShootingStartEventId  = world.event.S_EVENT_SHOOTING_START
-    CheckrideMission.ShootingEndEventId    = world.event.S_EVENT_SHOOTING_END
+    CheckrideMission.LandingQualityEventId  = world.event.S_EVENT_LANDING_QUALITY_MARK
+    CheckrideMission.TakeoffEventId         = world.event.S_EVENT_TAKEOFF
+    CheckrideMission.LandEventId            = world.event.S_EVENT_LAND
+    CheckrideMission.KillEventId            = world.event.S_EVENT_KILL
+    CheckrideMission.ShotEventId            = world.event.S_EVENT_SHOT
+    CheckrideMission.HitEventId             = world.event.S_EVENT_HIT
+    CheckrideMission.ShootingStartEventId   = world.event.S_EVENT_SHOOTING_START
+    CheckrideMission.ShootingEndEventId     = world.event.S_EVENT_SHOOTING_END
+    CheckrideMission.PlayerEnterUnitEventId = world.event.S_EVENT_PLAYER_ENTER_UNIT
 
     -- Remove any previously registered handler before re-registering.
     -- If world identity changed (mission reload), the old handler object may still
@@ -1365,6 +1213,17 @@ end
 
 function CheckrideMission.EventHandler:onEvent(event)
     if not event then return end
+
+    if event.id == CheckrideMission.PlayerEnterUnitEventId then
+        local initiator = event.initiator
+        if initiator then
+            local playerName = initiator:getPlayerName()
+            if type(playerName) == "string" and playerName ~= "" then
+                local ucid = CheckrideLookupUCID and CheckrideLookupUCID(playerName) or nil
+                CheckrideMission.startPilotSampler(initiator, playerName, ucid)
+            end
+        end
+    end
 
     if CheckrideMission.LandingQualityEventId and event.id == CheckrideMission.LandingQualityEventId then
         CheckrideMission.onLandingQualityMark(event)
@@ -1532,9 +1391,16 @@ function CheckrideMission.onShot(event)
         return
     end
 
+    local weaponGuidance = nil
+    local okWDesc, wDesc = pcall(function() return weapon:getDesc() end)
+    if okWDesc and wDesc then
+        weaponGuidance = GUIDANCE_NAMES[wDesc.guidance] or (wDesc.guidance and tostring(wDesc.guidance)) or nil
+    end
+
     CheckrideMission.activeWeaponShots[weaponKey] = {
         weaponKey = weaponKey,
         weaponClass = weaponClass,
+        weaponGuidance = weaponGuidance,
         startX = startPoint.x,
         startY = startPoint.z,
         startAlt = startPoint.y,
@@ -1549,12 +1415,6 @@ function CheckrideMission.onShot(event)
         firedAt = event.time,
         lastDataAt = event.time,
     }
-
-    local weaponGuidance = nil
-    local okWDesc, wDesc = pcall(function() return weapon:getDesc() end)
-    if okWDesc and wDesc then
-        weaponGuidance = GUIDANCE_NAMES[wDesc.guidance] or (wDesc.guidance and tostring(wDesc.guidance)) or nil
-    end
 
     local message = {
         type = "shot_enrichment",
@@ -1991,6 +1851,26 @@ function CheckrideMission.onKill(event)
         CheckrideMission.pendingKillsByObjectId[victimObjectId] = nil
     end
 
+    -- Fallback: recover weaponGuidance/weaponClass from the outbound shot record for
+    -- proximity-fused missiles (e.g. AIM-54C Phoenix) that detonate without triggering
+    -- onHit against the victim unit, leaving no pending kill data.
+    -- This guard only runs when pending is nil, so onHit did not fire for this victim —
+    -- the shot record is still live in activeWeaponShots and safe to consume here.
+    -- The pairs() scan mirrors findInFlightWeaponCandidates; typical in-flight shot
+    -- counts are small (single digits), so the linear search is acceptable.
+    local fallbackGuidance = nil
+    local fallbackWeaponClass = nil
+    if not pending and victimObjectId then
+        for _, shot in pairs(CheckrideMission.activeWeaponShots) do
+            if shot.playerUcid == ucid and shot.targetObjectId == victimObjectId then
+                fallbackGuidance = shot.weaponGuidance
+                fallbackWeaponClass = shot.weaponClass
+                CheckrideMission.activeWeaponShots[shot.weaponKey] = nil
+                break
+            end
+        end
+    end
+
     -- Victim unit category — try live target first, fall back gracefully
     local victimUnitCategory = "other"
     local victimAirType = nil
@@ -2077,8 +1957,8 @@ function CheckrideMission.onKill(event)
         killerUnitCategory = killerUnitCategory,
         killedAtMs         = pending and pending.killedAtMs or event.time,
         victimRoles        = pending and pending.victimRoles or nil,
-        weaponGuidance     = pending and pending.weaponGuidance or nil,
-        weaponClass        = pending and pending.weaponClass or (isCollision and "COLLISION" or nil),
+        weaponGuidance     = (pending and pending.weaponGuidance) or fallbackGuidance,
+        weaponClass        = (pending and pending.weaponClass) or fallbackWeaponClass or (isCollision and "COLLISION" or nil),
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,
@@ -2100,6 +1980,5 @@ end
 -- ============================================================================
 local worldInitStatus = CheckrideMission.ensureWorldHandler()
 CheckrideMission.log('world init status: ' .. tostring(worldInitStatus))
-CheckrideMission.startTelemetrySampler()
 CheckrideMission.startWeaponSampler()
 checkrideMissionInfo("Loaded - DCS-Checkride Mission Script v" .. CheckrideMission.version)

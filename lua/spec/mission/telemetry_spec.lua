@@ -213,16 +213,18 @@ describe("CheckrideMission.startPilotSampler", function()
         assert.is_truthy(fire ~= nil and fire2 ~= nil)
     end)
 
-    it("PLAYER_ENTER_UNIT event starts a pilot sampler for the initiator", function()
+    it("TAKEOFF event starts a pilot sampler for the initiator", function()
         local scheduled = false
         _G.timer = {
             getTime          = function() return 0 end,
             scheduleFunction = function() scheduled = true end,
         }
+        _G.Airbase = { Category = { SHIP = 2 } }
 
         local unit = stubs.make_unit({ playerName = "Goose", exists = true })
-        CheckrideMission.PlayerEnterUnitEventId = 99
-        CheckrideMission.EventHandler:onEvent({ id = 99, initiator = unit })
+        local place = { getDesc = function() return { category = 0 } end, getName = function() return "Airbase" end }
+        CheckrideMission.TakeoffEventId = 99
+        CheckrideMission.EventHandler:onEvent({ id = 99, initiator = unit, place = place })
 
         assert.is_true(scheduled)
         assert.are.equal(1, CheckrideMission.PilotGenerations["Goose"])

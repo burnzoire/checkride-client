@@ -20,23 +20,19 @@ class SortieLogger {
     this._closeActive(ucid);
     const ucidDir = path.join(this._logsRoot, safeUcid(ucid));
     this._fs.mkdirSync(ucidDir, { recursive: true });
-    this._sorties.set(ucid, { ucidDir, name: name || ucid, filePath: null });
+    const now = new Date();
+    const ts = now.toISOString().replace(/:/g, '-').replace(/\./g, '-');
+    const filePath = path.join(ucidDir, `${ts}.jsonl`);
+    this._writeLine(filePath, { sortie_start: now.toISOString(), ucid, name: name || ucid });
+    this._sorties.set(ucid, { ucidDir, name: name || ucid, filePath });
   }
 
   logSnapshot(ucid, snapshot) {
     const sortie = this._sorties.get(ucid);
     if (!sortie) return;
 
-    const now = new Date();
-
-    if (!sortie.filePath) {
-      const ts = now.toISOString().replace(/:/g, '-').replace(/\./g, '-');
-      sortie.filePath = path.join(sortie.ucidDir, `${ts}.jsonl`);
-      this._writeLine(sortie.filePath, { sortie_start: now.toISOString(), ucid, name: sortie.name });
-    }
-
     this._writeLine(sortie.filePath, {
-      t: now.toISOString(),
+      t: new Date().toISOString(),
       type: 'flight_sample_enrichment',
       state: snapshot.state,
     });

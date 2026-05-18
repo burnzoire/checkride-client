@@ -1196,8 +1196,6 @@ function CheckrideMission.ensureWorldHandler()
     CheckrideMission.HitEventId             = world.event.S_EVENT_HIT
     CheckrideMission.ShootingStartEventId   = world.event.S_EVENT_SHOOTING_START
     CheckrideMission.ShootingEndEventId     = world.event.S_EVENT_SHOOTING_END
-    CheckrideMission.PlayerEnterUnitEventId = world.event.S_EVENT_PLAYER_ENTER_UNIT
-
     -- Remove any previously registered handler before re-registering.
     -- If world identity changed (mission reload), the old handler object may still
     -- be registered and will fire alongside the new one, causing duplicate events.
@@ -1228,17 +1226,6 @@ end
 
 function CheckrideMission.EventHandler:onEvent(event)
     if not event then return end
-
-    if event.id == CheckrideMission.PlayerEnterUnitEventId then
-        local initiator = event.initiator
-        if initiator then
-            local playerName = initiator:getPlayerName()
-            if type(playerName) == "string" and playerName ~= "" then
-                local ucid = CheckrideLookupUCID and CheckrideLookupUCID(playerName) or nil
-                CheckrideMission.startPilotSampler(initiator, playerName, ucid)
-            end
-        end
-    end
 
     if CheckrideMission.LandingQualityEventId and event.id == CheckrideMission.LandingQualityEventId then
         CheckrideMission.onLandingQualityMark(event)
@@ -1751,6 +1738,8 @@ function CheckrideMission.onTakeoff(event)
 
     local playerName, unitType, ucid = CheckrideMission.getPlayerInfo(initiator)
     if not playerName then return end -- AI unit, skip
+
+    CheckrideMission.startPilotSampler(initiator, playerName, ucid)
 
     local place = event.place
     if not place then return end

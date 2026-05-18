@@ -21,6 +21,7 @@
   function fmtVal(value, decimals) {
     if (value == null || !Number.isFinite(value)) return '—';
     if (value >= 10000) return Math.round(value / 1000) + 'k';
+    if (value > 0 && parseFloat(value.toFixed(decimals)) === 0) return value.toFixed(decimals + 1);
     return value.toFixed(decimals);
   }
 

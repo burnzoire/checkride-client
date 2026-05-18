@@ -12,11 +12,35 @@
     altitude: '#7abf6a',
     fuel: '#e0a76b',
     scrubLine: 'rgba(126, 184, 247, 0.55)',
+    gap: 'rgba(224, 107, 107, 0.10)',
   };
+
+  const GAP_THRESHOLD_SEC = 5;
 
   let charts = [];
   let scrubTimeSec = null;
   let t0Ms = 0;
+  let gaps = []; // [{ start: tSec, end: tSec }, ...]
+
+  const gapBandPlugin = {
+    id: 'gapBand',
+    beforeDatasetsDraw(chart) {
+      if (gaps.length === 0) return;
+      const xScale = chart.scales.x;
+      const { ctx, chartArea } = chart;
+      ctx.save();
+      ctx.fillStyle = THEME.gap;
+      for (const g of gaps) {
+        const x1 = xScale.getPixelForValue(g.start);
+        const x2 = xScale.getPixelForValue(g.end);
+        if (x2 < chartArea.left || x1 > chartArea.right) continue;
+        const left = Math.max(x1, chartArea.left);
+        const right = Math.min(x2, chartArea.right);
+        ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+      }
+      ctx.restore();
+    },
+  };
 
   const scrubLinePlugin = {
     id: 'scrubLine',
@@ -48,7 +72,7 @@
   function makeConfig(label, color, yLabel, showXAxis) {
     return {
       type: 'line',
-      plugins: [scrubLinePlugin],
+      plugins: [gapBandPlugin, scrubLinePlugin],
       data: {
         datasets: [{
           label,
@@ -117,14 +141,25 @@
     const speedData = [];
     const altData   = [];
     const fuelData  = [];
+    const sampleTimes = [];
 
     for (const ev of events) {
-      if (ev.type !== 'flight_sample_enrichment' || !ev.state?.telemetry) continue;
-      const tel = ev.state.telemetry;
+      if (ev.type !== 'flight_sample_enrichment') continue;
       const tSec = (new Date(ev.t).getTime() - t0Ms) / 1000;
+      sampleTimes.push(tSec);
+      if (!ev.state?.telemetry) continue;
+      const tel = ev.state.telemetry;
       if (tel.speedKts != null)           speedData.push({ x: tSec, y: tel.speedKts });
       if (tel.altBaroFt != null)          altData.push({ x: tSec, y: tel.altBaroFt });
       if (tel.currentFuelState != null)   fuelData.push({ x: tSec, y: tel.currentFuelState * 100 });
+    }
+
+    gaps = [];
+    for (let i = 1; i < sampleTimes.length; i++) {
+      const delta = sampleTimes[i] - sampleTimes[i - 1];
+      if (delta > GAP_THRESHOLD_SEC) {
+        gaps.push({ start: sampleTimes[i - 1], end: sampleTimes[i] });
+      }
     }
 
     charts[0].data.datasets[0].data = speedData;
@@ -140,12 +175,15 @@
 
   function getT0Ms() { return t0Ms; }
 
+  function getGapCount() { return gaps.length; }
+
   function destroy() {
     charts.forEach(c => c.destroy());
     charts = [];
     scrubTimeSec = null;
     t0Ms = 0;
+    gaps = [];
   }
 
-  return { init, load, setScrub, getT0Ms, destroy };
+  return { init, load, setScrub, getT0Ms, getGapCount, destroy };
 }));

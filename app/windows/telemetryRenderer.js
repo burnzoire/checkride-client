@@ -10,6 +10,7 @@
   let selectedUcid = null;
   let pilots = [];             // live: current snapshot array
   let pilotHistory = new Map(); // live: ucid → SortieEvent[]
+  let lastSampleAt = new Map(); // live: ucid → Date.now() of last pushed sample
   let replayEvents = [];       // replay: parsed JSONL events
   let replayMeta = null;       // replay: { ucid, name }
   let scrubFraction = 1.0;     // 0..1
@@ -24,6 +25,7 @@
   const noSelectionEl   = document.getElementById('no-selection');
   const statusDotEl     = document.getElementById('status-dot');
   const pilotCountEl    = document.getElementById('pilot-count');
+  const sampleAgeEl     = document.getElementById('sample-age');
   const scrubberEl      = document.getElementById('scrubber');
   const scrubberLabel   = document.getElementById('scrubber-label');
   const scrubTimeStart  = document.getElementById('scrubber-time-start');
@@ -196,6 +198,7 @@
       type: 'flight_sample_enrichment',
       state: pilot.state,
     });
+    lastSampleAt.set(pilot.ucid, Date.now());
   }
 
   async function pollLive() {
@@ -234,6 +237,24 @@
     }
   }
 
+  function updateSampleAge() {
+    if (!sampleAgeEl) return;
+    if (mode !== 'live' || !selectedUcid) {
+      sampleAgeEl.textContent = '';
+      return;
+    }
+    const t = lastSampleAt.get(selectedUcid);
+    if (!t) {
+      sampleAgeEl.textContent = 'no samples';
+      sampleAgeEl.style.color = '#666d7a';
+      return;
+    }
+    const ageSec = (Date.now() - t) / 1000;
+    const ageStr = ageSec < 1 ? 'just now' : `${ageSec.toFixed(1)}s ago`;
+    sampleAgeEl.textContent = `last sample: ${ageStr}`;
+    sampleAgeEl.style.color = ageSec > 8 ? '#e07b6b' : ageSec > 3 ? '#e0a76b' : '#666d7a';
+  }
+
   // ── Replay mode ────────────────────────────────────────────────────────────
 
   function parseJsonl(text) {
@@ -262,15 +283,19 @@
 
     const replayPilot = [{ ucid: replayMeta.ucid, name: replayMeta.name, state: null }];
     selectedUcid = replayMeta.ucid;
-    pilotCountEl.textContent = '1 sortie';
     renderPilotList(replayPilot);
     updateCharts();
+
+    const gapCount = charts.getGapCount();
+    const gapSuffix = gapCount > 0 ? ` · ${gapCount} gap${gapCount > 1 ? 's' : ''}` : '';
+    pilotCountEl.textContent = `1 sortie${gapSuffix}`;
   }
 
   function returnToLive() {
     mode = 'live';
     replayEvents = [];
     replayMeta = null;
+    lastSampleAt.clear();
     selectedUcid = pilots.length > 0 ? pilots[0].ucid : null;
     scrubFraction = 1.0;
     scrubberEl.value = 1000;
@@ -330,4 +355,5 @@
   pollLive();
   setInterval(pollLive, POLL_INTERVAL_MS);
   setInterval(checkStale, 1000);
+  setInterval(updateSampleAge, 500);
 })();

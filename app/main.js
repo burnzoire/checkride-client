@@ -177,6 +177,7 @@ function showLuaVersionMismatchDialog({ luaClientVersion, clientVersion }) {
 
 async function bootstrap() {
   sortieLogger = new SortieLogger(path.join(app.getPath('userData'), 'logs'));
+  sortieLogger.purgeLogs();
 
   const appInitResult = await initApp({
     onLuaVersionMismatch: showLuaVersionMismatchDialog,

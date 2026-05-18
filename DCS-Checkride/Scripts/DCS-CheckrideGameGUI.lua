@@ -191,7 +191,7 @@ end
 
 function Checkride.onPlayerDisconnect(id)
     local player = Checkride.findOrCreatePlayer(id)
-    Checkride.log(player.name .. " disconnected, ucid: " .. player.ucid)
+    Checkride.log(player.name .. " disconnected, ucid: " .. (player.ucid or "nil"))
 end
 
 function Checkride.onNetConnect(localPlayerID)

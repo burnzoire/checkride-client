@@ -97,11 +97,13 @@ test('endSortie appends a sortie_end record', () => {
   expect(last.reason).toBe('land');
 });
 
-test('endSortie with no file written is silent (pilot never flew)', () => {
+test('endSortie without logSnapshot still writes sortie_end to file', () => {
   const logger = new SortieLogger(tmpDir);
   logger.startSortie('ucid1', 'Maverick');
   expect(() => logger.endSortie('ucid1', 'disconnect')).not.toThrow();
-  expect(fs.readdirSync(path.join(tmpDir, 'ucid1'))).toHaveLength(0);
+  const lines = readLines(firstFile(path.join(tmpDir, 'ucid1')));
+  expect(lines[lines.length - 1].sortie_end).toBeTruthy();
+  expect(lines[lines.length - 1].reason).toBe('disconnect');
 });
 
 test('endSortie on unknown ucid is a no-op', () => {
@@ -113,12 +115,13 @@ test('startSortie called twice closes the first sortie', () => {
   const logger = new SortieLogger(tmpDir);
   logger.startSortie('ucid1', 'Maverick');
   logger.logSnapshot('ucid1', { state: {} });
-  logger.startSortie('ucid1', 'Maverick'); // second slot — no snapshot taken yet
+  logger.startSortie('ucid1', 'Maverick'); // second slot
 
-  // Only the first sortie's file exists; the second has no file until a snapshot is taken
-  const files = fs.readdirSync(path.join(tmpDir, 'ucid1'));
-  expect(files).toHaveLength(1);
+  // Each startSortie eagerly creates its own file
+  const files = fs.readdirSync(path.join(tmpDir, 'ucid1')).sort();
+  expect(files).toHaveLength(2);
 
+  // First file ends with 'replaced'
   const lines = readLines(path.join(tmpDir, 'ucid1', files[0]));
   expect(lines[lines.length - 1].reason).toBe('replaced');
 });

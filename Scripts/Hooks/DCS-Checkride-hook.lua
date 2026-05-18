@@ -237,21 +237,6 @@ function CheckrideCallbackRouter.onSimulationFrame()
 end
 
 function CheckrideCallbackRouter.onGameEvent(eventName, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
-    if eventName == 'change_slot' then
-        local playerID = arg1
-        local slotID   = tostring(arg2 or '')
-        local name = net.get_player_info(playerID, 'name')
-        local ucid = net.get_player_info(playerID, 'ucid')
-        if name and name ~= '' and slotID ~= '' and slotID ~= '0' then
-            local ucidLua = (ucid and ucid ~= '') and string.format('%q', ucid) or 'nil'
-            net.dostring_in(CHECKRIDE_MISSION_STATE, string.format([[
-                local __u = Unit.getByName(%q)
-                if __u and CheckrideMission and CheckrideMission.startPilotSampler then
-                    CheckrideMission.startPilotSampler(__u, %q, %s)
-                end
-            ]], slotID, name, ucidLua))
-        end
-    end
     forwardToCheckride('onGameEvent', eventName, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
 end
 

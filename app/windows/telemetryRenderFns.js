@@ -44,8 +44,10 @@
   function aircraftStatusLabel(t) {
     const s = t.aircraftStatus;
     if (s === 'dead') return { label: 'Dead', cls: 'danger' };
-    if (s === 'airborne' || t.inAir) return { label: 'Airborne', cls: 'ok' };
-    return { label: 'Ground', cls: '' };
+    if (s === 'disconnected') return { label: 'Disconnected', cls: 'danger' };
+    if (s === 'airborne') return { label: 'Airborne', cls: 'ok' };
+    if (s === 'ground') return { label: 'Ground', cls: '' };
+    return { label: 'Connected', cls: '' };
   }
 
   function renderTelemetry(t) {

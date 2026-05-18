@@ -320,6 +320,46 @@
 
     .stat-key { font-size: 11px; color: #7a8394; }
     .stat-val { font-size: 11px; color: #c8cdd6; font-variant-numeric: tabular-nums; text-align: right; }
+
+    .payload-section {
+      padding-top: 10px;
+      border-top: 1px solid #2e3340;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .payload-title {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #4d5464;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .payload-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    .payload-name {
+      font-size: 11px;
+      color: #c8cdd6;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .payload-meta {
+      font-size: 10px;
+      color: #5a6272;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
   </style>
 </head>
 <body>

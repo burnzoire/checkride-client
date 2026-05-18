@@ -6,6 +6,12 @@
   }
 }(function () {
 
+  const AMMO_CATEGORY = { 0: 'Gun', 1: 'Missile', 2: 'Rocket', 3: 'Bomb' };
+
+  function escHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   // cx=50, cy=50, r=40 — semicircle from left (180°) to right (0°), sweeping upward.
   // fraction 0→1 maps to 0→180° of arc.
   function arcPath(fraction) {
@@ -35,12 +41,12 @@
   ];
 
   const STAT_ROWS = [
-    { key: 'most_air_kills_in_sortie',       label: 'Air kills',      fmt: v => v != null ? String(Math.round(v)) : '—' },
-    { key: 'most_ground_kills_in_sortie',    label: 'Ground kills',   fmt: v => v != null ? String(Math.round(v)) : '—' },
-    { key: 'longest_missile_hit_nm',         label: 'Missile hit',    fmt: v => v != null ? v.toFixed(1) + ' nm' : '—' },
-    { key: 'longest_weapon_hit_nm',          label: 'Weapon hit',     fmt: v => v != null ? v.toFixed(1) + ' nm' : '—' },
-    { key: 'longest_gun_burst_seconds',      label: 'Gun burst',      fmt: v => v != null ? v.toFixed(1) + 's' : '—' },
-    { key: 'longest_refuel_contact_seconds', label: 'Refuel contact', fmt: v => v != null ? Math.round(v) + 's' : '—' },
+    { key: 'most_air_kills_in_sortie',       label: 'Most air kills',       fmt: v => v != null ? String(Math.round(v)) : '—' },
+    { key: 'most_ground_kills_in_sortie',    label: 'Most ground kills',    fmt: v => v != null ? String(Math.round(v)) : '—' },
+    { key: 'longest_missile_hit_nm',         label: 'Longest missile hit',  fmt: v => v != null ? v.toFixed(1) + ' nm' : '—' },
+    { key: 'longest_weapon_hit_nm',          label: 'Longest weapon hit',   fmt: v => v != null ? v.toFixed(1) + ' nm' : '—' },
+    { key: 'longest_gun_burst_seconds',      label: 'Longest gun burst',    fmt: v => v != null ? v.toFixed(1) + 's' : '—' },
+    { key: 'longest_refuel_contact_seconds', label: 'Longest refuel contact', fmt: v => v != null ? Math.round(v) + 's' : '—' },
   ];
 
   function renderArcGauge(cfg, gauges, telemetry, pilotState) {
@@ -110,6 +116,21 @@
                <div class="stat-val">${row.fmt(val)}</div>`;
     }
     html += '</div>';
+
+    const payload = telemetry?.payload;
+    if (Array.isArray(payload) && payload.length > 0) {
+      html += `<div class="payload-section">
+        <div class="payload-title">Payload</div>`;
+      for (const item of payload) {
+        const name = escHtml(item.displayName || item.typeName || 'Unknown');
+        const cat = AMMO_CATEGORY[item.category] ?? '';
+        html += `<div class="payload-row">
+          <span class="payload-name">${name}</span>
+          <span class="payload-meta">${cat}&ensp;×${item.count}</span>
+        </div>`;
+      }
+      html += '</div>';
+    }
 
     el.innerHTML = html;
   }

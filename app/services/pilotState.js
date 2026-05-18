@@ -426,7 +426,13 @@ class PilotState {
   applyPilotDown(event) {
     this.inAir = false;
     const deathTypes = ['crash', 'eject', 'pilot_death', 'self_kill'];
-    this.aircraftStatus = (event?.type && deathTypes.includes(event.type)) ? 'dead' : 'ground';
+    if (event?.type === 'disconnect') {
+      this.aircraftStatus = 'disconnected';
+    } else if (event?.type && deathTypes.includes(event.type)) {
+      this.aircraftStatus = 'dead';
+    } else {
+      this.aircraftStatus = 'ground';
+    }
   }
 
   applyChangeSlot(event = {}) {

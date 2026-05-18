@@ -81,8 +81,13 @@
       const isSelected = p.ucid === selectedUcid;
       const aircraftStatus = p.state?.telemetry?.aircraftStatus;
       const inAir = p.state?.telemetry?.inAir;
-      const statusLabel = aircraftStatus === 'dead' ? 'Dead' : (inAir ? 'Airborne' : 'On Ground');
-      const statusClass = aircraftStatus === 'dead' ? 'dead' : (inAir ? 'in-air' : '');
+      const statusLabel = !p.state?.telemetry ? 'Connected'
+        : aircraftStatus === 'dead' ? 'Dead'
+        : aircraftStatus === 'disconnected' ? 'Disconnected'
+        : aircraftStatus === 'airborne' ? 'Airborne'
+        : aircraftStatus === 'ground' ? 'On Ground'
+        : 'Connected';
+      const statusClass = (aircraftStatus === 'dead' || aircraftStatus === 'disconnected') ? 'dead' : (aircraftStatus === 'airborne' ? 'in-air' : '');
       return `<div class="pilot-item${isSelected ? ' selected' : ''}" data-ucid="${escapeHtml(p.ucid)}">
         <div class="pilot-name">${escapeHtml(p.name)}</div>
         <div class="pilot-status ${statusClass}">${statusLabel}</div>

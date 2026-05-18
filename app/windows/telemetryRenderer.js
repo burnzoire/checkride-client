@@ -218,18 +218,23 @@
         appendLiveSample(pilot);
       }
 
-      if (selectedUcid && !pilots.find(p => p.ucid === selectedUcid)) selectedUcid = null;
-      if (!selectedUcid && pilots.length > 0) selectedUcid = pilots[0].ucid;
+      if (mode === 'live') {
+        if (selectedUcid && !pilots.find(p => p.ucid === selectedUcid)) selectedUcid = null;
+        if (!selectedUcid && pilots.length > 0) selectedUcid = pilots[0].ucid;
 
-      pilotCountEl.textContent = pilots.length === 1 ? '1 pilot' : `${pilots.length} pilots`;
-      renderPilotList(pilots);
+        pilotCountEl.textContent = pilots.length === 1 ? '1 pilot' : `${pilots.length} pilots`;
+        renderPilotList(pilots);
 
-      if (selectedUcid) {
-        if (liveAutoFollow) {
-          scrubFraction = 1.0;
-          scrubberEl.value = 1000;
+        if (selectedUcid) {
+          if (liveAutoFollow) {
+            scrubFraction = 1.0;
+            scrubberEl.value = 1000;
+          }
+          updateCharts();
+        } else {
+          charts.load([]);
+          showDetailPlaceholder();
         }
-        updateCharts();
       }
     } catch (err) {
       console.error('Telemetry poll failed:', err);

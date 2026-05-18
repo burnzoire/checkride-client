@@ -164,17 +164,25 @@
       }
     }
 
-    const xMin = sampleTimes.length > 0 ? sampleTimes[0] : 0;
-    const xMax = sampleTimes.length > 0 ? sampleTimes[sampleTimes.length - 1] : 100;
-
     charts[0].data.datasets[0].data = speedData;
     charts[1].data.datasets[0].data = altData;
     charts[2].data.datasets[0].data = fuelData;
-    charts.forEach(c => {
-      c.options.scales.x.min = xMin;
-      c.options.scales.x.max = xMax;
-      c.update('none');
-    });
+
+    if (sampleTimes.length > 0) {
+      const xMin = sampleTimes[0];
+      const xMax = sampleTimes[sampleTimes.length - 1];
+      charts.forEach(c => {
+        c.options.scales.x.min = xMin;
+        c.options.scales.x.max = xMax;
+        c.update('none');
+      });
+    } else {
+      charts.forEach(c => {
+        delete c.options.scales.x.min;
+        delete c.options.scales.x.max;
+        c.update('none');
+      });
+    }
   }
 
   function setScrub(tSec) {

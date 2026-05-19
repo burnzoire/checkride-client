@@ -39,7 +39,8 @@
       "!index.js",
       "!main.js",
       "!__tests__/**",
-      "!**/*.test.js"
+      "!**/*.test.js",
+      "!windows/telemetryRenderer.js"
     ],
     "coverageThreshold": {
       "global": {

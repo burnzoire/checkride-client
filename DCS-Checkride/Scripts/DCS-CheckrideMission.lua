@@ -812,33 +812,33 @@ local function getRefuelingSystem(unit)
     return desc.tankerType
 end
 
+local function getUnitFuelCapacityLbs(unit)
+    if not unit then
+        return nil
+    end
+
+    local okDesc, desc = pcall(function() return unit:getDesc() end)
+    if not okDesc or not desc then
+        return nil
+    end
+
+    local fuelMassMaxKg = desc.fuelMassMax
+    if not isFiniteNumber(fuelMassMaxKg) or fuelMassMaxKg <= 0 then
+        return nil
+    end
+
+    local fuelCapacityLbs = fuelMassMaxKg * KILOGRAM_TO_POUNDS
+    if not isFiniteNumber(fuelCapacityLbs) or fuelCapacityLbs <= 0 then
+        return nil
+    end
+
+    return fuelCapacityLbs
+end
+
 local function getRefuelingSystemName(unit)
     local system = getRefuelingSystem(unit)
     if system == nil then
         return nil
-    end
-
-    local function getUnitFuelCapacityLbs(unit)
-        if not unit then
-            return nil
-        end
-
-        local okDesc, desc = pcall(function() return unit:getDesc() end)
-        if not okDesc or not desc then
-            return nil
-        end
-
-        local fuelMassMaxKg = desc.fuelMassMax
-        if not isFiniteNumber(fuelMassMaxKg) or fuelMassMaxKg <= 0 then
-            return nil
-        end
-
-        local fuelCapacityLbs = fuelMassMaxKg * KILOGRAM_TO_POUNDS
-        if not isFiniteNumber(fuelCapacityLbs) or fuelCapacityLbs <= 0 then
-            return nil
-        end
-
-        return fuelCapacityLbs
     end
 
     local unitRefueling = Unit and Unit.RefuelingSystem or nil

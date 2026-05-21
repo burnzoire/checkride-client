@@ -901,8 +901,8 @@ local function finalizeRefuelSegment(session, playerUcid, playerName, unitType)
         return
     end
 
-    local minAccumulatedGainFromLbs = minAccumulatedGainLbs / fuelCapacityLbs
-    local requiredMinAccumulatedGain = math.max(minAccumulatedGain, minAccumulatedGainFromLbs)
+    local minFractionalGainFromPoundsThreshold = minAccumulatedGainLbs / fuelCapacityLbs
+    local requiredMinAccumulatedGain = math.max(minAccumulatedGain, minFractionalGainFromPoundsThreshold)
     if session.accumulatedFuelGain < requiredMinAccumulatedGain then
         return
     end

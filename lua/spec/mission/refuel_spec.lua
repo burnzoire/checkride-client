@@ -86,6 +86,7 @@ describe("CheckrideMission.trackRefuelFromFuelSample", function()
 
         -- Build up a refuel session.
         CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5,  true, 100)
+        -- 10000 kg capacity ~= 22046 lb, so a 0.12 gain comfortably clears the 2000 lb minimum.
         CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.56, true, 104)
         CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.62, true, 108)
         -- Fuel now flat → finalize.

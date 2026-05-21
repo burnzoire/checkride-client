@@ -360,4 +360,63 @@ describe("CheckrideMission.onKill", function()
         -- Pending data should be consumed
         assert.is_nil(CheckrideMission.pendingKillsByObjectId[77])
     end)
+
+    it("fills missing pending weapon metadata from latest matching active shot", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick")
+        initiator.getCoalition = function() return 2 end
+
+        local target = stubs.make_unit({
+            coalition = 1,
+            id        = 88,
+            desc      = { category = Unit.Category.AIRPLANE, attributes = {} },
+        })
+
+        -- Pending kill exists but misses class/guidance (common lethal-hit edge case).
+        CheckrideMission.pendingKillsByObjectId[88] = {
+            killedAtMs      = 450,
+            victimRoles     = { "Fighters" },
+            victimPositionX = 100,
+            victimPositionY = 200,
+            night           = false,
+            victimTypeName  = "MiG-29S",
+        }
+
+        CheckrideMission.activeWeaponShots["older"] = {
+            weaponKey      = "older",
+            weaponClass    = "AAM",
+            weaponGuidance = "IR",
+            targetObjectId = 88,
+            playerUcid     = "ucid-mav",
+            playerName     = "Maverick",
+            inFlight       = true,
+            firedAt        = 100,
+            lastDataAt     = 101,
+        }
+
+        CheckrideMission.activeWeaponShots["newer"] = {
+            weaponKey      = "newer",
+            weaponClass    = "AAM",
+            weaponGuidance = "RADAR_SEMI_ACTIVE",
+            targetObjectId = 88,
+            playerUcid     = "ucid-mav",
+            playerName     = "Maverick",
+            inFlight       = true,
+            firedAt        = 200,
+            lastDataAt     = 201,
+        }
+
+        CheckrideMission.onKill({ initiator = initiator, target = target, weapon = nil, time = 500 })
+
+        local kill_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "kill_enrichment" then kill_ev = c end
+        end
+
+        assert.is_not_nil(kill_ev)
+        assert.are.equal("RADAR_SEMI_ACTIVE", kill_ev.weaponGuidance)
+        assert.are.equal("AAM", kill_ev.weaponClass)
+        assert.is_nil(CheckrideMission.activeWeaponShots["newer"])
+        assert.is_not_nil(CheckrideMission.activeWeaponShots["older"])
+    end)
 end)

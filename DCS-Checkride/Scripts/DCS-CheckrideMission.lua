@@ -1077,35 +1077,34 @@ local function isAirToAirMissileClass(weaponClass)
     return weaponClass == "AAM"
 end
 
-local function findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId)
+local function findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId, playerUcid, playerName)
     local candidates = {}
 
-    for _, candidate in pairs(CheckrideMission.activeWeaponShots) do
+    for _, candidate in pairs(CheckrideMission.activeWeaponShots or {}) do
         if candidate.inFlight ~= false then
+            if playerUcid and candidate.playerUcid and candidate.playerUcid ~= playerUcid then
+                goto continue
+            end
+
+            if playerName and candidate.playerName and candidate.playerName ~= playerName then
+                goto continue
+            end
+
             local matched = false
 
-            if candidate.weaponClass == "air_to_air_missile" then
-                if targetObjectId and candidate.targetObjectId == targetObjectId then
-                    matched = true
-                elseif weaponKey and candidate.weaponKey == weaponKey then
-                    matched = true
-                elseif weaponObjectId and candidate.weaponObjectId == weaponObjectId then
-                    matched = true
-                end
-            else
-                if targetObjectId and candidate.targetObjectId == targetObjectId then
-                    matched = true
-                elseif weaponKey and candidate.weaponKey == weaponKey then
-                    matched = true
-                elseif weaponObjectId and candidate.weaponObjectId == weaponObjectId then
-                    matched = true
-                end
+            if targetObjectId and candidate.targetObjectId == targetObjectId then
+                matched = true
+            elseif weaponKey and candidate.weaponKey == weaponKey then
+                matched = true
+            elseif weaponObjectId and candidate.weaponObjectId == weaponObjectId then
+                matched = true
             end
 
             if matched then
                 candidates[#candidates + 1] = candidate
             end
         end
+        ::continue::
     end
 
     return candidates
@@ -1132,7 +1131,23 @@ local function pickPreferredWeaponCandidate(candidates, weaponKey, weaponObjectI
         end
     end
 
-    return candidates[#candidates]
+    local preferred = candidates[1]
+    if not preferred then
+        return nil
+    end
+
+    local preferredTime = preferred.firedAt or preferred.lastDataAt or 0
+
+    for i = 2, #candidates do
+        local candidate = candidates[i]
+        local candidateTime = candidate.firedAt or candidate.lastDataAt or 0
+        if candidateTime > preferredTime then
+            preferred = candidate
+            preferredTime = candidateTime
+        end
+    end
+
+    return preferred
 end
 
 -- ============================================================================
@@ -1581,7 +1596,7 @@ function CheckrideMission.onHit(event)
     end
 
     -- ── Outbound weapon tracking hit (distanceNm, height delta) ───────────────
-    local matchingShots = findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId)
+    local matchingShots = findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId, ucid, playerName)
     if #matchingShots == 0 then return end
 
     local shotState = pickPreferredWeaponCandidate(matchingShots, weaponKey, weaponObjectId)
@@ -1858,20 +1873,18 @@ function CheckrideMission.onKill(event)
     -- Fallback: recover weaponGuidance/weaponClass from the outbound shot record for
     -- proximity-fused missiles (e.g. AIM-54C Phoenix) that detonate without triggering
     -- onHit against the victim unit, leaving no pending kill data.
-    -- This guard only runs when pending is nil, so onHit did not fire for this victim —
-    -- the shot record is still live in activeWeaponShots and safe to consume here.
-    -- The pairs() scan mirrors findInFlightWeaponCandidates; typical in-flight shot
-    -- counts are small (single digits), so the linear search is acceptable.
+    -- This also runs when pending exists but class/guidance are missing because some
+    -- lethal-hit paths do not expose event.weapon reliably.
     local fallbackGuidance = nil
     local fallbackWeaponClass = nil
-    if not pending and victimObjectId then
-        for _, shot in pairs(CheckrideMission.activeWeaponShots) do
-            if shot.playerUcid == ucid and shot.targetObjectId == victimObjectId then
-                fallbackGuidance = shot.weaponGuidance
-                fallbackWeaponClass = shot.weaponClass
-                CheckrideMission.activeWeaponShots[shot.weaponKey] = nil
-                break
-            end
+    local needsFallback = (pending == nil) or (pending.weaponGuidance == nil) or (pending.weaponClass == nil)
+    if needsFallback and victimObjectId then
+        local candidates = findInFlightWeaponCandidates(victimObjectId, nil, nil, ucid, playerName)
+        local shot = pickPreferredWeaponCandidate(candidates, nil, nil)
+        if shot then
+            fallbackGuidance = shot.weaponGuidance
+            fallbackWeaponClass = shot.weaponClass
+            CheckrideMission.activeWeaponShots[shot.weaponKey] = nil
         end
     end
 

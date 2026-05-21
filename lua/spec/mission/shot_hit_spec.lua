@@ -194,4 +194,71 @@ describe("CheckrideMission.onHit", function()
         -- Shot should be removed from tracking
         assert.is_nil(CheckrideMission.activeWeaponShots[wkey])
     end)
+
+    it("prefers most recent in-flight shot when only targetObjectId matches", function()
+        local captured = loader.capture_events()
+
+        local initiator = player_unit("Maverick")
+        local farKey = "far-shot"
+        local closeKey = "close-shot"
+
+        CheckrideMission.activeWeaponShots[farKey] = {
+            weaponKey         = farKey,
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            weaponName        = "AIM-54C",
+            weaponDisplayName = "Phoenix",
+            targetObjectId    = 99,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 100,
+            lastDataAt        = 101,
+        }
+
+        CheckrideMission.activeWeaponShots[closeKey] = {
+            weaponKey         = closeKey,
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            weaponName        = "AIM-7M",
+            weaponDisplayName = "Sparrow",
+            targetObjectId    = 99,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 200,
+            lastDataAt        = 201,
+        }
+
+        local target = stubs.make_unit({
+            id    = 99,
+            desc  = { category = Unit.Category.AIRPLANE, attributes = {} },
+            point = { x = 4630, y = 1000, z = 0 }, -- ~2.5nm from close shot origin
+            life  = 5.0,
+        })
+
+        CheckrideMission.onHit({
+            initiator = initiator,
+            weapon    = nil,
+            target    = target,
+            time      = 300,
+        })
+
+        local hit_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "hit_enrichment" then
+                hit_ev = c
+            end
+        end
+
+        assert.is_not_nil(hit_ev)
+        assert.are.equal(closeKey, hit_ev.weaponKey)
+        assert.is_true(hit_ev.distanceNm > 2.0 and hit_ev.distanceNm < 3.0)
+        assert.is_nil(CheckrideMission.activeWeaponShots[closeKey])
+        assert.is_not_nil(CheckrideMission.activeWeaponShots[farKey])
+    end)
 end)

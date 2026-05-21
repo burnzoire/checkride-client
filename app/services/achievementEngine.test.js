@@ -101,6 +101,7 @@ const PILOTSTATE_TO_SNAPSHOT = {
   sortieAamFiredCount:  'state.sortieAamFiredCount',
   longestWeaponHit:     'state.longestWeaponHit',
   longestMissileHit:    'state.longestMissileHit',
+  ordnanceLog:          'state.ordnanceLog',
   inboundMissiles:      'state.inboundMissiles',
   currentUnitCategory:  'state.currentUnitCategory',
   hitCounters:          'state.hitCounters',

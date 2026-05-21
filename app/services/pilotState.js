@@ -32,6 +32,7 @@ const METERS_TO_FEET = 3.2808398950131;
 const WEAPON_CLASS_AIR_TO_AIR_MISSILE = 'AAM';
 const WEAPON_COMPLETED_TTL_MS = 60 * 1000;
 const WEAPON_MAX_TRACKS = 100;
+const ORDNANCE_LOG_MAX_TRACKS = 500;
 const INBOUND_MISSILE_TTL_MS = 60 * 1000;
 class PilotState {
   constructor() {
@@ -260,16 +261,19 @@ class PilotState {
       completedAtMs: null,
       lastSampleAtMs: this._parseEventTimeMs(event),
     };
+    weaponTrack.hitOrMiss = null;
 
     const existingIndex = this.weapons.findIndex((candidate) => candidate.weaponKey === weaponTrack.weaponKey && candidate.inFlight);
     if (existingIndex >= 0) {
       this.weapons[existingIndex] = weaponTrack;
+      this._upsertOrdnanceLogEntry(weaponTrack);
       this._pruneCompletedWeapons();
       this._syncMissileView();
       return;
     }
 
     this.weapons.push(weaponTrack);
+    this._upsertOrdnanceLogEntry(weaponTrack);
     if (weaponTrack.weaponClass === WEAPON_CLASS_AIR_TO_AIR_MISSILE) {
       this.sortieAamFiredCount++;
     }
@@ -322,8 +326,10 @@ class PilotState {
 
     if (weaponTrack.inFlight === false || status === 'expired' || status === 'hit') {
       weaponTrack.completedAtMs = weaponTrack.lastSampleAtMs;
+      weaponTrack.hitOrMiss = status === 'hit' ? 'hit' : 'miss';
     }
 
+    this._upsertOrdnanceLogEntry(weaponTrack);
     this._pruneCompletedWeapons();
     this._syncMissileView();
   }
@@ -364,6 +370,8 @@ class PilotState {
 
     weaponTrack.inFlight = false;
     weaponTrack.status = event.status ?? 'hit';
+    weaponTrack.hitOrMiss = 'hit';
+    weaponTrack.targetObjectId = event.targetObjectId ?? event.target_object_id ?? weaponTrack.targetObjectId;
     weaponTrack.hitX = this._normalizeFiniteNumber(event.hitX ?? event.hit_x);
     weaponTrack.hitY = this._normalizeFiniteNumber(event.hitY ?? event.hit_y);
     weaponTrack.hitAlt = this._normalizeFiniteNumber(event.hitAlt ?? event.hit_alt);
@@ -396,6 +404,7 @@ class PilotState {
       }
     }
 
+    this._upsertOrdnanceLogEntry(weaponTrack);
     this._pruneCompletedWeapons();
     this._syncMissileView();
   }
@@ -572,6 +581,7 @@ applyGunBurstStart(event) {
 
     this.weapons = [];
     this.missiles = [];
+    this.ordnanceLog = [];
     this.sortieAamFiredCount = 0;
     this.longestWeaponHit = 0;
     this.longestMissileHit = 0;
@@ -636,6 +646,48 @@ applyGunBurstStart(event) {
       if (!Number.isFinite(completedAtMs)) return false;
       return (nowMs - completedAtMs) <= WEAPON_COMPLETED_TTL_MS;
     });
+  }
+
+  _upsertOrdnanceLogEntry(weaponTrack) {
+    if (!weaponTrack || !weaponTrack.weaponKey) return;
+
+    const entry = {
+      weaponKey: weaponTrack.weaponKey,
+      weaponObjectId: weaponTrack.weaponObjectId ?? null,
+      startTimeMs: weaponTrack.firedAtMs ?? null,
+      endTimeMs: weaponTrack.completedAtMs ?? weaponTrack.hitAtMs ?? null,
+      hitOrMiss: weaponTrack.hitOrMiss ?? null,
+      targetObjectId: weaponTrack.targetObjectId ?? null,
+    };
+
+    const activeByKeyIndex = this.ordnanceLog.findIndex(
+      (candidate) => candidate.weaponKey === weaponTrack.weaponKey && candidate.endTimeMs == null
+    );
+    if (activeByKeyIndex >= 0) {
+      this.ordnanceLog[activeByKeyIndex] = {
+        ...this.ordnanceLog[activeByKeyIndex],
+        ...entry,
+      };
+      return;
+    }
+
+    const activeByObjectIdIndex = entry.weaponObjectId == null
+      ? -1
+      : this.ordnanceLog.findIndex(
+        (candidate) => candidate.weaponObjectId === entry.weaponObjectId && candidate.endTimeMs == null
+      );
+    if (activeByObjectIdIndex >= 0) {
+      this.ordnanceLog[activeByObjectIdIndex] = {
+        ...this.ordnanceLog[activeByObjectIdIndex],
+        ...entry,
+      };
+      return;
+    }
+
+    this.ordnanceLog.push(entry);
+    if (this.ordnanceLog.length > ORDNANCE_LOG_MAX_TRACKS) {
+      this.ordnanceLog = this.ordnanceLog.slice(-ORDNANCE_LOG_MAX_TRACKS);
+    }
   }
 
   _normalizeWeaponClass(weaponClass, weaponName) {

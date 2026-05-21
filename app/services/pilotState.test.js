@@ -389,6 +389,15 @@ describe('PilotState — sortie fields', () => {
       expect(state.missiles[0].distanceNm).toBeCloseTo(1.0, 3);
       expect(state.missiles[0].heightDeltaFt).toBeCloseTo(500.0, 1);
       expect(state.longestMissileHit).toBeCloseTo(1.0, 3);
+      expect(state.ordnanceLog).toHaveLength(1);
+      expect(state.ordnanceLog[0]).toEqual(expect.objectContaining({
+        weaponKey: 'weapon-1',
+        weaponObjectId: null,
+        startTimeMs: expect.any(Number),
+        endTimeMs: expect.any(Number),
+        hitOrMiss: 'hit',
+        targetObjectId: 101,
+      }));
     });
 
     it('updates longestMissileHit using explicit hit distance when provided', () => {
@@ -495,6 +504,28 @@ describe('PilotState — sortie fields', () => {
       expect(state.weapons[0].distanceNm).toBeCloseTo(7.3);
       expect(state.longestWeaponHit).toBeCloseTo(7.3);
       expect(state.longestMissileHit).toBe(0);
+    });
+
+    it('marks an ordnance log entry as miss when weapon sample expires', () => {
+      state.applyShotEnrichment({
+        weaponKey: 'weapon-4b',
+        weaponName: 'GBU-12',
+        targetObjectId: 4444,
+      });
+
+      state.applyWeaponSampleEnrichment({
+        weaponKey: 'weapon-4b',
+        status: 'expired',
+        inFlight: false,
+      });
+
+      expect(state.ordnanceLog).toHaveLength(1);
+      expect(state.ordnanceLog[0]).toEqual(expect.objectContaining({
+        weaponKey: 'weapon-4b',
+        hitOrMiss: 'miss',
+        targetObjectId: 4444,
+        endTimeMs: expect.any(Number),
+      }));
     });
 
     it('updates weapon track status/speed from weapon sample enrichment', () => {

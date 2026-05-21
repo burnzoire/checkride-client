@@ -1131,14 +1131,10 @@ local function pickPreferredWeaponCandidate(candidates, weaponKey, weaponObjectI
         end
     end
 
-    local preferred = candidates[1]
-    if not preferred then
-        return nil
-    end
+    local preferred = nil
+    local preferredTime = -math.huge
 
-    local preferredTime = preferred.firedAt or preferred.lastDataAt or 0
-
-    for i = 2, #candidates do
+    for i = 1, #candidates do
         local candidate = candidates[i]
         local candidateTime = candidate.firedAt or candidate.lastDataAt or 0
         if candidateTime > preferredTime then

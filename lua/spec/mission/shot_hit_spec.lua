@@ -262,6 +262,87 @@ describe("CheckrideMission.onHit", function()
         assert.is_not_nil(CheckrideMission.activeWeaponShots[farKey])
     end)
 
+    it("keeps attribution stable when a later-launched short shot hits before an earlier long shot", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick")
+
+        local longKey = "long-shot"
+        local shortKey = "short-shot"
+
+        CheckrideMission.activeWeaponShots[longKey] = {
+            weaponKey         = longKey,
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            targetObjectId    = 201,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 100,
+            lastDataAt        = 101,
+        }
+
+        CheckrideMission.activeWeaponShots[shortKey] = {
+            weaponKey         = shortKey,
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            targetObjectId    = 202,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 200,
+            lastDataAt        = 201,
+        }
+
+        local shortTarget = stubs.make_unit({
+            id    = 202,
+            desc  = { category = Unit.Category.AIRPLANE, attributes = {} },
+            point = { x = 3704, y = 1000, z = 0 }, -- ~2.0nm
+            life  = 5.0,
+        })
+
+        local longTarget = stubs.make_unit({
+            id    = 201,
+            desc  = { category = Unit.Category.AIRPLANE, attributes = {} },
+            point = { x = 18520, y = 1000, z = 0 }, -- ~10.0nm
+            life  = 5.0,
+        })
+
+        -- Later-launched short shot hits first.
+        CheckrideMission.onHit({
+            initiator = initiator,
+            weapon    = nil,
+            target    = shortTarget,
+            time      = 300,
+        })
+
+        -- Earlier-launched long shot hits later.
+        CheckrideMission.onHit({
+            initiator = initiator,
+            weapon    = nil,
+            target    = longTarget,
+            time      = 350,
+        })
+
+        local hit_events = {}
+        for _, c in ipairs(captured) do
+            if c.type == "hit_enrichment" then
+                table.insert(hit_events, c)
+            end
+        end
+
+        assert.are.equal(2, #hit_events)
+        assert.are.equal(shortKey, hit_events[1].weaponKey)
+        assert.are.equal(longKey, hit_events[2].weaponKey)
+        assert.is_true(hit_events[1].distanceNm > 1.5 and hit_events[1].distanceNm < 2.5)
+        assert.is_true(hit_events[2].distanceNm > 9.0 and hit_events[2].distanceNm < 11.0)
+        assert.is_nil(CheckrideMission.activeWeaponShots[shortKey])
+        assert.is_nil(CheckrideMission.activeWeaponShots[longKey])
+    end)
+
     it("breaks shot-selection timestamp ties deterministically", function()
         local captured = loader.capture_events()
         local initiator = player_unit("Maverick")

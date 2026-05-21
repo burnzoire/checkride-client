@@ -1080,31 +1080,31 @@ end
 local function findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObjectId, playerUcid, playerName)
     local candidates = {}
 
-    for _, candidate in pairs(CheckrideMission.activeWeaponShots or {}) do
+    for _, candidate in pairs(CheckrideMission.activeWeaponShots) do
         if candidate.inFlight ~= false then
+            local playerMatches = true
             if playerUcid and candidate.playerUcid and candidate.playerUcid ~= playerUcid then
-                goto continue
+                playerMatches = false
+            elseif playerName and candidate.playerName and candidate.playerName ~= playerName then
+                playerMatches = false
             end
 
-            if playerName and candidate.playerName and candidate.playerName ~= playerName then
-                goto continue
-            end
+            if playerMatches then
+                local matched = false
 
-            local matched = false
+                if targetObjectId and candidate.targetObjectId == targetObjectId then
+                    matched = true
+                elseif weaponKey and candidate.weaponKey == weaponKey then
+                    matched = true
+                elseif weaponObjectId and candidate.weaponObjectId == weaponObjectId then
+                    matched = true
+                end
 
-            if targetObjectId and candidate.targetObjectId == targetObjectId then
-                matched = true
-            elseif weaponKey and candidate.weaponKey == weaponKey then
-                matched = true
-            elseif weaponObjectId and candidate.weaponObjectId == weaponObjectId then
-                matched = true
-            end
-
-            if matched then
-                candidates[#candidates + 1] = candidate
+                if matched then
+                    candidates[#candidates + 1] = candidate
+                end
             end
         end
-        ::continue::
     end
 
     return candidates
@@ -1132,14 +1132,30 @@ local function pickPreferredWeaponCandidate(candidates, weaponKey, weaponObjectI
     end
 
     local preferred = nil
-    local preferredTime = -math.huge
-
     for i = 1, #candidates do
         local candidate = candidates[i]
-        local candidateTime = candidate.firedAt or candidate.lastDataAt or 0
-        if candidateTime > preferredTime then
+        if not preferred then
             preferred = candidate
-            preferredTime = candidateTime
+        else
+            local candidateFiredAt = candidate.firedAt or -math.huge
+            local preferredFiredAt = preferred.firedAt or -math.huge
+
+            if candidateFiredAt > preferredFiredAt then
+                preferred = candidate
+            elseif candidateFiredAt == preferredFiredAt then
+                local candidateLastDataAt = candidate.lastDataAt or -math.huge
+                local preferredLastDataAt = preferred.lastDataAt or -math.huge
+
+                if candidateLastDataAt > preferredLastDataAt then
+                    preferred = candidate
+                elseif candidateLastDataAt == preferredLastDataAt then
+                    local candidateKey = tostring(candidate.weaponKey or "")
+                    local preferredKey = tostring(preferred.weaponKey or "")
+                    if candidateKey > preferredKey then
+                        preferred = candidate
+                    end
+                end
+            end
         end
     end
 

@@ -261,4 +261,63 @@ describe("CheckrideMission.onHit", function()
         assert.is_nil(CheckrideMission.activeWeaponShots[closeKey])
         assert.is_not_nil(CheckrideMission.activeWeaponShots[farKey])
     end)
+
+    it("breaks shot-selection timestamp ties deterministically", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick")
+
+        CheckrideMission.activeWeaponShots["tie-a"] = {
+            weaponKey         = "tie-a",
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            targetObjectId    = 109,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 400,
+            lastDataAt        = 405,
+        }
+
+        CheckrideMission.activeWeaponShots["tie-b"] = {
+            weaponKey         = "tie-b",
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            targetObjectId    = 109,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 400,
+            lastDataAt        = 405,
+        }
+
+        local target = stubs.make_unit({
+            id    = 109,
+            desc  = { category = Unit.Category.AIRPLANE, attributes = {} },
+            point = { x = 3704, y = 1000, z = 0 },
+            life  = 5.0,
+        })
+
+        CheckrideMission.onHit({
+            initiator = initiator,
+            weapon    = nil,
+            target    = target,
+            time      = 410,
+        })
+
+        local hit_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "hit_enrichment" then
+                hit_ev = c
+            end
+        end
+
+        assert.is_not_nil(hit_ev)
+        assert.are.equal("tie-b", hit_ev.weaponKey)
+        assert.is_nil(CheckrideMission.activeWeaponShots["tie-b"])
+        assert.is_not_nil(CheckrideMission.activeWeaponShots["tie-a"])
+    end)
 end)

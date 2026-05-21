@@ -27,6 +27,7 @@ CheckrideMission.RefuelDetection = {
     enabled = true,
     minFuelGainStep = 0.0005,
     minAccumulatedGain = 0.005,
+    minAccumulatedGainLbs = 2000,
     minGainSamples = 2,
 }
 
@@ -189,6 +190,7 @@ end
 local MPS_TO_KNOTS = 1.9438444924406
 local METERS_TO_FEET = 3.2808398950131
 local METERS_TO_NM = 0.00053995680345572
+local KILOGRAM_TO_POUNDS = 2.2046226218488
 
 local GUIDANCE_NAMES = {
     [0]  = "NONE",
@@ -816,6 +818,29 @@ local function getRefuelingSystemName(unit)
         return nil
     end
 
+    local function getUnitFuelCapacityLbs(unit)
+        if not unit then
+            return nil
+        end
+
+        local okDesc, desc = pcall(function() return unit:getDesc() end)
+        if not okDesc or not desc then
+            return nil
+        end
+
+        local fuelMassMaxKg = desc.fuelMassMax
+        if not isFiniteNumber(fuelMassMaxKg) or fuelMassMaxKg <= 0 then
+            return nil
+        end
+
+        local fuelCapacityLbs = fuelMassMaxKg * KILOGRAM_TO_POUNDS
+        if not isFiniteNumber(fuelCapacityLbs) or fuelCapacityLbs <= 0 then
+            return nil
+        end
+
+        return fuelCapacityLbs
+    end
+
     local unitRefueling = Unit and Unit.RefuelingSystem or nil
     if not unitRefueling then
         return nil
@@ -869,8 +894,16 @@ local function finalizeRefuelSegment(session, playerUcid, playerName, unitType)
     end
 
     local minAccumulatedGain = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minAccumulatedGain) or 0.005
+    local minAccumulatedGainLbs = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minAccumulatedGainLbs) or 2000
     local minGainSamples = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minGainSamples) or 2
-    if session.accumulatedFuelGain < minAccumulatedGain then
+    local fuelCapacityLbs = session.fuelCapacityLbs
+    if not isFiniteNumber(fuelCapacityLbs) or fuelCapacityLbs <= 0 then
+        return
+    end
+
+    local minAccumulatedGainFromLbs = minAccumulatedGainLbs / fuelCapacityLbs
+    local requiredMinAccumulatedGain = math.max(minAccumulatedGain, minAccumulatedGainFromLbs)
+    if session.accumulatedFuelGain < requiredMinAccumulatedGain then
         return
     end
     if not session.gainSampleCount or session.gainSampleCount < minGainSamples then
@@ -962,6 +995,7 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
             system = getRefuelingSystemName(entry.unit),
             night = nil,
             unitRef = entry.unit,
+            fuelCapacityLbs = getUnitFuelCapacityLbs(entry.unit),
         }
         return
     end
@@ -997,6 +1031,7 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
         active.lastSampleTime = now
         active.lastFuelState = currentFuelState
         active.unitRef = entry.unit or active.unitRef
+        active.fuelCapacityLbs = getUnitFuelCapacityLbs(entry.unit) or active.fuelCapacityLbs
 
         local currentSystem = getRefuelingSystemName(entry.unit)
         if currentSystem then
@@ -1017,6 +1052,7 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
             system = getRefuelingSystemName(entry.unit),
             night = nil,
             unitRef = entry.unit,
+            fuelCapacityLbs = getUnitFuelCapacityLbs(entry.unit),
         }
         return
     end
@@ -1024,6 +1060,7 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
     active.lastSampleTime = now
     active.lastFuelState = currentFuelState
     active.unitRef = entry.unit or active.unitRef
+    active.fuelCapacityLbs = getUnitFuelCapacityLbs(entry.unit) or active.fuelCapacityLbs
 end
 
 local function getRoleCoalition(target, initiatorCoalition)

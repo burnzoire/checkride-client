@@ -661,7 +661,7 @@ applyGunBurstStart(event) {
     };
 
     const activeByKeyIndex = this.ordnanceLog.findIndex(
-      (candidate) => candidate.weaponKey === weaponTrack.weaponKey && candidate.endTimeMs == null
+      (candidate) => candidate.weaponKey === weaponTrack.weaponKey && candidate.endTimeMs === null
     );
     if (activeByKeyIndex >= 0) {
       this.ordnanceLog[activeByKeyIndex] = {
@@ -674,7 +674,7 @@ applyGunBurstStart(event) {
     const activeByObjectIdIndex = entry.weaponObjectId == null
       ? -1
       : this.ordnanceLog.findIndex(
-        (candidate) => candidate.weaponObjectId === entry.weaponObjectId && candidate.endTimeMs == null
+        (candidate) => candidate.weaponObjectId === entry.weaponObjectId && candidate.endTimeMs === null
       );
     if (activeByObjectIdIndex >= 0) {
       this.ordnanceLog[activeByObjectIdIndex] = {

@@ -43,6 +43,10 @@ class Achievement {
   message(pilotName) {
     return `${pilotName} earned "${this.name}" — ${this.description}`;
   }
+
+  personalMessage() {
+    return `[✓] "${this.name}" — ${this.description}`;
+  }
 }
 
 module.exports = Achievement;

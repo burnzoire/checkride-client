@@ -33,6 +33,7 @@ CheckrideMission.RefuelDetection = {
 -- Maps ucid (or fallback playerName) to the carrier Unit the pilot launched from.
 -- Reset each time a takeoff_enrichment is emitted; used to compute distance on kill.
 CheckrideMission.pilotCarrierByUcid = {}
+CheckrideMission.pilotUnitByUcid = CheckrideMission.pilotUnitByUcid or {}
 
 CheckrideMission.TakeoffEventId = nil
 CheckrideMission.LandEventId = nil
@@ -397,6 +398,9 @@ function CheckrideMission.startPilotSampler(unit, playerName, ucid)
     if not CheckrideMission.FlightSample.enabled then return end
 
     local pilotKey = ucid or playerName
+    if pilotKey then
+        CheckrideMission.pilotUnitByUcid[pilotKey] = unit
+    end
     CheckrideMission.PilotGenerations[pilotKey] = (CheckrideMission.PilotGenerations[pilotKey] or 0) + 1
     local myGen = CheckrideMission.PilotGenerations[pilotKey]
     CheckrideMission.log('starting pilot sampler: name=' .. tostring(playerName) .. ' ucid=' .. tostring(ucid) .. ' gen=' .. tostring(myGen))
@@ -1977,6 +1981,37 @@ function CheckrideMission.onKill(event)
     )
 
     CheckrideMission.sendEnrichmentEvent(message)
+end
+
+-- ============================================================================
+-- Pilot Notification
+-- Called via net.dostring_in from the GameGUI when an achievement or
+-- proficiency is earned. Shows a targeted on-screen message for the pilot.
+-- ============================================================================
+function CheckrideShowMessage(pilotKey, message, duration)
+    if not pilotKey or not message then return end
+
+    local unit = CheckrideMission.pilotUnitByUcid[pilotKey]
+    if not unit then
+        CheckrideMission.log("CheckrideShowMessage: no unit for " .. tostring(pilotKey))
+        return
+    end
+
+    local okExist, exists = pcall(function() return unit:isExist() end)
+    if not okExist or not exists then
+        CheckrideMission.pilotUnitByUcid[pilotKey] = nil
+        CheckrideMission.log("CheckrideShowMessage: unit gone for " .. tostring(pilotKey))
+        return
+    end
+
+    local okId, unitId = pcall(function() return unit:getID() end)
+    if not okId or not unitId then return end
+
+    pcall(function()
+        trigger.action.outTextForUnit(unitId, message, duration or 10, false)
+    end)
+
+    CheckrideMission.log("CheckrideShowMessage: notified " .. tostring(pilotKey))
 end
 
 -- ============================================================================

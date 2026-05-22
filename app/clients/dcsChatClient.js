@@ -20,7 +20,7 @@ class DCSChatClient {
     });
   }
 
-  send(message, publish, { kind = 'achievement', playerUcid = null } = {}) {
+  send(message, publish, { kind = 'achievement', playerUcid = null, outText = null } = {}) {
     if (!message) {
       log.info('DCS chat message missing, skipping DCS notification');
       return Promise.resolve();
@@ -33,6 +33,7 @@ class DCSChatClient {
 
     const payloadObj = { message, kind, source: 'checkride' };
     if (playerUcid) payloadObj.playerUcid = playerUcid;
+    if (outText) payloadObj.outText = outText;
     const payload = JSON.stringify(payloadObj);
 
     log.info(`Sending DCS chat payload: ${payload}`);

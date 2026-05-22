@@ -107,6 +107,7 @@ function CheckrideCallbackRouter.onMissionLoadEnd()
             end
         ]])
 
+
         -- Always refresh the mission-side map for currently connected pilots.
         CheckrideCallbackRouter.syncAllPlayers()
 

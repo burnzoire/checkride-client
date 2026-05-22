@@ -102,6 +102,23 @@ function Checkride.sendChatToUcid(message, ucid)
     Checkride.log("sendChatToUcid: no connected player found for ucid " .. ucid)
 end
 
+function Checkride.showOutTextForPilot(ucid, message, duration)
+    if not net or not net.dostring_in then
+        Checkride.log("showOutTextForPilot: net.dostring_in unavailable")
+        return
+    end
+
+    local luaCmd = string.format(
+        'if CheckrideShowMessage then CheckrideShowMessage(%q, %q, %d) end',
+        ucid, message, duration or 10
+    )
+
+    local ok, err = pcall(function() net.dostring_in('server', luaCmd) end)
+    if not ok then
+        Checkride.log("showOutTextForPilot failed: " .. tostring(err))
+    end
+end
+
 function Checkride.pollChatSocket()
     if not Checkride.UDPReceiveSocket then
         return
@@ -130,10 +147,21 @@ function Checkride.pollChatSocket()
                 end
 
                 if message and message ~= "" then
-                    Checkride.log("Received chat message: " .. message)
-                    if decoded.playerUcid and decoded.playerUcid ~= "" then
-                        Checkride.sendChatToUcid(message, decoded.playerUcid)
+                    local kind = decoded.kind
+                    local playerUcid = (decoded.playerUcid and decoded.playerUcid ~= "") and decoded.playerUcid or nil
+
+                    if kind == "achievement" or kind == "proficiency" then
+                        Checkride.log("Received " .. tostring(kind) .. ": " .. message)
+                        Checkride.sendChatToAll(message)
+                        if playerUcid and Checkride.missionScriptingEnabled then
+                            local outText = (decoded.outText and decoded.outText ~= "") and decoded.outText or message
+                            Checkride.showOutTextForPilot(playerUcid, outText, 10)
+                        end
+                    elseif playerUcid then
+                        Checkride.log("Received chat message: " .. message)
+                        Checkride.sendChatToUcid(message, playerUcid)
                     else
+                        Checkride.log("Received chat message: " .. message)
                         Checkride.sendChatToAll(message)
                     end
                 end

@@ -491,7 +491,7 @@ describe('initApp', () => {
     const sharedMessage = 'Maverick achieved F-14 Sidewinder Basic Proficiency';
     const apiResponse = {
       summary: 'summary',
-      proficiencies: [{ message: sharedMessage }],
+      proficiencies: [{ message: sharedMessage, name: 'F-14 Sidewinder Basic Proficiency' }],
       achievements: [{ message: sharedMessage }],
     };
     const apiClientMock = {
@@ -519,7 +519,7 @@ describe('initApp', () => {
     expect(discordClientMock.send).toHaveBeenCalledWith('summary', true);
     expect(discordClientMock.send).toHaveBeenCalledWith(`:white_check_mark: ${sharedMessage}`, true);
     expect(discordClientMock.send).toHaveBeenCalledTimes(2);
-    expect(dcsChatClientMock.send).toHaveBeenCalledWith(sharedMessage, true, { kind: 'proficiency' });
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith(sharedMessage, true, { kind: 'proficiency', playerUcid: undefined, outText: '[✓] F-14 Sidewinder Basic Proficiency' });
     expect(dcsChatClientMock.send).toHaveBeenCalledTimes(1);
   });
 
@@ -628,7 +628,7 @@ describe('initApp', () => {
     };
     const apiResponse = {
       summary: 'summary',
-      proficiencies: [{ message: 'Proficiency message' }]
+      proficiencies: [{ message: 'Proficiency message', name: 'Tomcat Sidewinder Basic' }]
     };
     const apiClientMock = {
       saveEvent: jest.fn().mockResolvedValue(apiResponse),
@@ -656,7 +656,7 @@ describe('initApp', () => {
 
     await udpServer.onEvent(fakeEvent);
 
-    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Proficiency message', true, { kind: 'proficiency' });
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith('Proficiency message', true, { kind: 'proficiency', playerUcid: undefined, outText: '[✓] Tomcat Sidewinder Basic' });
     expect(log.error).toHaveBeenCalledWith('Error sending Discord proficiency #1:', proficiencyError);
   });
 

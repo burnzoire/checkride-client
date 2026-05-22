@@ -247,7 +247,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
             if (!isNewAchievementSaveResult(result)) return;
 
             if (dcsChatClient?.send) {
-              dcsChatClient.send(msg, true, { kind: 'achievement' })
+              dcsChatClient.send(msg, true, { kind: 'achievement', playerUcid: event.playerUcid, outText: achievement.personalMessage() })
                 .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
             }
 
@@ -307,7 +307,8 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
           proficiencies.forEach((proficiency, i) => {
             if (proficiency?.message) {
               if (dcsChatClient?.send) {
-                dcsChatClient.send(proficiency.message, publish, { kind: 'proficiency' })
+                const proficiencyOutText = proficiency.name ? `[✓] ${proficiency.name}` : null;
+                dcsChatClient.send(proficiency.message, publish, { kind: 'proficiency', playerUcid: event.playerUcid, outText: proficiencyOutText })
                   .catch((error) => log.error(`Error sending DCS chat proficiency #${i + 1}:`, error));
               }
 
@@ -335,7 +336,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
               if (!isNewAchievementSaveResult(result)) return;
 
               if (dcsChatClient?.send) {
-                dcsChatClient.send(msg, publish, { kind: 'achievement' })
+                dcsChatClient.send(msg, publish, { kind: 'achievement', playerUcid: event.playerUcid, outText: achievement.personalMessage() })
                   .catch((error) => log.error(`Error sending DCS chat achievement #${i + 1}:`, error));
               }
 

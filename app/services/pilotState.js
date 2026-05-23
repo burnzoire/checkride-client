@@ -32,6 +32,7 @@ const METERS_TO_FEET = 3.2808398950131;
 const WEAPON_CLASS_AIR_TO_AIR_MISSILE = 'AAM';
 const WEAPON_COMPLETED_TTL_MS = 60 * 1000;
 const WEAPON_MAX_TRACKS = 100;
+const ORDNANCE_LOG_MAX_TRACKS = 500;
 const INBOUND_MISSILE_TTL_MS = 60 * 1000;
 class PilotState {
   constructor() {
@@ -260,16 +261,19 @@ class PilotState {
       completedAtMs: null,
       lastSampleAtMs: this._parseEventTimeMs(event),
     };
+    weaponTrack.hitOrMiss = null;
 
     const existingIndex = this.weapons.findIndex((candidate) => candidate.weaponKey === weaponTrack.weaponKey && candidate.inFlight);
     if (existingIndex >= 0) {
       this.weapons[existingIndex] = weaponTrack;
+      this._upsertOrdnanceLogEntry(weaponTrack);
       this._pruneCompletedWeapons();
       this._syncMissileView();
       return;
     }
 
     this.weapons.push(weaponTrack);
+    this._upsertOrdnanceLogEntry(weaponTrack);
     if (weaponTrack.weaponClass === WEAPON_CLASS_AIR_TO_AIR_MISSILE) {
       this.sortieAamFiredCount++;
     }
@@ -322,8 +326,10 @@ class PilotState {
 
     if (weaponTrack.inFlight === false || status === 'expired' || status === 'hit') {
       weaponTrack.completedAtMs = weaponTrack.lastSampleAtMs;
+      weaponTrack.hitOrMiss = status === 'hit' ? 'hit' : 'miss';
     }
 
+    this._upsertOrdnanceLogEntry(weaponTrack);
     this._pruneCompletedWeapons();
     this._syncMissileView();
   }
@@ -360,10 +366,20 @@ class PilotState {
       return;
     }
 
-    const weaponTrack = candidates[candidates.length - 1];
+    const weaponTrack = candidates.reduce((best, c) => {
+      const cTime = c.firedAtMs ?? -Infinity;
+      const bTime = best.firedAtMs ?? -Infinity;
+      if (cTime !== bTime) return cTime > bTime ? c : best;
+      const cSample = c.lastSampleAtMs ?? -Infinity;
+      const bSample = best.lastSampleAtMs ?? -Infinity;
+      if (cSample !== bSample) return cSample > bSample ? c : best;
+      return (c.weaponKey ?? '') > (best.weaponKey ?? '') ? c : best;
+    });
 
     weaponTrack.inFlight = false;
     weaponTrack.status = event.status ?? 'hit';
+    weaponTrack.hitOrMiss = 'hit';
+    weaponTrack.targetObjectId = event.targetObjectId ?? event.target_object_id ?? weaponTrack.targetObjectId;
     weaponTrack.hitX = this._normalizeFiniteNumber(event.hitX ?? event.hit_x);
     weaponTrack.hitY = this._normalizeFiniteNumber(event.hitY ?? event.hit_y);
     weaponTrack.hitAlt = this._normalizeFiniteNumber(event.hitAlt ?? event.hit_alt);
@@ -396,6 +412,7 @@ class PilotState {
       }
     }
 
+    this._upsertOrdnanceLogEntry(weaponTrack);
     this._pruneCompletedWeapons();
     this._syncMissileView();
   }
@@ -572,6 +589,7 @@ applyGunBurstStart(event) {
 
     this.weapons = [];
     this.missiles = [];
+    this.ordnanceLog = [];
     this.sortieAamFiredCount = 0;
     this.longestWeaponHit = 0;
     this.longestMissileHit = 0;
@@ -636,6 +654,39 @@ applyGunBurstStart(event) {
       if (!Number.isFinite(completedAtMs)) return false;
       return (nowMs - completedAtMs) <= WEAPON_COMPLETED_TTL_MS;
     });
+  }
+
+  _upsertOrdnanceLogEntry(weaponTrack) {
+    if (!weaponTrack || !weaponTrack.weaponKey) return;
+
+    const entry = {
+      weaponKey: weaponTrack.weaponKey,
+      weaponObjectId: weaponTrack.weaponObjectId ?? null,
+      startTimeMs: weaponTrack.firedAtMs ?? null,
+      endTimeMs: weaponTrack.completedAtMs ?? weaponTrack.hitAtMs ?? null,
+      hitOrMiss: weaponTrack.hitOrMiss ?? null,
+      targetObjectId: weaponTrack.targetObjectId ?? null,
+    };
+
+    let activeIndex = -1;
+    for (let i = 0; i < this.ordnanceLog.length; i++) {
+      const c = this.ordnanceLog[i];
+      if (c.endTimeMs !== null) continue;
+      if (c.weaponKey === entry.weaponKey ||
+          (entry.weaponObjectId != null && c.weaponObjectId === entry.weaponObjectId)) {
+        activeIndex = i;
+        break;
+      }
+    }
+    if (activeIndex >= 0) {
+      this.ordnanceLog[activeIndex] = { ...this.ordnanceLog[activeIndex], ...entry };
+      return;
+    }
+
+    this.ordnanceLog.push(entry);
+    if (this.ordnanceLog.length > ORDNANCE_LOG_MAX_TRACKS) {
+      this.ordnanceLog = this.ordnanceLog.slice(-ORDNANCE_LOG_MAX_TRACKS);
+    }
   }
 
   _normalizeWeaponClass(weaponClass, weaponName) {

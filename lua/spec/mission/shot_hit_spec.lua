@@ -148,7 +148,7 @@ describe("CheckrideMission.onHit", function()
     it("emits hit_enrichment with distance when tracked shot hits a target", function()
         local captured = loader.capture_events()
 
-        local initiator = player_unit("Maverick")
+        local initiator = player_unit("Maverick", "ucid-mav")
         local wkey = "test-weapon-key"
 
         -- Pre-populate an active weapon shot.
@@ -193,5 +193,212 @@ describe("CheckrideMission.onHit", function()
         assert.is_truthy(hit_ev.distanceNm > 0)
         -- Shot should be removed from tracking
         assert.is_nil(CheckrideMission.activeWeaponShots[wkey])
+    end)
+
+    it("prefers most recent in-flight shot when only targetObjectId matches", function()
+        local captured = loader.capture_events()
+
+        local initiator = player_unit("Maverick", "ucid-mav")
+        local farKey = "far-shot"
+        local closeKey = "close-shot"
+
+        CheckrideMission.activeWeaponShots[farKey] = {
+            weaponKey         = farKey,
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            weaponName        = "AIM-54C",
+            weaponDisplayName = "Phoenix",
+            targetObjectId    = 99,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 100,
+            lastDataAt        = 101,
+        }
+
+        CheckrideMission.activeWeaponShots[closeKey] = {
+            weaponKey         = closeKey,
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            weaponName        = "AIM-7M",
+            weaponDisplayName = "Sparrow",
+            targetObjectId    = 99,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 200,
+            lastDataAt        = 201,
+        }
+
+        local target = stubs.make_unit({
+            id    = 99,
+            desc  = { category = Unit.Category.AIRPLANE, attributes = {} },
+            point = { x = 4630, y = 1000, z = 0 }, -- ~2.5nm from close shot origin
+            life  = 5.0,
+        })
+
+        CheckrideMission.onHit({
+            initiator = initiator,
+            weapon    = nil,
+            target    = target,
+            time      = 300,
+        })
+
+        local hit_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "hit_enrichment" then
+                hit_ev = c
+            end
+        end
+
+        assert.is_not_nil(hit_ev)
+        assert.are.equal(closeKey, hit_ev.weaponKey)
+        assert.is_true(hit_ev.distanceNm > 2.0 and hit_ev.distanceNm < 3.0)
+        assert.is_nil(CheckrideMission.activeWeaponShots[closeKey])
+        assert.is_not_nil(CheckrideMission.activeWeaponShots[farKey])
+    end)
+
+    it("keeps attribution stable when a later-launched short shot hits before an earlier long shot", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick", "ucid-mav")
+
+        local longKey = "long-shot"
+        local shortKey = "short-shot"
+
+        CheckrideMission.activeWeaponShots[longKey] = {
+            weaponKey         = longKey,
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            targetObjectId    = 201,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 100,
+            lastDataAt        = 101,
+        }
+
+        CheckrideMission.activeWeaponShots[shortKey] = {
+            weaponKey         = shortKey,
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            targetObjectId    = 202,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 200,
+            lastDataAt        = 201,
+        }
+
+        local shortTarget = stubs.make_unit({
+            id    = 202,
+            desc  = { category = Unit.Category.AIRPLANE, attributes = {} },
+            point = { x = 3704, y = 1000, z = 0 }, -- ~2.0nm
+            life  = 5.0,
+        })
+
+        local longTarget = stubs.make_unit({
+            id    = 201,
+            desc  = { category = Unit.Category.AIRPLANE, attributes = {} },
+            point = { x = 18520, y = 1000, z = 0 }, -- ~10.0nm
+            life  = 5.0,
+        })
+
+        -- Later-launched short shot hits first.
+        CheckrideMission.onHit({
+            initiator = initiator,
+            weapon    = nil,
+            target    = shortTarget,
+            time      = 300,
+        })
+
+        -- Earlier-launched long shot hits later.
+        CheckrideMission.onHit({
+            initiator = initiator,
+            weapon    = nil,
+            target    = longTarget,
+            time      = 350,
+        })
+
+        local hit_events = {}
+        for _, c in ipairs(captured) do
+            if c.type == "hit_enrichment" then
+                table.insert(hit_events, c)
+            end
+        end
+
+        assert.are.equal(2, #hit_events)
+        assert.are.equal(shortKey, hit_events[1].weaponKey)
+        assert.are.equal(longKey, hit_events[2].weaponKey)
+        assert.is_true(hit_events[1].distanceNm > 1.5 and hit_events[1].distanceNm < 2.5)
+        assert.is_true(hit_events[2].distanceNm > 9.0 and hit_events[2].distanceNm < 11.0)
+        assert.is_nil(CheckrideMission.activeWeaponShots[shortKey])
+        assert.is_nil(CheckrideMission.activeWeaponShots[longKey])
+    end)
+
+    it("breaks shot-selection timestamp ties deterministically", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick", "ucid-mav")
+
+        CheckrideMission.activeWeaponShots["tie-a"] = {
+            weaponKey         = "tie-a",
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            targetObjectId    = 109,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 400,
+            lastDataAt        = 405,
+        }
+
+        CheckrideMission.activeWeaponShots["tie-b"] = {
+            weaponKey         = "tie-b",
+            weaponClass       = "AAM",
+            startX            = 0,
+            startY            = 0,
+            startAlt          = 1000,
+            targetObjectId    = 109,
+            inFlight          = true,
+            playerUcid        = "ucid-mav",
+            playerName        = "Maverick",
+            firedAt           = 400,
+            lastDataAt        = 405,
+        }
+
+        local target = stubs.make_unit({
+            id    = 109,
+            desc  = { category = Unit.Category.AIRPLANE, attributes = {} },
+            point = { x = 3704, y = 1000, z = 0 },
+            life  = 5.0,
+        })
+
+        CheckrideMission.onHit({
+            initiator = initiator,
+            weapon    = nil,
+            target    = target,
+            time      = 410,
+        })
+
+        local hit_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "hit_enrichment" then
+                hit_ev = c
+            end
+        end
+
+        assert.is_not_nil(hit_ev)
+        assert.are.equal("tie-b", hit_ev.weaponKey)
+        assert.is_nil(CheckrideMission.activeWeaponShots["tie-b"])
+        assert.is_not_nil(CheckrideMission.activeWeaponShots["tie-a"])
     end)
 end)

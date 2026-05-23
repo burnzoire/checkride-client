@@ -216,6 +216,7 @@ class AchievementEngine {
         sortieAamFiredCount: state.sortieAamFiredCount,
         longestWeaponHit: state.longestWeaponHit,
         longestMissileHit: state.longestMissileHit,
+        ordnanceLog: state.ordnanceLog,
         inboundMissiles: state.inboundMissiles,
         currentUnitCategory: state.currentUnitCategory,
         hitCounters: state.hitCounters,

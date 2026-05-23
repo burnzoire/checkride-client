@@ -83,10 +83,11 @@ describe("CheckrideMission.trackRefuelFromFuelSample", function()
 
         -- Build up a refuel session.
         CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5,  true, 100)
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.52, true, 104)
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.54, true, 108)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.53, true, 104)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.56, true, 108)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.59, true, 112)
         -- Fuel now flat → finalize.
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.54, true, 112)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.59, true, 116)
 
         local aar_ev = nil
         for _, c in ipairs(captured) do
@@ -103,10 +104,11 @@ describe("CheckrideMission.trackRefuelFromFuelSample", function()
         local key = "ucid-mav"
 
         CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5,  true,  100)
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.52, true,  104)
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.54, true,  108)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.53, true,  104)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.56, true,  108)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.59, true,  112)
         -- Pilot lands.
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.54, false, 200)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.59, false, 200)
 
         assert.is_nil(CheckrideMission.activeRefuelByPilot[key])
 
@@ -138,12 +140,13 @@ describe("CheckrideMission.trackRefuelFromFuelSample", function()
         local captured = loader.capture_events()
         local entry = make_entry()
 
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5000, true, 100)
-        -- Two tiny gain samples totalling 0.002 < 0.005 threshold.
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5010, true, 104)
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5020, true, 108)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.50, true, 100)
+        -- Three gain samples totalling 0.03 < 0.05 threshold.
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.51, true, 104)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.52, true, 108)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.53, true, 112)
         -- Flat → finalize.
-        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.5020, true, 112)
+        CheckrideMission.trackRefuelFromFuelSample(entry, "F/A-18C", 0.53, true, 116)
 
         local aar_ev = nil
         for _, c in ipairs(captured) do

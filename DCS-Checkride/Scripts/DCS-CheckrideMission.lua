@@ -26,8 +26,8 @@ CheckrideMission.WeaponSample = {
 CheckrideMission.RefuelDetection = {
     enabled = true,
     minFuelGainStep = 0.0005,
-    minAccumulatedGain = 0.005,
-    minGainSamples = 2,
+    minAccumulatedGain = 0.05,
+    minGainSamples = 3,
 }
 
 -- Maps ucid (or fallback playerName) to the carrier Unit the pilot launched from.
@@ -872,8 +872,8 @@ local function finalizeRefuelSegment(session, playerUcid, playerName, unitType)
         return
     end
 
-    local minAccumulatedGain = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minAccumulatedGain) or 0.005
-    local minGainSamples = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minGainSamples) or 2
+    local minAccumulatedGain = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minAccumulatedGain) or 0.05
+    local minGainSamples = (CheckrideMission.RefuelDetection and CheckrideMission.RefuelDetection.minGainSamples) or 3
     if session.accumulatedFuelGain < minAccumulatedGain then
         return
     end

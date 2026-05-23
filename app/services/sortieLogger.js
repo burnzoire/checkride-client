@@ -22,7 +22,11 @@ class SortieLogger {
     this._fs.mkdirSync(ucidDir, { recursive: true });
     const now = new Date();
     const ts = now.toISOString().replace(/:/g, '-').replace(/\./g, '-');
-    const filePath = path.join(ucidDir, `${ts}.jsonl`);
+    let filePath = path.join(ucidDir, `${ts}.jsonl`);
+    let n = 1;
+    while (this._fs.existsSync(filePath)) {
+      filePath = path.join(ucidDir, `${ts}-${n++}.jsonl`);
+    }
     this._writeLine(filePath, { sortie_start: now.toISOString(), ucid, name: name || ucid });
     this._sorties.set(ucid, { ucidDir, name: name || ucid, filePath });
   }

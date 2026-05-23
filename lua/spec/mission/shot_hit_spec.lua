@@ -148,7 +148,7 @@ describe("CheckrideMission.onHit", function()
     it("emits hit_enrichment with distance when tracked shot hits a target", function()
         local captured = loader.capture_events()
 
-        local initiator = player_unit("Maverick")
+        local initiator = player_unit("Maverick", "ucid-mav")
         local wkey = "test-weapon-key"
 
         -- Pre-populate an active weapon shot.
@@ -198,7 +198,7 @@ describe("CheckrideMission.onHit", function()
     it("prefers most recent in-flight shot when only targetObjectId matches", function()
         local captured = loader.capture_events()
 
-        local initiator = player_unit("Maverick")
+        local initiator = player_unit("Maverick", "ucid-mav")
         local farKey = "far-shot"
         local closeKey = "close-shot"
 
@@ -264,7 +264,7 @@ describe("CheckrideMission.onHit", function()
 
     it("keeps attribution stable when a later-launched short shot hits before an earlier long shot", function()
         local captured = loader.capture_events()
-        local initiator = player_unit("Maverick")
+        local initiator = player_unit("Maverick", "ucid-mav")
 
         local longKey = "long-shot"
         local shortKey = "short-shot"
@@ -345,7 +345,7 @@ describe("CheckrideMission.onHit", function()
 
     it("breaks shot-selection timestamp ties deterministically", function()
         local captured = loader.capture_events()
-        local initiator = player_unit("Maverick")
+        local initiator = player_unit("Maverick", "ucid-mav")
 
         CheckrideMission.activeWeaponShots["tie-a"] = {
             weaponKey         = "tie-a",

@@ -366,7 +366,11 @@ class PilotState {
       return;
     }
 
-    const weaponTrack = candidates[candidates.length - 1];
+    const weaponTrack = candidates.reduce((best, c) => {
+      const cTime = c.firedAtMs ?? -Infinity;
+      const bTime = best.firedAtMs ?? -Infinity;
+      return cTime > bTime ? c : best;
+    });
 
     weaponTrack.inFlight = false;
     weaponTrack.status = event.status ?? 'hit';
@@ -660,27 +664,18 @@ applyGunBurstStart(event) {
       targetObjectId: weaponTrack.targetObjectId ?? null,
     };
 
-    const activeByKeyIndex = this.ordnanceLog.findIndex(
-      (candidate) => candidate.weaponKey === weaponTrack.weaponKey && candidate.endTimeMs === null
-    );
-    if (activeByKeyIndex >= 0) {
-      this.ordnanceLog[activeByKeyIndex] = {
-        ...this.ordnanceLog[activeByKeyIndex],
-        ...entry,
-      };
-      return;
+    let activeIndex = -1;
+    for (let i = 0; i < this.ordnanceLog.length; i++) {
+      const c = this.ordnanceLog[i];
+      if (c.endTimeMs !== null) continue;
+      if (c.weaponKey === entry.weaponKey ||
+          (entry.weaponObjectId != null && c.weaponObjectId === entry.weaponObjectId)) {
+        activeIndex = i;
+        break;
+      }
     }
-
-    const activeByObjectIdIndex = entry.weaponObjectId == null
-      ? -1
-      : this.ordnanceLog.findIndex(
-        (candidate) => candidate.weaponObjectId === entry.weaponObjectId && candidate.endTimeMs === null
-      );
-    if (activeByObjectIdIndex >= 0) {
-      this.ordnanceLog[activeByObjectIdIndex] = {
-        ...this.ordnanceLog[activeByObjectIdIndex],
-        ...entry,
-      };
+    if (activeIndex >= 0) {
+      this.ordnanceLog[activeIndex] = { ...this.ordnanceLog[activeIndex], ...entry };
       return;
     }
 

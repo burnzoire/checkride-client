@@ -1110,6 +1110,16 @@ local function findInFlightWeaponCandidates(targetObjectId, weaponKey, weaponObj
     return candidates
 end
 
+local function laterCandidate(a, b)
+    local aFired = a.firedAt or -math.huge
+    local bFired = b.firedAt or -math.huge
+    if aFired ~= bFired then return aFired > bFired end
+    local aData = a.lastDataAt or -math.huge
+    local bData = b.lastDataAt or -math.huge
+    if aData ~= bData then return aData > bData end
+    return tostring(a.weaponKey or "") > tostring(b.weaponKey or "")
+end
+
 local function pickPreferredWeaponCandidate(candidates, weaponKey, weaponObjectId)
     if #candidates == 0 then
         return nil
@@ -1134,28 +1144,8 @@ local function pickPreferredWeaponCandidate(candidates, weaponKey, weaponObjectI
     local preferred = nil
     for i = 1, #candidates do
         local candidate = candidates[i]
-        if not preferred then
+        if not preferred or laterCandidate(candidate, preferred) then
             preferred = candidate
-        else
-            local candidateFiredAt = candidate.firedAt or -math.huge
-            local preferredFiredAt = preferred.firedAt or -math.huge
-
-            if candidateFiredAt > preferredFiredAt then
-                preferred = candidate
-            elseif candidateFiredAt == preferredFiredAt then
-                local candidateLastDataAt = candidate.lastDataAt or -math.huge
-                local preferredLastDataAt = preferred.lastDataAt or -math.huge
-
-                if candidateLastDataAt > preferredLastDataAt then
-                    preferred = candidate
-                elseif candidateLastDataAt == preferredLastDataAt then
-                    local candidateKey = tostring(candidate.weaponKey or "")
-                    local preferredKey = tostring(preferred.weaponKey or "")
-                    if candidateKey > preferredKey then
-                        preferred = candidate
-                    end
-                end
-            end
         end
     end
 
@@ -1896,7 +1886,13 @@ function CheckrideMission.onKill(event)
         if shot then
             fallbackGuidance = shot.weaponGuidance
             fallbackWeaponClass = shot.weaponClass
-            CheckrideMission.activeWeaponShots[shot.weaponKey] = nil
+            -- Only consume the shot when pending is nil (proximity-fuse: onHit never fired,
+            -- so this IS the killing shot and it's safe to remove). When pending exists,
+            -- the killing shot was already removed by onHit; this candidate is a different
+            -- in-flight missile targeting the same victim — don't delete it.
+            if pending == nil then
+                CheckrideMission.activeWeaponShots[shot.weaponKey] = nil
+            end
         end
     end
 

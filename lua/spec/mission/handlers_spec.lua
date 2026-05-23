@@ -416,7 +416,48 @@ describe("CheckrideMission.onKill", function()
         assert.is_not_nil(kill_ev)
         assert.are.equal("RADAR_SEMI_ACTIVE", kill_ev.weaponGuidance)
         assert.are.equal("AAM", kill_ev.weaponClass)
-        assert.is_nil(CheckrideMission.activeWeaponShots["newer"])
+        -- pending exists → killing shot was already consumed by onHit; the fallback
+        -- candidate is a different in-flight missile and must NOT be deleted.
+        assert.is_not_nil(CheckrideMission.activeWeaponShots["newer"])
         assert.is_not_nil(CheckrideMission.activeWeaponShots["older"])
+    end)
+
+    it("consumes fallback shot only when pending is nil (proximity-fuse case)", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick")
+        initiator.getCoalition = function() return 2 end
+
+        local target = stubs.make_unit({
+            coalition = 1,
+            id        = 91,
+            desc      = { category = Unit.Category.AIRPLANE, attributes = {} },
+        })
+
+        -- No pending entry: onHit never fired (proximity fuse detonation).
+        -- The shot is still live in activeWeaponShots and must be consumed.
+        CheckrideMission.activeWeaponShots["phoenix"] = {
+            weaponKey      = "phoenix",
+            weaponClass    = "AAM",
+            weaponGuidance = "RADAR_ACTIVE",
+            targetObjectId = 91,
+            playerUcid     = "ucid-mav",
+            playerName     = "Maverick",
+            inFlight       = true,
+            firedAt        = 100,
+            lastDataAt     = 101,
+        }
+
+        CheckrideMission.onKill({ initiator = initiator, target = target, weapon = nil, time = 400 })
+
+        local kill_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "kill_enrichment" then kill_ev = c end
+        end
+
+        assert.is_not_nil(kill_ev)
+        assert.are.equal("RADAR_ACTIVE", kill_ev.weaponGuidance)
+        assert.are.equal("AAM", kill_ev.weaponClass)
+        -- pending was nil → this was the killing shot; it should be consumed.
+        assert.is_nil(CheckrideMission.activeWeaponShots["phoenix"])
     end)
 end)

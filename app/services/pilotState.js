@@ -369,7 +369,11 @@ class PilotState {
     const weaponTrack = candidates.reduce((best, c) => {
       const cTime = c.firedAtMs ?? -Infinity;
       const bTime = best.firedAtMs ?? -Infinity;
-      return cTime > bTime ? c : best;
+      if (cTime !== bTime) return cTime > bTime ? c : best;
+      const cSample = c.lastSampleAtMs ?? -Infinity;
+      const bSample = best.lastSampleAtMs ?? -Infinity;
+      if (cSample !== bSample) return cSample > bSample ? c : best;
+      return (c.weaponKey ?? '') > (best.weaponKey ?? '') ? c : best;
     });
 
     weaponTrack.inFlight = false;

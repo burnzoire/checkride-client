@@ -71,15 +71,24 @@ npm run test:coverage     # Generate coverage report
 
 Tests run automatically on push to main branch via GitHub Actions.
 
+## Auto-updates
+
+Installed builds check for updates automatically on startup. When a new version is available it downloads silently in the background. Once the download completes:
+
+- A Windows tray balloon notification appears.
+- Clicking the balloon (or right-clicking the tray icon and choosing **Install Update...**) opens a dialog to restart and install immediately, or defer to later.
+
+**If the release includes Lua script changes**, a DCS server restart is also required after the client updates — the installer copies new Lua files, but DCS only loads them at startup.
+
 ## Release
 
-To create a Release:
+To create a release:
 
 ```
 npm run release:tag -- X.Y.Z
 git push && git push origin vX.Y.Z
 ```
 
-This will trigger a workflow that will build the app and its installer that can be downloaded directly from this repository's Releases page.
+This triggers a GitHub Actions workflow that builds the installer and publishes it to the Releases page. Running instances will detect the new version on their next startup and download it automatically.
 
 

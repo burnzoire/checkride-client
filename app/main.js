@@ -1,4 +1,6 @@
 const { Menu, Tray, app, globalShortcut, ipcMain, nativeImage, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
 const path = require('path');
 const contextMenuTemplate = require('./tray/contextMenuTemplate');
 const { initApp, attachEventPipeline } = require('./appInit');
@@ -30,6 +32,7 @@ let achievementEngine;
 let demoController;
 let healthChecker;
 let isQuitting = false;
+let updateReady = false;
 
 const openSettingsWindow = () => {
   return showSettingsWindow();
@@ -80,6 +83,10 @@ function buildContextMenu() {
       demoController,
       dcsChatClient,
       openTelemetry: openTelemetryWindow,
+      updateReady,
+      checkForUpdates: app.isPackaged
+        ? () => autoUpdater.checkForUpdates().catch((err) => log.error('Update check failed:', err))
+        : null,
       onChange: () => {
         if (tray) {
           tray.setContextMenu(buildContextMenu());
@@ -175,6 +182,53 @@ function showLuaVersionMismatchDialog({ luaClientVersion, clientVersion }) {
   });
 }
 
+function initAutoUpdater() {
+  autoUpdater.logger = log;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = false;
+
+  autoUpdater.on('update-downloaded', (info) => {
+    updateReady = true;
+    if (tray) {
+      tray.displayBalloon({
+        title: 'Checkride Update Ready',
+        content: `v${info.version} has been downloaded. Click here to install.`,
+        noSound: false,
+      });
+      tray.on('balloon-click', () => promptAndInstall(info));
+    } else {
+      promptAndInstall(info);
+    }
+    if (tray) tray.setContextMenu(buildContextMenu());
+  });
+
+  autoUpdater.on('error', (err) => {
+    log.error('Auto-updater error:', err);
+  });
+}
+
+async function promptAndInstall(info) {
+  const { response } = await dialog.showMessageBox({
+    type: 'info',
+    title: 'Checkride Update Ready',
+    message: `Checkride v${info.version} is ready to install.`,
+    detail: [
+      'The update has been downloaded and is ready to install.',
+      '',
+      'Click "Install Now" to restart and update.',
+      '',
+      'Note: if the update includes Lua script changes, you will also need to restart the DCS server after the client updates.',
+    ].join('\n'),
+    buttons: ['Install Now', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (response === 0) {
+    autoUpdater.quitAndInstall();
+  }
+}
+
 async function bootstrap() {
   sortieLogger = new SortieLogger(path.join(app.getPath('userData'), 'logs'));
   sortieLogger.purgeLogs();
@@ -229,6 +283,7 @@ ipcMain.handle('settings:load', () => {
     discord_webhook_path: store.get('discord_webhook_path'),
     api_token: store.get('api_token'),
     mission_scripting_enabled: store.get('mission_scripting_enabled'),
+    auto_update_enabled: store.get('auto_update_enabled'),
   };
 });
 
@@ -241,6 +296,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
     discord_webhook_path: payload.discord_webhook_path?.trim() || '',
     api_token: payload.api_token?.trim() || '',
     mission_scripting_enabled: Boolean(payload.mission_scripting_enabled),
+    auto_update_enabled: Boolean(payload.auto_update_enabled),
   };
 
   store.set('server_host', nextConfig.server_host);
@@ -250,6 +306,7 @@ ipcMain.handle('settings:save', async (_event, payload) => {
   store.set('discord_webhook_path', nextConfig.discord_webhook_path);
   store.set('api_token', nextConfig.api_token);
   store.set('mission_scripting_enabled', nextConfig.mission_scripting_enabled);
+  store.set('auto_update_enabled', nextConfig.auto_update_enabled);
 
   if (dcsChatClient?.sendConfig) {
     const log = require('electron-log');
@@ -314,7 +371,15 @@ ipcMain.handle('sortie:open-file', async () => {
   return readFileSync(filePaths[0], 'utf8');
 });
 
-app.whenReady().then(bootstrap);
+app.whenReady().then(async () => {
+  await bootstrap();
+  if (app.isPackaged) {
+    initAutoUpdater();
+    if (store.get('auto_update_enabled', true)) {
+      autoUpdater.checkForUpdates().catch((err) => log.error('Update check failed:', err));
+    }
+  }
+});
 
 app.on('window-all-closed', (event) => {
   if (!isQuitting) {

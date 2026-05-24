@@ -10,6 +10,7 @@
   const discordWebhookInput = getField('discord_webhook_path');
   const apiTokenInput = getField('api_token');
   const missionScriptingInput = getField('mission_scripting_enabled');
+  const autoUpdateInput = getField('auto_update_enabled');
 
   function populateForm(config) {
     if (!config) {
@@ -23,6 +24,7 @@
     if (discordWebhookInput) discordWebhookInput.value = config.discord_webhook_path ?? '';
     if (apiTokenInput) apiTokenInput.value = config.api_token ?? '';
     if (missionScriptingInput) missionScriptingInput.checked = config.mission_scripting_enabled !== false;
+    if (autoUpdateInput) autoUpdateInput.checked = config.auto_update_enabled !== false;
   }
 
   function readForm() {
@@ -34,6 +36,7 @@
       discord_webhook_path: discordWebhookInput?.value.trim() ?? '',
       api_token: apiTokenInput?.value.trim() ?? '',
       mission_scripting_enabled: Boolean(missionScriptingInput?.checked),
+      auto_update_enabled: Boolean(autoUpdateInput?.checked),
     };
   }
 

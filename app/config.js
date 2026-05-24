@@ -34,6 +34,10 @@ const schema = {
     type: 'boolean',
     default: true,
   },
+  auto_update_enabled: {
+    type: 'boolean',
+    default: true,
+  },
 };
 
 const store = new Store({ schema });

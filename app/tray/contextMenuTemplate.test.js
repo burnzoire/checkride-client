@@ -1,14 +1,10 @@
 const contextMenuTemplate = require('./contextMenuTemplate');
 
 describe('contextMenuTemplate', () => {
-  let mockUdpServer;
   let mockApi;
   let mockOpenSettings;
 
   beforeEach(() => {
-    mockUdpServer = {
-      send: jest.fn(),
-    };
     mockApi = {
       ping: jest.fn(),
     };
@@ -16,13 +12,13 @@ describe('contextMenuTemplate', () => {
   });
 
   it('should return an array of menu items', () => {
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
+    const menu = contextMenuTemplate(mockApi, mockOpenSettings);
     expect(Array.isArray(menu)).toBe(true);
     expect(menu.length).toBeGreaterThan(0);
   });
 
   it('should include Settings menu item at the top', () => {
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
+    const menu = contextMenuTemplate(mockApi, mockOpenSettings);
     const firstItem = menu[0];
 
     expect(firstItem.label).toBe('Settings');
@@ -30,7 +26,7 @@ describe('contextMenuTemplate', () => {
   });
 
   it('should invoke provided callback when Settings is clicked', () => {
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
+    const menu = contextMenuTemplate(mockApi, mockOpenSettings);
     const firstItem = menu[0];
 
     firstItem.click();
@@ -39,30 +35,22 @@ describe('contextMenuTemplate', () => {
   });
 
   it('should include About Checkride menu item', () => {
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
+    const menu = contextMenuTemplate(mockApi, mockOpenSettings);
     const aboutItem = menu.find(item => item.label === 'About Checkride');
 
     expect(aboutItem).toBeDefined();
     expect(aboutItem.role).toBe('about');
   });
 
-  it('should include test events from createTestEvents', () => {
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
-
-    // Test events should be included
-    const testKillEvent = menu.find(item => item.label === 'Send test kill event');
-    expect(testKillEvent).toBeDefined();
-  });
-
   it('should include separator', () => {
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
+    const menu = contextMenuTemplate(mockApi, mockOpenSettings);
     const separator = menu.find(item => item.type === 'separator');
 
     expect(separator).toBeDefined();
   });
 
   it('should include Quit Checkride menu item', () => {
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
+    const menu = contextMenuTemplate(mockApi, mockOpenSettings);
     const quitItem = menu.find(item => item.label === 'Quit Checkride');
 
     expect(quitItem).toBeDefined();
@@ -71,7 +59,7 @@ describe('contextMenuTemplate', () => {
   });
 
   it('should create menu items with proper structure', () => {
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings);
+    const menu = contextMenuTemplate(mockApi, mockOpenSettings);
 
     menu.forEach(item => {
       if (item.type !== 'separator') {
@@ -80,29 +68,4 @@ describe('contextMenuTemplate', () => {
     });
   });
 
-  it('should include Start Demo Mode when demo controller is provided', () => {
-    const demoController = { isRunning: false, start: jest.fn(), stop: jest.fn() };
-    const onChange = jest.fn();
-
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings, { demoController, onChange });
-    const demoItem = menu.find(item => item.label === 'Start Demo Mode');
-
-    expect(demoItem).toBeDefined();
-    demoItem.click();
-    expect(demoController.start).toHaveBeenCalled();
-    expect(onChange).toHaveBeenCalled();
-  });
-
-  it('should include Stop Demo Mode when demo controller is running', () => {
-    const demoController = { isRunning: true, start: jest.fn(), stop: jest.fn() };
-    const onChange = jest.fn();
-
-    const menu = contextMenuTemplate(mockUdpServer, mockApi, mockOpenSettings, { demoController, onChange });
-    const demoItem = menu.find(item => item.label === 'Stop Demo Mode');
-
-    expect(demoItem).toBeDefined();
-    demoItem.click();
-    expect(demoController.stop).toHaveBeenCalled();
-    expect(onChange).toHaveBeenCalled();
-  });
 });

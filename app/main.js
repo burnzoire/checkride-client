@@ -8,7 +8,6 @@ const { SortieLogger } = require('./services/sortieLogger');
 const store = require('./config');
 const { showSettingsWindow } = require('./windows/settingsWindow');
 const { showTelemetryWindow } = require('./windows/telemetryWindow');
-const { DemoController } = require('./demo/demoController');
 
 if (app.isPackaged) {
   delete process.env.DISCORD_INSECURE_TLS;
@@ -29,7 +28,6 @@ let eventProcessor;
 let gaugeSync;
 let sortieLogger;
 let achievementEngine;
-let demoController;
 let healthChecker;
 let isQuitting = false;
 let updateReady = false;
@@ -77,12 +75,8 @@ function updateTrayHealth(isHealthy) {
 }
 
 function buildContextMenu() {
-  const isHealthy = store.get('api_healthy', true);
   return Menu.buildFromTemplate(
-    contextMenuTemplate(udpServer, apiClient, openSettingsWindow, {
-      isHealthy,
-      demoController,
-      dcsChatClient,
+    contextMenuTemplate(apiClient, openSettingsWindow, {
       openTelemetry: openTelemetryWindow,
       updateReady,
       checkForUpdates: app.isPackaged
@@ -91,11 +85,6 @@ function buildContextMenu() {
             autoUpdater.checkForUpdates().catch((err) => log.error('Update check failed:', err));
           }
         : null,
-      onChange: () => {
-        if (tray) {
-          tray.setContextMenu(buildContextMenu());
-        }
-      }
     })
   );
 }
@@ -283,8 +272,6 @@ async function bootstrap() {
   achievementEngine = appInitResult.achievementEngine;
   healthChecker = appInitResult.healthChecker;
 
-  demoController = new DemoController();
-
   setApplicationMenu();
 
   const contextMenu = buildContextMenu();
@@ -427,9 +414,6 @@ app.on('window-all-closed', (event) => {
 app.on('before-quit', () => {
   isQuitting = true;
   sortieLogger?.closeAll();
-  if (demoController?.isRunning) {
-    demoController.stop();
-  }
   if (healthChecker) {
     healthChecker.stop();
   }

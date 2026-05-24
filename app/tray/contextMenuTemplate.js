@@ -1,7 +1,4 @@
-const createTestEvents = require('./testEvents');
-const { createDemoModeMenu } = require('./demoModeMenu');
-
-const contextMenuTemplate = (udpServer, api, openSettings, options = {}) => [
+const contextMenuTemplate = (api, openSettings, options = {}) => [
   {
     label: 'Settings',
     click: openSettings,
@@ -19,8 +16,6 @@ const contextMenuTemplate = (udpServer, api, openSettings, options = {}) => [
     label: options.updateReady ? 'Install Update...' : 'Check for Updates',
     click: options.checkForUpdates,
   }] : []),
-  ...createDemoModeMenu(options.demoController, { onChange: options.onChange, enabled: options.isHealthy !== false }),
-  ...createTestEvents(udpServer, { enabled: options.isHealthy !== false, dcsChatClient: options.dcsChatClient }),
   { type: 'separator' },
   {
     label: 'Quit Checkride',

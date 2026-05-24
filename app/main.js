@@ -33,6 +33,7 @@ let demoController;
 let healthChecker;
 let isQuitting = false;
 let updateReady = false;
+let manualUpdateCheck = false;
 
 const openSettingsWindow = () => {
   return showSettingsWindow();
@@ -85,7 +86,10 @@ function buildContextMenu() {
       openTelemetry: openTelemetryWindow,
       updateReady,
       checkForUpdates: app.isPackaged
-        ? () => autoUpdater.checkForUpdates().catch((err) => log.error('Update check failed:', err))
+        ? () => {
+            manualUpdateCheck = true;
+            autoUpdater.checkForUpdates().catch((err) => log.error('Update check failed:', err));
+          }
         : null,
       onChange: () => {
         if (tray) {
@@ -187,6 +191,28 @@ function initAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = false;
 
+  autoUpdater.on('update-available', () => {
+    if (manualUpdateCheck) {
+      manualUpdateCheck = false;
+      tray?.displayBalloon({
+        title: 'Update Found',
+        content: 'Downloading the latest version of Checkride...',
+        noSound: true,
+      });
+    }
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    if (manualUpdateCheck) {
+      manualUpdateCheck = false;
+      tray?.displayBalloon({
+        title: 'Checkride is up to date',
+        content: `v${app.getVersion()} is the latest version.`,
+        noSound: true,
+      });
+    }
+  });
+
   autoUpdater.on('update-downloaded', (info) => {
     updateReady = true;
     if (tray) {
@@ -204,6 +230,17 @@ function initAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     log.error('Auto-updater error:', err);
+    if (manualUpdateCheck) {
+      manualUpdateCheck = false;
+      dialog.showMessageBox({
+        type: 'error',
+        title: 'Update Check Failed',
+        message: 'Could not check for updates.',
+        detail: err.message,
+        buttons: ['OK'],
+        noLink: true,
+      });
+    }
   });
 }
 

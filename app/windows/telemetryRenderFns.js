@@ -66,93 +66,108 @@
       </div>`;
   }
 
-  function renderPayload(t) {
-    const payload = t.payload;
-    if (!Array.isArray(payload) || payload.length === 0) return '';
-    const rows = payload.map(item => {
-      const name = escapeHtml(item.displayName || item.typeName || 'Unknown');
-      const cat = AMMO_CATEGORY[item.category] ?? '';
-      return `<tr><td>${name}</td><td style="color:#7a8394;font-size:11px">${cat}</td><td style="text-align:right">${item.count}</td></tr>`;
-    }).join('');
-    return `
-      <div class="state-section">
-        <div class="section-title">Payload</div>
+  function renderOrdnance(telemetry, state) {
+    const payload = Array.isArray(telemetry.payload) ? telemetry.payload : [];
+    const weapons = Array.isArray(state.weapons) ? state.weapons : [];
+
+    let html = '<div class="state-section"><div class="section-title">Ordnance</div>';
+
+    // In-flight weapons
+    if (weapons.length > 0) {
+      const rows = weapons.map(w => {
+        const name = escapeHtml(w.weaponDisplayName || w.weaponName || w.weaponClass || w.weaponKey || '?');
+        const statusLabel = w.inFlight ? 'IN FLIGHT' : (w.hitOrMiss ?? w.status ?? '—');
+        const statusColor = w.inFlight ? '#c8a03a' : w.hitOrMiss === 'hit' ? '#3a8f5c' : w.hitOrMiss === 'miss' ? '#e07b6b' : '#7a8394';
+        const dist = w.distanceNm != null ? fmt(w.distanceNm) + ' nm' : '—';
+        return `<tr>
+          <td style="font-size:11px">${name}</td>
+          <td style="font-size:11px;color:#7a8394">${escapeHtml(w.weaponClass || '—')}</td>
+          <td><span style="color:${statusColor};font-size:10px;font-weight:600">${statusLabel}</span></td>
+          <td style="font-size:11px;color:#7a8394;text-align:right">${dist}</td>
+        </tr>`;
+      }).join('');
+      html += `<div style="font-size:11px;color:#4d5464;margin-bottom:4px">Fired (${weapons.length})</div>
+        <table class="kills-table" style="margin-bottom:10px">
+          <thead><tr><th>Weapon</th><th>Class</th><th>Status</th><th style="text-align:right">Dist.</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    // Current payload — raw GetAmmo rows
+    if (payload.length > 0) {
+      const rows = payload.map(item => {
+        const name = escapeHtml(item.displayName || item.typeName || 'Unknown');
+        const cat = AMMO_CATEGORY[item.category] ?? String(item.category);
+        return `<tr>
+          <td style="font-size:11px">${name}</td>
+          <td style="font-size:11px;color:#7a8394">${cat}</td>
+          <td style="font-size:11px;text-align:right">${item.count}</td>
+        </tr>`;
+      }).join('');
+      html += `<div style="font-size:11px;color:#4d5464;margin-bottom:4px">Current payload</div>
         <table class="kills-table">
           <thead><tr><th>Weapon</th><th>Type</th><th style="text-align:right">Qty</th></tr></thead>
           <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+        </table>`;
+    }
+
+    if (weapons.length === 0 && payload.length === 0) {
+      html += '<div style="font-size:12px;color:#4d5464;font-style:italic">No ordnance data</div>';
+    }
+
+    html += '</div>';
+    return html;
   }
 
   function renderMissiles(s) {
-    const outbound = (s.missiles || []).filter(m => m.inFlight);
     const inbound = (s.inboundMissiles || []).filter(m => m.inFlight);
     const recentInbound = (s.inboundMissiles || []).filter(m => !m.inFlight);
 
-    if (outbound.length === 0 && inbound.length === 0 && recentInbound.length === 0) return '';
+    if (inbound.length === 0 && recentInbound.length === 0) return '';
 
-    let html = `<div class="state-section"><div class="section-title">Missiles</div>`;
-
-    if (inbound.length > 0) {
-      const rows = inbound.map(m => `
-        <tr>
-          <td><span class="badge badge-other" style="background:#3a1a1a;color:#e07b6b">INBOUND</span></td>
-          <td>${escapeHtml(m.weaponName || '?')}</td>
-          <td style="color:#7a8394">${escapeHtml(m.weaponGuidance || '—')}</td>
-        </tr>`).join('');
-      html += `<table class="kills-table" style="margin-bottom:8px">
-        <thead><tr><th></th><th>Weapon</th><th>Guidance</th></tr></thead>
-        <tbody>${rows}</tbody></table>`;
-    }
-
-    if (recentInbound.length > 0) {
-      const rows = recentInbound.map(m => {
-        const statusLabel = m.status === 'hit' ? 'HIT' : 'EVADED';
-        const statusColor = m.status === 'hit' ? '#e07b6b' : '#3a8f5c';
+    const rows = [
+      ...inbound.map(m => `<tr>
+        <td><span class="badge badge-other" style="background:#3a1a1a;color:#e07b6b">INBOUND</span></td>
+        <td style="font-size:11px">${escapeHtml(m.weaponName || '?')}</td>
+        <td style="font-size:11px;color:#7a8394">${escapeHtml(m.weaponGuidance || '—')}</td>
+      </tr>`),
+      ...recentInbound.map(m => {
+        const label = m.status === 'hit' ? 'HIT' : 'EVADED';
+        const color = m.status === 'hit' ? '#e07b6b' : '#3a8f5c';
         return `<tr>
-          <td><span class="badge" style="background:#1e2230;color:${statusColor}">${statusLabel}</span></td>
-          <td>${escapeHtml(m.weaponName || '?')}</td>
-          <td style="color:#7a8394">${escapeHtml(m.weaponGuidance || '—')}</td>
+          <td><span class="badge" style="background:#1e2230;color:${color}">${label}</span></td>
+          <td style="font-size:11px">${escapeHtml(m.weaponName || '?')}</td>
+          <td style="font-size:11px;color:#7a8394">${escapeHtml(m.weaponGuidance || '—')}</td>
         </tr>`;
-      }).join('');
-      html += `<table class="kills-table" style="margin-bottom:8px">
-        ${inbound.length === 0 ? `<thead><tr><th></th><th>Weapon</th><th>Guidance</th></tr></thead>` : ''}
-        <tbody>${rows}</tbody></table>`;
-    }
+      }),
+    ].join('');
 
-    if (outbound.length > 0) {
-      const rows = outbound.map(m => `
-        <tr>
-          <td><span class="badge badge-air">OUT</span></td>
-          <td>${escapeHtml(m.weaponDisplayName || m.weaponName || '?')}</td>
-          <td style="color:#7a8394">${m.speedMach ? 'M' + fmt(m.speedMach, 2) : '—'}</td>
-        </tr>`).join('');
-      html += `<table class="kills-table">
-        <thead><tr><th></th><th>Weapon</th><th>Speed</th></tr></thead>
-        <tbody>${rows}</tbody></table>`;
-    }
-
-    html += `</div>`;
-    return html;
+    return `<div class="state-section"><div class="section-title">Inbound Threats</div>
+      <table class="kills-table">
+        <thead><tr><th></th><th>Weapon</th><th>Guidance</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
   }
 
   function renderCombat(s) {
     const killsHtml = s.kills && s.kills.length > 0
       ? `<table class="kills-table">
-           <thead><tr><th></th><th>Target</th><th>Weapon</th><th>Alt / Speed</th><th>Dist.</th></tr></thead>
+           <thead><tr><th></th><th>Target</th><th>Weapon</th><th>At kill</th><th>Dist.</th></tr></thead>
            <tbody>${s.kills.map(k => {
-             const targetName = escapeHtml(k.victimAirType || k.victimTypeName || '—');
-             const weaponDesc = [k.weaponClass, k.weaponGuidance].filter(Boolean).join(' / ') || '—';
+             const targetName = escapeHtml(k.victimTypeName || k.victimAirType || '—');
+             const subLabel = k.victimAirType === 'HELICOPTER' ? ' <span style="font-size:10px;color:#7a8394">HELO</span>' : '';
+             const weaponParts = [k.weaponClass, k.weaponGuidance].filter(v => v != null && v !== '');
+             const weaponDesc = escapeHtml(weaponParts.join(' / ') || '—');
              const flags = [];
              if (k.night) flags.push('<span style="color:#7a8394;font-size:10px">NIGHT</span>');
              if (k.avengedFriendly) flags.push('<span style="color:#c8a03a;font-size:10px">AVENGER</span>');
              const altSpeed = k.pilotAltitudeFt != null
-               ? `${fmt(k.pilotAltitudeFt, 0)} ft${k.pilotSpeedMach != null ? ' / M' + fmt(k.pilotSpeedMach, 2) : ''}`
+               ? `${fmt(k.pilotAltitudeFt, 0)} ft${k.pilotSpeedMach != null ? ' · M' + fmt(k.pilotSpeedMach, 2) : ''}`
                : '—';
              return `<tr>
-               <td>${categoryBadge(k.victimUnitCategory)}${flags.length ? ' ' + flags.join(' ') : ''}</td>
-               <td style="font-size:11px">${targetName}</td>
-               <td style="font-size:11px;color:#7a8394">${escapeHtml(weaponDesc)}</td>
+               <td style="white-space:nowrap">${categoryBadge(k.victimUnitCategory)}${flags.map(f => ' ' + f).join('')}</td>
+               <td style="font-size:11px">${targetName}${subLabel}</td>
+               <td style="font-size:11px;color:#7a8394">${weaponDesc}</td>
                <td style="font-size:11px;color:#7a8394;white-space:nowrap">${altSpeed}</td>
                <td style="font-size:11px;white-space:nowrap">${k.carrierDistanceNm != null ? fmt(k.carrierDistanceNm) + ' nm' : '—'}</td>
              </tr>`;
@@ -213,38 +228,6 @@
       </div>`;
   }
 
-  function renderOrdnanceLog(s) {
-    const log = s.ordnanceLog;
-    if (!Array.isArray(log) || log.length === 0) return '';
-    const rows = log.map(entry => {
-      let result, resultColor;
-      if (entry.hitOrMiss === 'hit') {
-        result = 'HIT'; resultColor = '#3a8f5c';
-      } else if (entry.hitOrMiss === 'miss') {
-        result = 'MISS'; resultColor = '#e07b6b';
-      } else {
-        result = 'in flight'; resultColor = '#7a8394';
-      }
-      let flightTime = '—';
-      if (entry.startTimeMs != null && entry.endTimeMs != null) {
-        flightTime = fmt((entry.endTimeMs - entry.startTimeMs) / 1000) + 's';
-      }
-      return `<tr>
-        <td style="font-family:monospace;font-size:11px;color:#9ba4b5">${escapeHtml(String(entry.weaponKey))}</td>
-        <td><span style="color:${resultColor};font-size:11px;font-weight:600">${result}</span></td>
-        <td style="text-align:right;color:#7a8394;font-size:11px">${flightTime}</td>
-      </tr>`;
-    }).join('');
-    return `
-      <div class="state-section">
-        <div class="section-title">Ordnance Log (${log.length})</div>
-        <table class="kills-table">
-          <thead><tr><th>Key</th><th>Result</th><th style="text-align:right">Flight time</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
-  }
-
   function renderGauges(g) {
     const topSpeedParts = [];
     if (g.highest_speed_mach) topSpeedParts.push('M' + fmt(g.highest_speed_mach, 2));
@@ -278,10 +261,9 @@
         <div style="font-size:11px;color:#4d5464;margin-top:2px">${pilot.ucid}</div>
       </div>
       ${renderTelemetry(telemetry)}
-      ${renderPayload(telemetry)}
+      ${renderOrdnance(telemetry, state)}
       ${renderMissiles(state)}
       ${renderCombat(state)}
-      ${renderOrdnanceLog(state)}
       ${renderSession(state)}
       ${renderRefuel(state)}
       ${renderNavigation(state)}
@@ -295,10 +277,9 @@
     escapeHtml,
     kvRow,
     renderTelemetry,
-    renderPayload,
+    renderOrdnance,
     renderMissiles,
     renderCombat,
-    renderOrdnanceLog,
     renderSession,
     renderRefuel,
     renderNavigation,

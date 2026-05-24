@@ -1085,7 +1085,7 @@ local function classifyWeaponClass(weapon)
     local categoryName = WEAPON_CATEGORY_NAMES[desc.category]
     if not categoryName then return "UNKNOWN" end
 
-    if categoryName == "MISSILE" then
+    if categoryName == "MISSILE" or (desc.missileCategory ~= nil) then
         return MISSILE_CATEGORY_NAMES[desc.missileCategory] or "MISSILE"
     end
 

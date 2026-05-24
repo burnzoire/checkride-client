@@ -202,13 +202,39 @@
       text-align: center;
     }
 
+    /* ── Panel divider ──────────────────────────────────────────────────────── */
+
+    #panel-divider {
+      flex-shrink: 0;
+      height: 20px;
+      background: #111318;
+      border-top: 1px solid #2e3340;
+      border-bottom: 1px solid #2e3340;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #btn-toggle-state {
+      background: #1a1d23;
+      border: 1px solid #2e3340;
+      border-radius: 3px;
+      color: #4d5464;
+      cursor: pointer;
+      font-size: 11px;
+      padding: 0 10px;
+      line-height: 16px;
+      user-select: none;
+    }
+
+    #btn-toggle-state:hover { background: #252a38; border-color: #4a5168; color: #9ba4b5; }
+
     /* ── Detail panel ───────────────────────────────────────────────────────── */
 
     #detail-panel {
       flex: 1;
       overflow-y: auto;
       padding: 10px 16px 16px;
-      border-top: 1px solid #2e3340;
       min-height: 0;
     }
 
@@ -393,6 +419,10 @@
           <span id="scrubber-time-end">—</span>
         </div>
         <div id="scrubber-label">—</div>
+      </div>
+
+      <div id="panel-divider">
+        <button id="btn-toggle-state">▲</button>
       </div>
 
       <div id="detail-panel">

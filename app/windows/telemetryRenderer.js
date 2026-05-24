@@ -1,7 +1,7 @@
 (function () {
   const POLL_INTERVAL_MS = 2000;
   const STALE_THRESHOLD_MS = 6000;
-  const { renderTelemetry, renderCombat, renderSession, escapeHtml } = TelemetryRenderFns;
+  const { renderPilotState, escapeHtml } = TelemetryRenderFns;
   const charts = SortieCharts;
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -33,6 +33,9 @@
   const btnLoadFile     = document.getElementById('btn-load-file');
   const btnBackLive     = document.getElementById('btn-back-live');
   const fileInput       = document.getElementById('file-input');
+  const btnToggleState  = document.getElementById('btn-toggle-state');
+  const chartAreaEl     = document.getElementById('chart-area');
+  const scrubberAreaEl  = document.getElementById('scrubber-area');
 
   // ── Time helpers ───────────────────────────────────────────────────────────
 
@@ -151,18 +154,11 @@
       showDetailPlaceholder();
       return;
     }
-    const { telemetry, state } = ev.state;
-    let html = '';
-    if (pilot) {
-      html += `<div style="padding-bottom:8px;border-bottom:1px solid #2e3340;margin-bottom:12px">
-        <div style="font-size:14px;font-weight:600;color:#dde3ee">${escapeHtml(pilot.name || pilot.ucid || '—')}</div>
-        <div style="font-size:11px;color:#4d5464;margin-top:2px">${escapeHtml(pilot.ucid || '—')}</div>
-      </div>`;
-    }
-    if (telemetry) html += renderTelemetry(telemetry);
-    if (state)     html += renderCombat(state);
-    if (state)     html += renderSession(state);
-    detailPanelEl.innerHTML = html;
+    detailPanelEl.innerHTML = renderPilotState({
+      ucid: pilot?.ucid || '—',
+      name: pilot?.name || pilot?.ucid || '—',
+      state: ev.state,
+    });
   }
 
   function showDetailPlaceholder() {
@@ -358,6 +354,17 @@
 
   btnLoadFile.addEventListener('click', openFile);
   btnBackLive.addEventListener('click', returnToLive);
+
+  // ── State panel expand/collapse ────────────────────────────────────────────
+
+  let stateExpanded = false;
+
+  btnToggleState.addEventListener('click', () => {
+    stateExpanded = !stateExpanded;
+    chartAreaEl.style.display   = stateExpanded ? 'none' : '';
+    scrubberAreaEl.style.display = stateExpanded ? 'none' : '';
+    btnToggleState.textContent  = stateExpanded ? '▼' : '▲';
+  });
 
   // ── Boot ───────────────────────────────────────────────────────────────────
 

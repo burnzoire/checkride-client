@@ -5,13 +5,12 @@ class SureShot extends Achievement {
     super({
       id: 'sure_shot',
       name: 'Sure Shot',
-      description: 'Score a kill with your first air-to-air missile fired.',
-      triggerType: 'kill_enrichment',
+      description: 'Score a hit with your first air-to-air missile fired.',
+      triggerType: 'hit_enrichment',
     });
   }
 
   evaluate(event, state) {
-    if (event.victimUnitCategory !== 'air') return false;
     if (event.weaponClass !== 'AAM') return false;
     if (state.sortieAamFiredCount !== 1) return false;
     return true;

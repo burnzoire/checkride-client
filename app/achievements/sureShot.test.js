@@ -1,14 +1,13 @@
 const sureShot = require('./sureShot');
 const PilotState = require('../services/pilotState');
 
-function killEvent(overrides = {}) {
+function hitEvent(overrides = {}) {
   return {
-    type: 'kill_enrichment',
+    type: 'hit_enrichment',
     playerUcid: 'pilot-1',
     playerName: 'Maverick',
-    victimUnitCategory: 'air',
-    victimObjectId: 55,
     weaponClass: 'AAM',
+    weaponKey: 'w1',
     ...overrides,
   };
 }
@@ -24,53 +23,40 @@ describe('SureShot — metadata', () => {
     expect(sureShot.id).toBe('sure_shot');
   });
 
-  it('has triggerType kill_enrichment', () => {
-    expect(sureShot.triggerType).toBe('kill_enrichment');
+  it('has triggerType hit_enrichment', () => {
+    expect(sureShot.triggerType).toBe('hit_enrichment');
   });
 });
 
 describe('SureShot — evaluate', () => {
-  it('returns true when exactly 1 AAM fired and kill event carries weaponClass AAM', () => {
+  it('returns true when exactly 1 AAM fired and hit event carries weaponClass AAM', () => {
     const state = stateWith({ aamFiredCount: 1 });
-    expect(sureShot.evaluate(killEvent(), state)).toBe(true);
+    expect(sureShot.evaluate(hitEvent(), state)).toBe(true);
+  });
+
+  it('awards on a non-fatal hit (no kill required)', () => {
+    const state = stateWith({ aamFiredCount: 1 });
+    expect(sureShot.evaluate(hitEvent(), state)).toBe(true);
   });
 
   it('returns false when no AAMs have been fired', () => {
     const state = stateWith({ aamFiredCount: 0 });
-    expect(sureShot.evaluate(killEvent(), state)).toBe(false);
+    expect(sureShot.evaluate(hitEvent(), state)).toBe(false);
   });
 
   it('returns false when more than one AAM has been fired', () => {
     const state = stateWith({ aamFiredCount: 2 });
-    expect(sureShot.evaluate(killEvent(), state)).toBe(false);
+    expect(sureShot.evaluate(hitEvent(), state)).toBe(false);
   });
 
-  it('returns false when victim is a ground unit', () => {
+  it('returns false when hit event has no weaponClass', () => {
     const state = stateWith({ aamFiredCount: 1 });
-    expect(sureShot.evaluate(killEvent({ victimUnitCategory: 'ground' }), state)).toBe(false);
+    expect(sureShot.evaluate(hitEvent({ weaponClass: null }), state)).toBe(false);
   });
 
-  it('returns false when victim is a ship', () => {
+  it('returns false when hit was from a bomb, not an AAM', () => {
     const state = stateWith({ aamFiredCount: 1 });
-    expect(sureShot.evaluate(killEvent({ victimUnitCategory: 'ship' }), state)).toBe(false);
-  });
-
-  it('returns false when kill event has no weaponClass (no hit record — gun or unknown)', () => {
-    const state = stateWith({ aamFiredCount: 1 });
-    expect(sureShot.evaluate(killEvent({ weaponClass: null }), state)).toBe(false);
-  });
-
-  it('returns false when kill was from a bomb, not an AAM', () => {
-    const state = stateWith({ aamFiredCount: 1 });
-    expect(sureShot.evaluate(killEvent({ weaponClass: 'BOMB' }), state)).toBe(false);
-  });
-
-  it('awards correctly even when hit_enrichment has not yet updated missile state (ordering race)', () => {
-    // This is the key regression test: kill_enrichment arrives before hit_enrichment.
-    // Before the fix, state.missiles would still show in_flight and the award was missed.
-    const state = stateWith({ aamFiredCount: 1 });
-    // missiles intentionally empty — hit_enrichment hasn't arrived yet
-    expect(sureShot.evaluate(killEvent(), state)).toBe(true);
+    expect(sureShot.evaluate(hitEvent({ weaponClass: 'BOMB' }), state)).toBe(false);
   });
 });
 

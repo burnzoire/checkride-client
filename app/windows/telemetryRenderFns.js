@@ -139,12 +139,24 @@
   function renderCombat(s) {
     const killsHtml = s.kills && s.kills.length > 0
       ? `<table class="kills-table">
-           <thead><tr><th>Category</th><th>Carrier Dist.</th></tr></thead>
-           <tbody>${s.kills.map(k => `
-             <tr>
-               <td>${categoryBadge(k.victimUnitCategory)}</td>
-               <td>${k.carrierDistanceNm !== null && k.carrierDistanceNm !== undefined ? fmt(k.carrierDistanceNm) + ' nm' : '—'}</td>
-             </tr>`).join('')}
+           <thead><tr><th></th><th>Target</th><th>Weapon</th><th>Alt / Speed</th><th>Dist.</th></tr></thead>
+           <tbody>${s.kills.map(k => {
+             const targetName = escapeHtml(k.victimAirType || k.victimTypeName || '—');
+             const weaponDesc = [k.weaponClass, k.weaponGuidance].filter(Boolean).join(' / ') || '—';
+             const flags = [];
+             if (k.night) flags.push('<span style="color:#7a8394;font-size:10px">NIGHT</span>');
+             if (k.avengedFriendly) flags.push('<span style="color:#c8a03a;font-size:10px">AVENGER</span>');
+             const altSpeed = k.pilotAltitudeFt != null
+               ? `${fmt(k.pilotAltitudeFt, 0)} ft${k.pilotSpeedMach != null ? ' / M' + fmt(k.pilotSpeedMach, 2) : ''}`
+               : '—';
+             return `<tr>
+               <td>${categoryBadge(k.victimUnitCategory)}${flags.length ? ' ' + flags.join(' ') : ''}</td>
+               <td style="font-size:11px">${targetName}</td>
+               <td style="font-size:11px;color:#7a8394">${escapeHtml(weaponDesc)}</td>
+               <td style="font-size:11px;color:#7a8394;white-space:nowrap">${altSpeed}</td>
+               <td style="font-size:11px;white-space:nowrap">${k.carrierDistanceNm != null ? fmt(k.carrierDistanceNm) + ' nm' : '—'}</td>
+             </tr>`;
+           }).join('')}
            </tbody>
          </table>`
       : '<div style="font-size:12px;color:#4d5464;font-style:italic">No kills this sortie</div>';
@@ -201,6 +213,38 @@
       </div>`;
   }
 
+  function renderOrdnanceLog(s) {
+    const log = s.ordnanceLog;
+    if (!Array.isArray(log) || log.length === 0) return '';
+    const rows = log.map(entry => {
+      let result, resultColor;
+      if (entry.hitOrMiss === 'hit') {
+        result = 'HIT'; resultColor = '#3a8f5c';
+      } else if (entry.hitOrMiss === 'miss') {
+        result = 'MISS'; resultColor = '#e07b6b';
+      } else {
+        result = 'in flight'; resultColor = '#7a8394';
+      }
+      let flightTime = '—';
+      if (entry.startTimeMs != null && entry.endTimeMs != null) {
+        flightTime = fmt((entry.endTimeMs - entry.startTimeMs) / 1000) + 's';
+      }
+      return `<tr>
+        <td style="font-family:monospace;font-size:11px;color:#9ba4b5">${escapeHtml(String(entry.weaponKey))}</td>
+        <td><span style="color:${resultColor};font-size:11px;font-weight:600">${result}</span></td>
+        <td style="text-align:right;color:#7a8394;font-size:11px">${flightTime}</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="state-section">
+        <div class="section-title">Ordnance Log (${log.length})</div>
+        <table class="kills-table">
+          <thead><tr><th>Key</th><th>Result</th><th style="text-align:right">Flight time</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
   function renderGauges(g) {
     const topSpeedParts = [];
     if (g.highest_speed_mach) topSpeedParts.push('M' + fmt(g.highest_speed_mach, 2));
@@ -237,6 +281,7 @@
       ${renderPayload(telemetry)}
       ${renderMissiles(state)}
       ${renderCombat(state)}
+      ${renderOrdnanceLog(state)}
       ${renderSession(state)}
       ${renderRefuel(state)}
       ${renderNavigation(state)}
@@ -253,6 +298,7 @@
     renderPayload,
     renderMissiles,
     renderCombat,
+    renderOrdnanceLog,
     renderSession,
     renderRefuel,
     renderNavigation,

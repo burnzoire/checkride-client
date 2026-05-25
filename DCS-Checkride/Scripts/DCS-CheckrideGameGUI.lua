@@ -92,8 +92,7 @@ function Checkride.sendChatToUcid(message, ucid)
             if net and net.send_chat_to then
                 net.send_chat_to(message, id)
             else
-                Checkride.log("send_chat_to API not available, falling back to broadcast")
-                Checkride.sendChatToAll(message)
+                Checkride.log("send_chat_to API not available, skipping targeted chat for ucid " .. ucid)
             end
             return
         end
@@ -148,21 +147,22 @@ function Checkride.pollChatSocket()
 
                 if message and message ~= "" then
                     local kind = decoded.kind
-                    local playerUcid = (decoded.playerUcid and decoded.playerUcid ~= "") and decoded.playerUcid or nil
+                    local playerUcid = decoded.playerUcid
 
                     if kind == "achievement" or kind == "proficiency" then
                         Checkride.log("Received " .. tostring(kind) .. ": " .. message)
                         Checkride.sendChatToAll(message)
                         if playerUcid and Checkride.missionScriptingEnabled then
-                            local outText = (decoded.outText and decoded.outText ~= "") and decoded.outText or message
+                            local outText = decoded.outText or message
                             Checkride.showOutTextForPilot(playerUcid, outText, 10)
+                        elseif not playerUcid then
+                            Checkride.log("Skipping outText for " .. tostring(kind) .. ": no playerUcid in payload")
                         end
                     elseif playerUcid then
                         Checkride.log("Received chat message: " .. message)
                         Checkride.sendChatToUcid(message, playerUcid)
                     else
-                        Checkride.log("Received chat message: " .. message)
-                        Checkride.sendChatToAll(message)
+                        Checkride.log("Received targeted chat with no playerUcid, skipping: " .. message)
                     end
                 end
             end

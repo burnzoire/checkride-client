@@ -402,10 +402,12 @@ function CheckrideMission.startPilotSampler(unit, playerName, ucid)
     if not timer or not timer.scheduleFunction or not timer.getTime then return end
     if not CheckrideMission.FlightSample.enabled then return end
 
-    local pilotKey = ucid or playerName
-    if pilotKey then
-        CheckrideMission.pilotUnitByUcid[pilotKey] = unit
+    if ucid then
+        CheckrideMission.pilotUnitByUcid[ucid] = unit
+    else
+        CheckrideMission.log('startPilotSampler: no ucid for ' .. tostring(playerName) .. ', outText will not work for this pilot')
     end
+    local pilotKey = ucid or playerName
     CheckrideMission.PilotGenerations[pilotKey] = (CheckrideMission.PilotGenerations[pilotKey] or 0) + 1
     local myGen = CheckrideMission.PilotGenerations[pilotKey]
     CheckrideMission.log('starting pilot sampler: name=' .. tostring(playerName) .. ' ucid=' .. tostring(ucid) .. ' gen=' .. tostring(myGen))
@@ -1793,13 +1795,14 @@ function CheckrideMission.onTakeoff(event)
         isCarrier = true
     end
 
-    local carrierKey = ucid or playerName
     local carrierName = placeName
 
-    if isCarrier then
-        CheckrideMission.pilotCarrierByUcid[carrierKey] = place
-    else
-        CheckrideMission.pilotCarrierByUcid[carrierKey] = nil
+    if ucid then
+        if isCarrier then
+            CheckrideMission.pilotCarrierByUcid[ucid] = place
+        else
+            CheckrideMission.pilotCarrierByUcid[ucid] = nil
+        end
     end
 
     local message = {
@@ -1951,8 +1954,7 @@ function CheckrideMission.onKill(event)
                     killerCoal ~= victimCoal and victimCoal ~= coalition.side.NEUTRAL
 
     -- Distance from pilot's carrier — use pending position when target is already gone
-    local carrierKey = ucid or playerName
-    local carrier = CheckrideMission.pilotCarrierByUcid[carrierKey]
+    local carrier = ucid and CheckrideMission.pilotCarrierByUcid[ucid]
     local carrierDistanceNm = nil
 
     if carrier then

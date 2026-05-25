@@ -220,6 +220,9 @@ describe("CheckrideMission.startPilotSampler", function()
             scheduleFunction = function() scheduled = true end,
         }
         _G.Airbase = { Category = { SHIP = 2 } }
+        _G.CheckrideLookupUCID = function(name)
+            if name == "Goose" then return "ucid-goose" end
+        end
 
         local unit = stubs.make_unit({ playerName = "Goose", exists = true })
         local place = { getDesc = function() return { category = 0 } end, getName = function() return "Airbase" end }
@@ -227,7 +230,8 @@ describe("CheckrideMission.startPilotSampler", function()
         CheckrideMission.EventHandler:onEvent({ id = 99, initiator = unit, place = place })
 
         assert.is_true(scheduled)
-        assert.are.equal(1, CheckrideMission.PilotGenerations["Goose"])
+        assert.are.equal(1, CheckrideMission.PilotGenerations["ucid-goose"])
+        assert.is_truthy(CheckrideMission.pilotUnitByUcid["ucid-goose"])
     end)
 
     it("allows queue growth under sustained telemetry enqueue without consumer", function()

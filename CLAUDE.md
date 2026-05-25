@@ -1,6 +1,6 @@
 # checkride-client
 
-Electron desktop app (v1.x) that bridges DCS World → Checkride API. Runs in the system tray on the DCS server Windows PC. Listens on UDP 41234 for Lua events, processes them, posts to the Rails API, sends Discord notifications, and streams live pilot telemetry via ActionCable WebSocket.
+Electron desktop app (v1.x) that bridges DCS World → Checkride API. Runs in the system tray on the DCS server Windows PC. Listens on UDP 41234 for Lua events, processes them, posts to the Rails API, and sends Discord notifications.
 
 ## Stack
 
@@ -23,26 +23,32 @@ npm run release         # electron-builder --publish=always (GitHub releases)
 
 ## Architecture
 
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system diagram including DCS Lua script interactions, external services, and event pipeline detail.
+
 ### Event pipeline (`app/appInit.js`)
 
-UDP event → normalize pilot identity (UCID fallback by name map) → lifecycle check (ready/connect/change_slot) → `AchievementEngine.evaluate()` → decide `persist: false` vs persist → `ApiClient.saveEvent()` → dispatch Discord + DCS chat from API response.
+UDP event → `EventProcessor` (stamps `event_uid`, applies `AirborneTracker` enrichment) → normalize pilot identity (UCID fallback by name map) → lifecycle check (ready/connect/change_slot) → `AchievementEngine.evaluate()` → decide `persist: false` vs persist → `ApiClient.saveEvent()` → dispatch Discord + DCS chat from API response.
 
 ### Key services
 
 - `app/services/udpServer.js` — UDP listener on port 41234
+- `app/services/eventProcessor.js` — stamps a deterministic `event_uid` (UUIDv5) on each event and applies `AirborneTracker` enrichment before the event enters the pipeline
+- `app/services/airborneTracker.js` — tracks per-pilot takeoff time; attaches `duration_seconds` to landing events
 - `app/services/achievementEngine.js` — in-memory achievement evaluation. Loads existing lifetime achievements from API on pilot connect/change_slot to avoid re-awarding.
 - `app/services/pilotState.js` — per-pilot state machine
-- `app/services/pilotStatePublisher.js` — ActionCable WebSocket publisher. **Currently disabled** — the implementation spammed the server too hard. Needs a rethink before re-enabling.
 - `app/services/gaugeSync.js` — debounced max-comparison writes to API; flushes immediately on landing/disconnect/crash.
+- `app/services/sortieLogger.js` — writes per-pilot per-sortie JSONL flight logs to disk (7-day retention). Logs `flight_sample_enrichment` snapshots during the sortie and a start/end record.
+- `app/services/heartbeatService.js` — pings the API every 60s with connected player count; sets the New Relic server name on first response.
 - `app/services/healthChecker.js` — polls `/up` every 5s, updates tray icon colour.
+- `app/clients/newRelicClient.js` — fire-and-forget structured log shipping to New Relic Log API. No-op when no license key is configured (`NEW_RELIC_LICENSE_KEY` env var or baked at build time).
 
 ### Achievements (`app/achievements/`)
 
-~15 named achievement classes (each has a `.test.js`). Lifetime per pilot — awarded once ever, persisted to the API. On pilot connect/change_slot, existing achievements are loaded from the API so they're never re-awarded. Each achievement extends a base class with `.evaluate(event, state)`.
+~35 named achievement classes (each has a `.test.js`). Lifetime per pilot — awarded once ever, persisted to the API. On pilot connect/change_slot, existing achievements are loaded from the API so they're never re-awarded. Each achievement extends a base class with `.evaluate(event, state)`.
 
 ### Gauges
 
-`onsimulationframe` events arrive at ~60fps and carry telemetry (speed, altitude, etc.). `GaugeSync` compares against current API max and writes if beaten, debounced 6s. Testing gauge logic requires a live DCS session or the demo mode — be cautious about changes here.
+`onsimulationframe` events arrive at ~60fps and carry telemetry (speed, altitude, etc.). `GaugeSync` compares against current API max and writes if beaten, debounced 6s. Be cautious about changes here — gauge logic is difficult to test without a live DCS session.
 
 ### Lua integration
 
@@ -55,13 +61,9 @@ All carry `__CHECKRIDE_CLIENT_VERSION__` stamped at build time. On each `ready` 
 
 DCS World install is at `D:\DCS World` — review Lua scripts there if needed.
 
-### Demo mode (`app/demo/demoController.js`)
-
-Generates seeded pseudo-random DCS events (Top Gun roster, carrier traps, kill sequences) and fires them into UDP 41234. Use for full end-to-end testing without a live server.
-
 ### Settings persistence (`app/config.js`)
 
-`electron-store` with JSON schema. Settings update live — saving triggers immediate re-wiring of API client, pilot state publisher start/stop, and event pipeline.
+`electron-store` with JSON schema. Settings update live — saving triggers immediate re-wiring of API client and event pipeline.
 
 ### Installer
 
@@ -78,15 +80,17 @@ NSIS installer (Windows) copies three Lua files from `extraResources/dcs/` into 
 ## Known outstanding work
 
 - **Multiple DCS instances on a single machine** — not yet solved. The current architecture assumes one DCS instance per machine (single UDP port 41234). Tracking multiple instances would require per-instance port assignment or a discovery mechanism.
+- **`buildTelemetryRoster` in mission Lua** — uses `coalition.getPlayers(side)` which may not be available in all DCS server configurations. Fix: inject player→unit mappings from the hook (which has `net.*` access) via `CheckridePlayerUnits`.
 
 ## Key files
 
 - `app/appInit.js` — full service wiring and event pipeline
 - `app/services/achievementEngine.js` — achievement evaluation
-- `app/achievements/` — individual achievement definitions
+- `app/achievements/` — individual achievement definitions (~35)
 - `app/clients/apiClient.js` — all API calls
 - `app/services/gaugeSync.js` — gauge high-water-mark sync
-- `app/services/pilotStatePublisher.js` — ActionCable WebSocket
+- `app/services/sortieLogger.js` — per-sortie JSONL flight logs
+- `app/clients/newRelicClient.js` — production observability
 - `app/config.js` — electron-store settings schema
 
 ## Adding a new gauge
@@ -103,6 +107,6 @@ Gauges track per-pilot high-water-mark values (max speed, max altitude, etc.) an
 
 ## Testing
 
-- Run `npm test` before pushing.
+- Run `npm test` from `app/` (that's where `package.json` lives — not the repo root).
 - Each achievement has its own `.test.js` — keep these up to date when adding or changing achievements.
-- Gauge logic (onsimulationframe) is difficult to test without a live DCS session. Use demo mode for smoke testing but be aware it doesn't replicate real frame rates.
+- Gauge logic (onsimulationframe) is difficult to test without a live DCS session.

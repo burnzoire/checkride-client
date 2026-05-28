@@ -523,6 +523,40 @@ describe('initApp', () => {
     expect(dcsChatClientMock.send).toHaveBeenCalledTimes(1);
   });
 
+  it('routes proficiency outtext to the killer on kill events', async () => {
+    const fakeEvent = { type: 'kill', killerUcid: 'killer-ucid-1', killerName: 'Maverick', victimUcid: 'victim-ucid-2', victimName: 'Goose' };
+    const gameEvent = {
+      prepare: jest.fn().mockReturnValue({ event: { event_type: 'kill', event_data: {} } }),
+    };
+    const apiResponse = {
+      summary: 'Maverick destroyed Goose',
+      proficiencies: [{ message: 'Maverick earned F-14 Sidewinder Basic Proficiency', name: 'F-14 Sidewinder Basic Proficiency' }],
+    };
+    const apiClientMock = {
+      saveEvent: jest.fn().mockResolvedValue(apiResponse),
+    };
+    const discordClientMock = { send: jest.fn().mockResolvedValue() };
+    const dcsChatClientMock = {
+      send: jest.fn().mockResolvedValue(),
+      sendConfig: jest.fn().mockResolvedValue(),
+    };
+
+    processMock.mockImplementation(() => ({ event: { event_type: 'kill', event_data: {}, event_uid: 'uid' } }));
+    APIClient.mockImplementation(() => apiClientMock);
+    DiscordClient.mockImplementation(() => discordClientMock);
+    DCSChatClient.mockImplementation(() => dcsChatClientMock);
+    EventFactory.create.mockResolvedValue(gameEvent);
+
+    const { udpServer } = await initApp();
+    await udpServer.onEvent(fakeEvent);
+
+    expect(dcsChatClientMock.send).toHaveBeenCalledWith(
+      'Maverick earned F-14 Sidewinder Basic Proficiency',
+      true,
+      { kind: 'proficiency', playerUcid: 'killer-ucid-1', outText: '[✓] F-14 Sidewinder Basic Proficiency' }
+    );
+  });
+
   it('does not send discord messages when summary is missing', async () => {
     const fakeEvent = { type: 'event' };
     const gameEvent = {

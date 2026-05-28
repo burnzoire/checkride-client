@@ -173,6 +173,11 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
       }
     }
 
+    if (!event.playerUcid && event.killerUcid) {
+      event.playerUcid = event.killerUcid;
+      event.playerName = event.killerName;
+    }
+
     if (event.type === 'flight_sample_enrichment' && !event.playerUcid && newRelicClient) {
       const missingKey = event.playerName || '__no_name__';
       if (!reportedMissingUcidKeys.has(missingKey)) {

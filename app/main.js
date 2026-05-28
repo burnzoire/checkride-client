@@ -31,6 +31,7 @@ let achievementEngine;
 let healthChecker;
 let isQuitting = false;
 let updateReady = false;
+let updateInfo = null;
 let manualUpdateCheck = false;
 
 const openSettingsWindow = () => {
@@ -85,6 +86,7 @@ function buildContextMenu() {
             autoUpdater.checkForUpdates().catch((err) => log.error('Update check failed:', err));
           }
         : null,
+      installUpdate: updateReady && updateInfo ? () => promptAndInstall(updateInfo) : null,
     })
   );
 }
@@ -204,17 +206,18 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     updateReady = true;
+    updateInfo = info;
     if (tray) {
       tray.displayBalloon({
         title: 'Checkride Update Ready',
         content: `v${info.version} has been downloaded. Click here to install.`,
         noSound: false,
       });
-      tray.on('balloon-click', () => promptAndInstall(info));
+      tray.once('balloon-click', () => promptAndInstall(info));
+      tray.setContextMenu(buildContextMenu());
     } else {
       promptAndInstall(info);
     }
-    if (tray) tray.setContextMenu(buildContextMenu());
   });
 
   autoUpdater.on('error', (err) => {

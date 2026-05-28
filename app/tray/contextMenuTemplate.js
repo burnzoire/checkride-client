@@ -12,8 +12,11 @@ const contextMenuTemplate = (api, openSettings, options = {}) => [
     label: 'About Checkride',
     role: 'about',
   },
-  ...(options.checkForUpdates ? [{
-    label: options.updateReady ? 'Install Update...' : 'Check for Updates',
+  ...(options.updateReady && options.installUpdate ? [{
+    label: 'Install Update...',
+    click: options.installUpdate,
+  }] : options.checkForUpdates ? [{
+    label: 'Check for Updates',
     click: options.checkForUpdates,
   }] : []),
   { type: 'separator' },

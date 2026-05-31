@@ -1,5 +1,6 @@
 const { v5: uuidv5 } = require('uuid');
 const { AirborneTracker } = require('./airborneTracker');
+const buildEventMetadata = require('./eventMetadata');
 
 const EVENT_UID_NAMESPACE = uuidv5('checkride-client:event', uuidv5.URL);
 
@@ -34,6 +35,16 @@ class EventProcessor {
     this.airborneTracker.apply(payload.event);
 
     payload.event.event_uid = this.buildEventUid(payload.event);
+
+    // Forward the DCS-sourced metadata the Lua mod attaches to the raw event
+    // (unit/weapon/killer/victim taxonomy from getDesc()/getAttributes()) into
+    // its own event_data.metadata namespace. Done AFTER the event_uid is computed
+    // so existing UIDs (the API dedup key) are unchanged; additive and namespaced,
+    // and the API does not consume it yet.
+    const metadata = buildEventMetadata(rawEvent);
+    if (metadata) {
+      payload.event.event_data.metadata = metadata;
+    }
 
     return payload;
   }

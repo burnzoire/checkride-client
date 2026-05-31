@@ -11,9 +11,12 @@ Electron desktop app (v1.x) that bridges DCS World → Checkride API. Runs in th
 
 ## Commands
 
-```bash
+Run all commands from `app/` using **PowerShell** (Bash does not produce output reliably on windows).
+
+```powershell
 npm test                # Jest unit tests — always keep green
 npm run test:coverage   # with 80% coverage threshold
+npm run lua:test        # Busted Lua specs
 npm start               # launch Electron (dev mode)
 npm run prepare:lua     # stamps __CHECKRIDE_CLIENT_VERSION__ into Lua files → build/lua-versioned/
 npm run deploy:lua      # deploys stamped Lua files to DCS Saved Games folder

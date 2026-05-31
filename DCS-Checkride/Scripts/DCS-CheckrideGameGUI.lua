@@ -131,7 +131,6 @@ function Checkride.pollChatSocket()
         end
 
         local trimmed = string.gsub(payload, "^%s*(.-)%s*$", "%1")
-        local message = trimmed
         local ok, decoded = pcall(function()
             return JSON:decode(trimmed)
         end)
@@ -139,36 +138,25 @@ function Checkride.pollChatSocket()
         if ok and type(decoded) == "table" then
             if decoded.source == "checkride" and decoded.kind == "config" then
                 Checkride.applyConfig(decoded)
-            else
-                if decoded.message and decoded.message ~= "" then
-                    message = decoded.message
-                elseif decoded.text and decoded.text ~= "" then
-                    message = decoded.text
-                end
+            elseif decoded.message and decoded.message ~= "" then
+                local message = decoded.message
+                local kind = decoded.kind
+                local playerUcid = (decoded.playerUcid and decoded.playerUcid ~= "") and decoded.playerUcid or nil
 
-                if message and message ~= "" then
-                    local kind = decoded.kind
-                    local playerUcid = (decoded.playerUcid and decoded.playerUcid ~= "") and decoded.playerUcid or nil
-
-                    if kind == "achievement" or kind == "proficiency" then
-                        Checkride.log("Received " .. tostring(kind) .. ": " .. message)
-                        Checkride.sendChatToAll(message)
-                        if playerUcid and Checkride.missionScriptingEnabled then
-                            local outText = (decoded.outText and decoded.outText ~= "") and decoded.outText or message
-                            Checkride.showOutTextForPilot(playerUcid, outText, 10)
-                        end
-                    elseif playerUcid then
-                        Checkride.log("Received chat message: " .. message)
-                        Checkride.sendChatToUcid(message, playerUcid)
-                    else
-                        Checkride.log("Received chat message: " .. message)
-                        Checkride.sendChatToAll(message)
+                if kind == "achievement" or kind == "proficiency" then
+                    Checkride.log("Received " .. tostring(kind) .. ": " .. message)
+                    Checkride.sendChatToAll(message)
+                    if playerUcid and Checkride.missionScriptingEnabled and decoded.outText and decoded.outText ~= "" then
+                        Checkride.showOutTextForPilot(playerUcid, decoded.outText, 10)
                     end
+                elseif playerUcid then
+                    Checkride.log("Received chat message: " .. message)
+                    Checkride.sendChatToUcid(message, playerUcid)
+                else
+                    Checkride.log("Received chat message: " .. message)
+                    Checkride.sendChatToAll(message)
                 end
             end
-        elseif message and message ~= "" then
-            Checkride.log("Received chat message: " .. message)
-            Checkride.sendChatToAll(message)
         end
     end
 end

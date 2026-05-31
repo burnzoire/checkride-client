@@ -155,4 +155,66 @@ describe("Checkride config and chat (GameGUI)", function()
             end)
         end)
     end)
+
+    -- -------------------------------------------------------------------------
+    describe("proficiency and achievement outtext handling", function()
+        local function net_stub_with_chat(chat_log)
+            return {
+                log             = function() end,
+                send_chat       = function(msg) table.insert(chat_log, msg) end,
+                send_chat_to    = function() end,
+                get_player_info = function() return nil end,
+                get_player_list = function() return {} end,
+                dostring_in     = function() return '', true end,
+            }
+        end
+
+        it("shows outText to pilot when outText is provided in proficiency payload", function()
+            local shown = {}
+            local orig_show = Checkride.showOutTextForPilot
+            Checkride.showOutTextForPilot = function(ucid, msg, dur) table.insert(shown, { ucid=ucid, msg=msg }) end
+
+            local orig_decode = Checkride.JSON.decode
+            Checkride.JSON.decode = function(self, s)
+                return { source="checkride", kind="proficiency", message="Maverick earned F-14 Sidewinder Basic Proficiency", playerUcid="ucid-mav", outText="[✓] F-14 Sidewinder Basic Proficiency" }
+            end
+
+            local chat_log = {}
+            _G.net = net_stub_with_chat(chat_log)
+            Checkride.missionScriptingEnabled = true
+            loader.receive_queue[1] = '{}'
+
+            Checkride.pollChatSocket()
+
+            Checkride.showOutTextForPilot = orig_show
+            Checkride.JSON.decode = orig_decode
+
+            assert.are.equal(1, #shown)
+            assert.are.equal("ucid-mav",                              shown[1].ucid)
+            assert.are.equal("[✓] F-14 Sidewinder Basic Proficiency", shown[1].msg)
+        end)
+
+        it("does not fall back to message when outText is absent from proficiency payload", function()
+            local shown = {}
+            local orig_show = Checkride.showOutTextForPilot
+            Checkride.showOutTextForPilot = function(ucid, msg, dur) table.insert(shown, { ucid=ucid, msg=msg }) end
+
+            local orig_decode = Checkride.JSON.decode
+            Checkride.JSON.decode = function(self, s)
+                return { source="checkride", kind="proficiency", message="Maverick earned F-14 Sidewinder Basic Proficiency", playerUcid="ucid-mav" }
+            end
+
+            local chat_log = {}
+            _G.net = net_stub_with_chat(chat_log)
+            Checkride.missionScriptingEnabled = true
+            loader.receive_queue[1] = '{}'
+
+            Checkride.pollChatSocket()
+
+            Checkride.showOutTextForPilot = orig_show
+            Checkride.JSON.decode = orig_decode
+
+            assert.are.equal(0, #shown)
+        end)
+    end)
 end)

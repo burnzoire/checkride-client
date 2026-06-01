@@ -225,8 +225,12 @@ local function buildEvent(eventType, time)
     }
 end
 
+-- Resolves a playerID to its client record, or an explicit AI sentinel when the
+-- ID is not a connected player. `isAi = true` lets downstream consumers
+-- distinguish a genuine AI participant (no ucid, ever) from a player whose ucid
+-- is merely not yet known, without inferring it from the empty ucid.
 local function getPlayerOrAI(playerID)
-    return Checkride.clients[playerID] or { name = "AI", ucid = "" }
+    return Checkride.clients[playerID] or { name = "AI", ucid = "", isAi = true }
 end
 
 local function getConnectedPlayerCount()
@@ -400,11 +404,13 @@ function Checkride.onKill(time, killerPlayerID, killerUnitType, killerSide, vict
     local event = buildEvent("kill", time)
     event.killerUcid = killer.ucid
     event.killerName = killer.name
+    event.killerIsAi = killer.isAi == true
     event.killerUnitType = killerUnitType
     event.killerUnitAttributes = Checkride.getUnitAttributes(killerUnitType)
     event.killerSide = killerSide
     event.victimName = victim.name
     event.victimUcid = victim.ucid
+    event.victimIsAi = victim.isAi == true
     event.victimUnitType = victimUnitType
     event.victimUnitAttributes = Checkride.getUnitAttributes(victimUnitType)
     event.victimSide = victimSide

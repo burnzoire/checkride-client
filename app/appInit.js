@@ -4,6 +4,7 @@ const UDPServer = require('./services/udpServer');
 const GaugeSync = require('./services/gaugeSync');
 const { EventProcessor } = require('./services/eventProcessor');
 const AchievementEngine = require('./services/achievementEngine');
+const { KillEventQueue } = require('./services/killEventQueue');
 const { EventFactory, InvalidEventTypeError } = require('./factories/eventFactory');
 const { APIClient } = require('./clients/apiClient');
 const { HealthChecker } = require('./services/healthChecker');
@@ -158,6 +159,12 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   const engine = achievementEngine || new AchievementEngine();
   const warnedMismatchKeys = new Set();
   const welcomedUcids = new Set();
+  // Queues persisted kills until their mission `kill_enrichment` (separate,
+  // unordered, persist=false) arrives so its DCS-sourced weapon/victim taxonomy
+  // can be folded on; releases on arrival or after a short deadline.
+  const killEventQueue = new KillEventQueue({
+    missionScriptingEnabled: () => store.get('mission_scripting_enabled') !== false,
+  });
   // Built from connect/change_slot events so mission-script events with null playerUcid
   // (due to the async CheckridePlayers injection race) can still be attributed correctly.
   const ucidByName = new Map();
@@ -176,6 +183,10 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     if (!event.playerUcid && event.killerUcid) {
       event.playerUcid = event.killerUcid;
       event.playerName = event.killerName;
+    }
+
+    if (event.type === 'kill_enrichment') {
+      killEventQueue.recordEnrichment(event);
     }
 
     if (event.type === 'flight_sample_enrichment' && !event.playerUcid && newRelicClient) {
@@ -266,7 +277,13 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
     let unlockedAchievements = [];
 
-    return EventFactory.create(event)
+    // Persisted kills are queued rather than sent inline: the mission script's
+    // DCS-sourced weapon/victim taxonomy arrives separately (persist=false
+    // kill_enrichment), so the queue holds the kill until that lands — folding it
+    // onto event.metadata — or releases it after a short deadline if none comes.
+    // `kill` drives no achievement evaluation (no dispatch entry), so deferring
+    // only delays the API save + summary, nothing else.
+    const runPipeline = () => EventFactory.create(event)
       .then(gameEvent => {
         const preparedPayload = gameEvent.prepare();
         if (!preparedPayload) {
@@ -363,6 +380,11 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         }
         log.error(error);
       });
+
+    if (event.type === 'kill') {
+      return killEventQueue.submitKill(event, runPipeline);
+    }
+    return runPipeline();
   }
 }
 

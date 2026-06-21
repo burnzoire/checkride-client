@@ -126,6 +126,11 @@ class PilotState {
       victimTypeName:      event.victimTypeName ?? null,
       victimObjectId:      event.victimObjectId ?? null,
       weaponClass:         event.weaponClass ?? null,
+      // Fratricide = confirmed same-coalition (friendly) kill. The mission Lua
+      // sends isEnemy as true (enemy) / false (confirmed friendly) / absent
+      // (coalition unreadable), so fratricide is true ONLY when isEnemy === false.
+      // Unknown coalition is NOT treated as fratricide (benefit of the doubt).
+      fratricide:          event.isEnemy === false,
       avengedFriendly:     event.avengedFriendly === true,
     });
 

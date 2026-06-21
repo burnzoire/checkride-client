@@ -20,27 +20,40 @@ describe('FoxFour — metadata', () => {
 });
 
 describe('FoxFour — evaluate', () => {
-  it('returns true for an air kill with weaponClass COLLISION', () => {
+  it('returns true for an enemy air collision (not fratricide)', () => {
+    expect(foxFour.evaluate(KILL_EVENT, stateWith([
+      { fratricide: false, victimUnitCategory: 'air', weaponClass: 'COLLISION' },
+    ]))).toBe(true);
+  });
+
+  it('returns false for a friendly (same-coalition) collision — fratricide', () => {
+    // Two formation mates colliding: a collision, but not an enemy ram.
+    expect(foxFour.evaluate(KILL_EVENT, stateWith([
+      { fratricide: true, victimUnitCategory: 'air', weaponClass: 'COLLISION' },
+    ]))).toBe(false);
+  });
+
+  it('still awards when coalition is unknown (fratricide absent) — only confirmed friendly fire is excluded', () => {
     expect(foxFour.evaluate(KILL_EVENT, stateWith([
       { victimUnitCategory: 'air', weaponClass: 'COLLISION' },
     ]))).toBe(true);
   });
 
-  it('returns false for an air kill with a missile', () => {
+  it('returns false for an enemy air kill with a missile', () => {
     expect(foxFour.evaluate(KILL_EVENT, stateWith([
-      { victimUnitCategory: 'air', weaponClass: 'AAM' },
+      { fratricide: false, victimUnitCategory: 'air', weaponClass: 'AAM' },
     ]))).toBe(false);
   });
 
-  it('returns false for an air kill with null weaponClass (no-hit-record, not a collision)', () => {
+  it('returns false for an enemy air kill with null weaponClass (no-hit-record, not a collision)', () => {
     expect(foxFour.evaluate(KILL_EVENT, stateWith([
-      { victimUnitCategory: 'air', weaponClass: null },
+      { fratricide: false, victimUnitCategory: 'air', weaponClass: null },
     ]))).toBe(false);
   });
 
-  it('returns false for a ground unit killed via collision', () => {
+  it('returns false for an enemy ground unit killed via collision', () => {
     expect(foxFour.evaluate(KILL_EVENT, stateWith([
-      { victimUnitCategory: 'ground', weaponClass: 'COLLISION' },
+      { fratricide: false, victimUnitCategory: 'ground', weaponClass: 'COLLISION' },
     ]))).toBe(false);
   });
 
@@ -50,16 +63,16 @@ describe('FoxFour — evaluate', () => {
 
   it('evaluates only the most recent kill', () => {
     const state = stateWith([
-      { victimUnitCategory: 'air', weaponClass: 'AAM' },
-      { victimUnitCategory: 'air', weaponClass: 'COLLISION' },
+      { fratricide: false, victimUnitCategory: 'air', weaponClass: 'AAM' },
+      { fratricide: false, victimUnitCategory: 'air', weaponClass: 'COLLISION' },
     ]);
     expect(foxFour.evaluate(KILL_EVENT, state)).toBe(true);
   });
 
   it('returns false when the most recent kill does not qualify even if a prior one would', () => {
     const state = stateWith([
-      { victimUnitCategory: 'air', weaponClass: 'COLLISION' },
-      { victimUnitCategory: 'air', weaponClass: 'AAM' },
+      { fratricide: false, victimUnitCategory: 'air', weaponClass: 'COLLISION' },
+      { fratricide: false, victimUnitCategory: 'air', weaponClass: 'AAM' },
     ]);
     expect(foxFour.evaluate(KILL_EVENT, state)).toBe(false);
   });

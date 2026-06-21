@@ -15,7 +15,11 @@ class FoxFour extends Achievement {
   evaluate(_event, state) {
     const kill = state.kills[state.kills.length - 1];
     if (!kill) return false;
-    return kill.victimUnitCategory === 'air'
+    // Exclude fratricide — a same-coalition collision (e.g. two formation mates
+    // colliding) is friendly fire, not "destroy an ENEMY by ramming". Unknown
+    // coalition still counts (we only suppress confirmed friendly fire).
+    return !kill.fratricide
+      && kill.victimUnitCategory === 'air'
       && kill.weaponClass === 'COLLISION';
   }
 }

@@ -167,6 +167,21 @@ describe('PilotState — sortie fields', () => {
       state.applyKill({ victimUnitCategory: 'air', weaponClass: 'AAM' });
       expect(state.kills[0].weaponClass).toBe('AAM');
     });
+
+    it('flags fratricide only for a confirmed same-coalition kill (isEnemy false)', () => {
+      state.applyKill({ victimUnitCategory: 'air', isEnemy: false });
+      expect(state.kills[0].fratricide).toBe(true);
+    });
+
+    it('does not flag fratricide for an enemy kill (isEnemy true)', () => {
+      state.applyKill({ victimUnitCategory: 'air', isEnemy: true });
+      expect(state.kills[0].fratricide).toBe(false);
+    });
+
+    it('does not flag fratricide when coalition is unknown (isEnemy absent)', () => {
+      state.applyKill({ victimUnitCategory: 'air' });
+      expect(state.kills[0].fratricide).toBe(false);
+    });
   });
 
   describe('applyRefuelEnrichment', () => {

@@ -94,8 +94,6 @@ Fields marked *kills[]* are additions to entries in the existing `kills` array. 
 | I Feel the Need... | `flight_sample_enrichment` | Go supersonic in a sortie | `highestSpeedMach >= 1.0` |
 | Speed is Life | `flight_sample_enrichment` | Reach Mach 2.0 in a sortie | `highestSpeedMach >= 2.0` |
 | So High Right Now | `flight_sample_enrichment` | Reach 50,000 feet in a sortie | `highestAltitudeFt >= 50000` |
-| Boom Shakalaka | `refuel_enrichment` | Make first successful contact with a tanker boom | `event.system === 'boom'` + `fuelGain > 0` |
-| Basket Case | `refuel_enrichment` | Make first successful contact with a tanker basket | `event.system === 'basket'` + `fuelGain > 0` |
 | Transfer Complete | `refuel_enrichment` | Complete a refuel contact gaining at least 10% fuel | `event.fuelGain >= 0.10` |
 | Top Up | `refuel_enrichment` | Make tanker contact within 20 minutes of takeoff | `event.time - lastTakeoffAtMs <= 1200s` |
 | Night Tanker | `refuel_enrichment` | Complete a night refuel contact gaining at least 10% fuel | `event.night === true` + `event.fuelGain >= 0.10` |

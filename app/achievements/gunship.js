@@ -13,7 +13,7 @@ class Gunship extends Achievement {
   }
 
   evaluate(_event, state) {
-    const heloGroundKills = state.kills.filter(
+    const heloGroundKills = state.enemyKills.filter(
       k => k.killerUnitCategory === 'HELICOPTER' && k.victimUnitCategory === 'ground'
     ).length;
     return heloGroundKills >= GROUND_KILLS_REQUIRED;

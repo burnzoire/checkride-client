@@ -13,7 +13,7 @@ class ShootingStar extends Achievement {
   }
 
   evaluate(_event, state) {
-    const airKills = state.kills.filter(k => k.victimUnitCategory === 'air');
+    const airKills = state.enemyKills.filter(k => k.victimUnitCategory === 'air');
     const hasFox1 = airKills.some(k => k.weaponGuidance === 'RADAR_SEMI_ACTIVE');
     const hasFox2 = airKills.some(k => k.weaponGuidance === 'IR');
     const hasFox3 = airKills.some(k => k.weaponGuidance === 'RADAR_ACTIVE');

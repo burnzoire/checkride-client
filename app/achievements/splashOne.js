@@ -13,7 +13,7 @@ class SplashOne extends Achievement {
   }
 
   evaluate(_event, state) {
-    return state.kills.some(k => k.victimUnitCategory === 'air');
+    return state.enemyKills.some(k => k.victimUnitCategory === 'air');
   }
 }
 

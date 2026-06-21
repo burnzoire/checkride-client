@@ -21,7 +21,7 @@ class DoubleKill extends Achievement {
   }
 
   evaluate(_event, state) {
-    const armourKills = state.kills
+    const armourKills = state.enemyKills
       .filter(isArmourKill)
       .sort((a, b) => a.killedAtMs - b.killedAtMs);
 

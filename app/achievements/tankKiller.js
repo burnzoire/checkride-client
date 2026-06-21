@@ -13,7 +13,7 @@ class TankKiller extends Achievement {
   }
 
   evaluate(_event, state) {
-    const armourKills = state.kills.filter(
+    const armourKills = state.enemyKills.filter(
       k => k.victimUnitCategory === 'ground' &&
            Array.isArray(k.victimRoles) &&
            k.victimRoles.some(r => ARMOUR_ROLES.has(r))

@@ -13,7 +13,7 @@ class Shack extends Achievement {
   }
 
   evaluate(_event, state) {
-    return state.kills.some(k => k.victimUnitCategory === 'ground');
+    return state.enemyKills.some(k => k.victimUnitCategory === 'ground');
   }
 }
 

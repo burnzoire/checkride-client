@@ -136,6 +136,16 @@ class PilotState {
 
   }
 
+  /**
+   * Kills that count toward ENEMY-kill achievements — excludes confirmed
+   * friendly fire (fratricide). Unknown coalition is included (benefit of the
+   * doubt). Friendly kills remain in `this.kills` so future friendly-fire
+   * achievements can still see them.
+   */
+  get enemyKills() {
+    return this.kills.filter((k) => !k.fratricide);
+  }
+
   applyRefuelEnrichment(event) {
     if (event.refuelStatus === 'started') {
       return;

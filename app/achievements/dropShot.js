@@ -14,7 +14,7 @@ class DropShot extends Achievement {
 
   evaluate(_event, state) {
     const kill = state.kills[state.kills.length - 1];
-    if (!kill) return false;
+    if (!kill || kill.fratricide) return false;
     return kill.victimUnitCategory === 'air'
       && kill.victimAirType === 'HELICOPTER'
       && kill.weaponClass === 'BOMB';

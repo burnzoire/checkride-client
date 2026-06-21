@@ -18,7 +18,7 @@ class Winchester extends Achievement {
   }
 
   evaluate(_event, state) {
-    if (state.kills.length === 0) return false;
+    if (state.enemyKills.length === 0) return false;
     return isWinchester(state.currentPayload);
   }
 }

@@ -4,7 +4,8 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "test": "jest",
+    "test": "npm run test:js && npm run lua:test",
+    "test:js": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lua:test": "npm --prefix .. run lua:test",

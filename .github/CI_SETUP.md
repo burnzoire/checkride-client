@@ -10,13 +10,17 @@ The test workflow (`.github/workflows/test.yml`) runs automatically on:
 
 ## What Gets Tested
 
-The CI pipeline:
-1. Sets up Node.js (versions 18.x and 20.x)
-2. Installs dependencies
-3. Runs full test suite
-4. Generates coverage reports
-5. Uploads coverage to Codecov (optional)
-6. Archives test results as artifacts
+The workflow runs two parallel jobs:
+
+**`test`** (windows-latest):
+1. Sets up Node.js 20.x
+2. Installs dependencies (`npm ci`)
+3. Runs the JS suite with coverage (`npm run test:js -- --ci --coverage --maxWorkers=2`)
+4. Extracts the coverage percentage and archives results as artifacts
+
+**`lua-test`** (ubuntu-latest):
+1. Installs Lua 5.1, LuaRocks, Busted, and LuaFileSystem
+2. Runs the Lua suite (`busted lua/`)
 
 ## Viewing Results
 
@@ -27,16 +31,18 @@ The CI pipeline:
 ## Test Requirements
 
 For CI to pass:
-- All tests must pass (56 tests)
-- Tests run on both Node 18.x and 20.x
+- All JS tests must pass (Jest)
+- All Lua tests must pass (Busted)
 - Coverage thresholds are checked
 
 ## Local Testing
 
-Before pushing, run tests locally:
+Before pushing, run tests locally (`npm test` runs both JS and Lua):
 ```bash
 cd app
-npm test
+npm test          # JS (Jest) + Lua (Busted)
+npm run test:js   # JS only
+npm run lua:test  # Lua only
 ```
 
 ## Artifacts
@@ -55,8 +61,9 @@ If CI fails:
 
 The workflow is defined in `.github/workflows/test.yml`. Key settings:
 
-- **OS**: Windows (matches development environment)
-- **Node versions**: 18.x, 20.x
+- **JS job OS**: Windows (matches development environment)
+- **Lua job OS**: Ubuntu (Lua/Busted toolchain)
+- **Node version**: 20.x
 - **Max workers**: 2 (for parallel test execution)
 - **Coverage**: Enabled with reporting
 

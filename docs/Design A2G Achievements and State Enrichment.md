@@ -95,7 +95,7 @@ Fields marked *kills[]* are additions to entries in the existing `kills` array. 
 | Speed is Life | `flight_sample_enrichment` | Reach Mach 2.0 in a sortie | `highestSpeedMach >= 2.0` |
 | So High Right Now | `flight_sample_enrichment` | Reach 50,000 feet in a sortie | `highestAltitudeFt >= 50000` |
 | Transfer Complete | `refuel_enrichment` | Complete a refuel contact gaining at least 10% fuel | `event.fuelGain >= 0.10` |
-| Top Up | `refuel_enrichment` | Make tanker contact within 20 minutes of takeoff | `event.time - lastTakeoffAtMs <= 1200s` |
+| Top Up | `refuel_enrichment` | Take on at least 10% fuel within 15 minutes of takeoff | `event.fuelGain >= 0.10` + `event.time - lastTakeoffAtMs <= 900s` |
 | Night Tanker | `refuel_enrichment` | Complete a night refuel contact gaining at least 10% fuel | `event.night === true` + `event.fuelGain >= 0.10` |
 | **New** ||||
 | YGBSM | `kill_enrichment` | Destroy a SAM search radar and tracking radar in one sortie | `kills[]` contains both `SAM SR` and `SAM TR` in `victimRoles` |

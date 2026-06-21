@@ -11,7 +11,7 @@ class DeathFromBelow extends Achievement {
   }
 
   evaluate(_event, state) {
-    return state.kills.some(
+    return state.enemyKills.some(
       k => k.killerUnitCategory === 'HELICOPTER' && k.victimAirType === 'AIRPLANE'
     );
   }

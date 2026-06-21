@@ -1,10 +1,11 @@
 {
   "name": "checkride-client",
-  "version": "1.5.3",
+  "version": "1.5.5",
   "description": "",
   "main": "main.js",
   "scripts": {
-    "test": "jest",
+    "test": "npm run test:js && npm run lua:test",
+    "test:js": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lua:test": "npm --prefix .. run lua:test",
@@ -134,19 +135,19 @@
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.2",
     "@types/jest": "^30.0.0",
-    "babel-jest": "^30.3.0",
-    "electron": "^40.6.1",
-    "electron-builder": "^26.8.1",
-    "eslint": "^10.2.1",
+    "babel-jest": "^30.4.1",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "eslint": "^10.5.0",
     "eslint-plugin-jest": "^29.15.2",
-    "jest": "^30.3.0",
-    "jest-environment-jsdom": "^30.3.0",
-    "nock": "^14.0.13"
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "nock": "^14.0.15"
   },
   "dependencies": {
     "electron-log": "^5.4.4",
     "electron-store": "^11.0.2",
-    "electron-updater": "^6.8.3",
+    "electron-updater": "^6.8.9",
     "uuid": "^8.3.2"
   }
 }

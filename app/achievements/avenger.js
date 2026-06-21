@@ -11,7 +11,7 @@ class Avenger extends Achievement {
   }
 
   evaluate(_event, state) {
-    return state.kills.some(k => k.avengedFriendly === true);
+    return state.enemyKills.some(k => k.avengedFriendly === true);
   }
 }
 

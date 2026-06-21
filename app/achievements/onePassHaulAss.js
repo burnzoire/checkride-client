@@ -34,7 +34,7 @@ class OnePassHaulAss extends Achievement {
   }
 
   evaluate(_event, state) {
-    const eligible = state.kills
+    const eligible = state.enemyKills
       .filter(k =>
         k.victimUnitCategory === 'ground'
         && k.killedAtMs != null

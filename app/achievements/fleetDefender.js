@@ -21,7 +21,7 @@ class FleetDefender extends Achievement {
 
   evaluate(_event, state) {
     if (!state.launchedFromCarrier) return false;
-    return state.kills.some(
+    return state.enemyKills.some(
       k => k.victimUnitCategory === 'air' &&
            k.carrierDistanceNm !== null &&
            k.carrierDistanceNm <= 50

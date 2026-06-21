@@ -5,7 +5,7 @@ Electron desktop app (v1.x) that bridges DCS World → Checkride API. Runs in th
 ## Stack
 
 - Electron 40.x, Node.js, JavaScript (CommonJS — no TypeScript)
-- Jest 30 (80% coverage threshold enforced)
+- Jest 30 (coverage threshold enforced)
 - electron-builder for packaging (NSIS installer for Windows, also macOS/Linux)
 - DCS Lua mod files in `DCS-Checkride/Scripts/` and `Scripts/Hooks/`
 
@@ -14,9 +14,10 @@ Electron desktop app (v1.x) that bridges DCS World → Checkride API. Runs in th
 Run all commands from `app/` using **PowerShell** (Bash does not produce output reliably on windows).
 
 ```powershell
-npm test                # Jest unit tests — always keep green
-npm run test:coverage   # with 80% coverage threshold
-npm run lua:test        # Busted Lua specs
+npm test                # JS (Jest) + Lua (Busted) — always keep green
+npm run test:js         # Jest unit tests only
+npm run test:coverage   # Jest with coverage threshold
+npm run lua:test        # Busted Lua specs only
 npm start               # launch Electron (dev mode)
 npm run prepare:lua     # stamps __CHECKRIDE_CLIENT_VERSION__ into Lua files → build/lua-versioned/
 npm run deploy:lua      # deploys stamped Lua files to DCS Saved Games folder

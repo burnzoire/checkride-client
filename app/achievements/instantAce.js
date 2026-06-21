@@ -15,7 +15,7 @@ class InstantAce extends Achievement {
   }
 
   evaluate(_event, state) {
-    return state.kills.filter(k => k.victimUnitCategory === 'air').length >= ACE_KILLS;
+    return state.enemyKills.filter(k => k.victimUnitCategory === 'air').length >= ACE_KILLS;
   }
 }
 

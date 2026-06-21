@@ -16,7 +16,7 @@ class AirWolf extends Achievement {
   }
 
   evaluate(_event, state) {
-    const kills = state.kills.filter(k =>
+    const kills = state.enemyKills.filter(k =>
       k.victimUnitCategory === 'ground'
       && k.killerUnitCategory === 'HELICOPTER'
       && k.pilotSpeedKts != null

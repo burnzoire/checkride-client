@@ -12,6 +12,7 @@
     "prepare:lua": "node scripts/prepare-lua-version.js",
     "deploy:lua": "node scripts/deploy-lua.js",
     "prepare:newrelic-key": "node scripts/prepare-newrelic-key.js",
+    "harvest:vocab": "node scripts/harvest-unit-attributes.js",
     "predist": "npm run prepare:lua && npm run prepare:newrelic-key",
     "postdist": "git checkout -- clients/newRelicClient.js",
     "dist": "electron-builder",

@@ -25,7 +25,10 @@ class SortieLogger {
     let filePath = path.join(ucidDir, `${ts}.jsonl`);
     let n = 1;
     while (this._fs.existsSync(filePath)) {
-      filePath = path.join(ucidDir, `${ts}-${n++}.jsonl`);
+      // Use '_' (sorts after '.') so same-millisecond collisions order *after*
+      // the original file. A '-' separator would sort before '.jsonl' and break
+      // chronological filename ordering relied on by firstFile()/purge.
+      filePath = path.join(ucidDir, `${ts}_${String(n++).padStart(3, '0')}.jsonl`);
     }
     this._writeLine(filePath, { sortie_start: now.toISOString(), ucid, name: name || ucid });
     this._sorties.set(ucid, { ucidDir, name: name || ucid, filePath });

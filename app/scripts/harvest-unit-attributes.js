@@ -24,9 +24,9 @@ const path = require("path");
 // Keep in sync with the filters any role-based proficiency would rely on.
 // Sourced from app/achievements/{tankKiller,doubleKill}.js + the mission Lua.
 const ASSUMED_ROLES = {
-  armour: ["Armour", "Tanks", "IFV", "APC"],
-  sead: ["SAM", "SAM SR", "SAM TR", "SAM launcher", "AAA"],
-  air: ["Fighters", "Multirole fighters", "Bombers", "Helicopters"],
+  armour: ["Tanks", "Modern Tanks", "Old Tanks", "IFV", "APC"],
+  sead: ["SAM TR", "SAM SR", "SAM LL", "SAM CC", "LR SAM", "MR SAM", "SR SAM", "Static AAA", "Mobile AAA"],
+  air: ["Fighters", "Multirole fighters", "Bombers", "Attack helicopters", "Transport helicopters"],
 };
 
 // Heavy/irrelevant dirs that never hold unit role declarations — skipped so the

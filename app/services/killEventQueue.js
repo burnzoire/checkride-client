@@ -121,7 +121,15 @@ class KillEventQueue {
       return this._send(event, release, null);
     }
 
+    // No usable killer ucid → the kill can never be matched to an enrichment
+    // (which is keyed by, and dropped without, playerUcid). Holding it would only
+    // add the deadline delay for nothing, so send immediately. This restores the
+    // pre-`killerIsAi`-flag behavior for players whose ucid is momentarily unknown.
     const killerUcid = event.killerUcid ?? event.playerUcid;
+    if (!killerUcid) {
+      return this._send(event, release, null);
+    }
+
     this._pruneEnrichments();
 
     const entry = this._takeEnrichment(killerUcid, event.victimUnitType ?? null);

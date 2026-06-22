@@ -188,6 +188,22 @@ describe("KillEventQueue", () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 
+  it("sends immediately for an explicit non-AI kill whose ucid is momentarily unknown", async () => {
+    // killerIsAi=false bypasses the AI fast path, but a blank ucid can never match
+    // an enrichment (keyed by playerUcid) — so it must NOT be held for the deadline.
+    // Regression guard: the killerIsAi flag previously skipped the short-circuit that
+    // the AI fallback gave blank-ucid kills.
+    const { queue, timers } = makeQueue();
+    const release = jest.fn(() => Promise.resolve("sent"));
+
+    const event = { type: "kill", killerIsAi: false, killerUcid: "", weaponName: "AIM-9" };
+    await queue.submitKill(event, release);
+
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(timers.pending()).toBe(0); // not held for the deadline
+    expect(event).not.toHaveProperty("metadata");
+  });
+
   it("does not reuse one enrichment for two kills", async () => {
     const { queue, timers } = makeQueue();
     const r1 = jest.fn(() => Promise.resolve("a"));

@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+# Serialize releases per tag so two runs can't publish to the same tag at once.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build (${{ matrix.os }})
@@ -33,6 +38,17 @@ jobs:
       - name: Install dependencies
         working-directory: ./app
         run: npm ci
+
+      # Create the draft release up front so electron-builder appends its assets to
+      # an existing release instead of racing its parallel uploads and creating
+      # duplicate drafts for the same tag.
+      - name: Ensure draft release exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ github.ref_name }}" \
+            || gh release create "${{ github.ref_name }}" --draft --title "${{ github.ref_name }}" --notes ""
 
       - name: Build and publish
         working-directory: ./app

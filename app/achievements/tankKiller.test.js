@@ -48,8 +48,16 @@ describe('TankKiller — evaluate', () => {
     expect(tankKiller.evaluate(KILL_EVENT, stateWith(kills(10, 'Tanks')))).toBe(true);
   });
 
-  it('counts Armour role', () => {
-    expect(tankKiller.evaluate(KILL_EVENT, stateWith(kills(10, 'Armour')))).toBe(true);
+  it('counts Modern Tanks role', () => {
+    expect(tankKiller.evaluate(KILL_EVENT, stateWith(kills(10, 'Modern Tanks')))).toBe(true);
+  });
+
+  it('counts Old Tanks role', () => {
+    expect(tankKiller.evaluate(KILL_EVENT, stateWith(kills(10, 'Old Tanks')))).toBe(true);
+  });
+
+  it('does not count the dead "Armour" string (never a real DCS attribute)', () => {
+    expect(tankKiller.evaluate(KILL_EVENT, stateWith(kills(10, 'Armour')))).toBe(false);
   });
 
   it('counts IFV role', () => {

@@ -1,6 +1,6 @@
 const Achievement = require('./achievement');
 
-const ARMOUR_ROLES = new Set(['Armour', 'Tanks', 'IFV', 'APC']);
+const ARMOUR_ROLES = new Set(['Tanks', 'Modern Tanks', 'Old Tanks', 'IFV', 'APC']);
 const SAME_EXPLOSION_WINDOW_S = 0.1;
 
 function isArmourKill(kill) {

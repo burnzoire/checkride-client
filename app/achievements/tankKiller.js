@@ -1,6 +1,6 @@
 const Achievement = require('./achievement');
 
-const ARMOUR_ROLES = new Set(['Armour', 'Tanks', 'IFV', 'APC']);
+const ARMOUR_ROLES = new Set(['Tanks', 'Modern Tanks', 'Old Tanks', 'IFV', 'APC']);
 
 class TankKiller extends Achievement {
   constructor() {

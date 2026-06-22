@@ -89,10 +89,18 @@ describe('DoubleKill — evaluate', () => {
 
   it('counts all armour role variants as valid targets', () => {
     const state = stateWith([
-      armourKill(1200.5, 'Armour'),
+      armourKill(1200.5, 'Modern Tanks'),
       armourKill(1200.5, 'IFV'),
     ]);
     expect(doubleKill.evaluate(KILL_EVENT, state)).toBe(true);
+  });
+
+  it('does not count the dead "Armour" string (never a real DCS attribute)', () => {
+    const state = stateWith([
+      armourKill(1200.5, 'Armour'),
+      armourKill(1200.5, 'Armour'),
+    ]);
+    expect(doubleKill.evaluate(KILL_EVENT, state)).toBe(false);
   });
 
   it('returns true when a simultaneous pair exists among other kills at different times', () => {

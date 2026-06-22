@@ -25,12 +25,22 @@ exactly like any other family.**
 ### What each CSV takes
 
 - **`weapon_metadata.csv`** → `weapon_family` is already YAML-authoritative
-  (`Proficiencies::NameLookup`). The only proficiencies still leaning on the CSV's
-  `weapon_category`/`weapon_guidance` are `rockets`, `bombs_unguided/laser/gps/tv`,
-  and `hellfire_laser/radar`. **Re-key those to weapon families** (`BOMBS_LASER`,
-  `BOMBS_GPS`, `AGM-114-LASER`/`-RADAR`, …) whose `type_names` are derived from the
-  CSV's own columns. Then no proficiency references category/guidance and the CSV
-  drops out. Net: weapon proficiencies become 100% YAML config keyed on weapon_name.
+  (`Proficiencies::NameLookup`). Apply the **balance principle** to the proficiencies
+  still leaning on the CSV's `weapon_category`/`weapon_guidance`:
+  - **Explicit/named proficiencies** (Sidewinder, Maverick, Hellfire, R-73, APKWS, …)
+    already key on YAML weapon families — unchanged.
+  - **Generic proficiencies** (`rockets`, `bombs_unguided/laser/tv`) keep their
+    existing `weapon_category`/`weapon_guidance` filters but **re-source those tags
+    from DCS `event_data.metadata`** (via the translation map), not the CSV. DCS reports
+    `category=ROCKET`, `guidance=LASER` directly, so there is no need to hand-enumerate
+    `type_names` into bucket families.
+  - **`hellfire_laser`/`hellfire_radar`** stay on family `AGM-114` + DCS-sourced
+    guidance; the combined `hellfire` (family `AGM-114`) stays. **Do not split AGM-114.**
+  The **one** value DCS cannot express is **GPS** (a JDAM reports `guidance=none`), so
+  GPS bombs are identified by a **YAML name list** the translation map uses to stamp
+  `weapon_guidance=gps` (which also keeps JDAMs out of `bombs_unguided`). Net: the CSV
+  is no longer the *source* of weapon category/guidance — the translation map (+ GPS
+  name list) supersedes it — so the CSV can drop out.
 - **`unit_metadata.csv`** → `unit_family` already YAML (airframes). The victim
   domain/category/role + victim family it provides feed **stats schemas only**
   (`KILLS_BY_VICTIM_*`), not leveled proficiencies — source those from the
@@ -119,6 +129,13 @@ label swap.
    weapons/units (a "flag the new thing" safety net). YAML config has no equivalent;
    a new module's weapon silently gets no metadata until noticed. Restore with an
    unmapped-value breadcrumb (log/alarm when an attribute or weapon hits no rule).
+   Implemented in `Metrics::TaxonomyTranslator#breadcrumb`.
+4. **`hellfire_radar` proficiency filter must flip in Phase 1.** It currently filters
+   `weapon_guidance: radar` (the legacy CSV value for AGM-114L). DCS reports AGM-114L as
+   `RADAR_ACTIVE`, which the translator canonicalises to `active_radar` — so when the
+   guidance tag is re-sourced from metadata, the filter must change to
+   `weapon_guidance: active_radar`. Do NOT change it earlier: while the raw CSV column
+   still feeds the tag, `active_radar` would not match and the proficiency would break.
 
 ## End-state ladder: parallel → validate → backfill → drop columns
 
@@ -191,17 +208,19 @@ Ladder:
 
 - **Phase 0 — prep (client + config).** Build the attribute→legacy translation map
   from `harvest:vocab` output. Fix the dead role strings (in the map and in
-  `ARMOUR_ROLES` / mission Lua). Re-key the bomb/rocket/hellfire proficiencies to
-  weapon families derived from `weapon_metadata.csv` (group weapon_name by
-  category+guidance), splice into `proficiencies.yml`, re-point to
-  `KILLS_BY_AIRFRAME_WEAPON_FAMILY`.
-- **Phase 1 — backend consumes metadata (parallel).** Backend reads
-  `event_data.metadata` and applies the read-time translation alongside the still-live
-  CSV enrichment. New events carry both → oracle active.
-- **Phase 2 — validate.** `translate(metadata) == legacy_column` holds on live
-  traffic. Retire the weapon CSV once its proficiencies are family-sourced.
-- **Phase 3 — stop CSV, backfill, validate.** Stop CSV enrichment; backfill old
-  events' canonical taxonomy from their legacy column values; shadow-diff.
+  `ARMOUR_ROLES` / mission Lua). Add the **GPS-bomb name list** to `proficiencies.yml`
+  (consumed by the translation map). The generic weapon proficiencies keep their
+  `weapon_category`/`weapon_guidance` filters (re-sourced from metadata in Phase 1);
+  explicit family proficiencies and the combined `hellfire`/`AGM-114` are unchanged.
+- **Phase 1 — backend consumes metadata (parallel), validation is the gate.** Backend
+  reads `event_data.metadata` and computes the read-time translation as a
+  **shadow/oracle only**, alongside the still-live CSV enrichment. New events carry
+  both. **The translation is NOT used for any user-facing stats until
+  `translate(metadata) == legacy_column` holds on representative traffic** — validation
+  gates consumption (no window where broken data reaches production). Alarm on mismatch.
+- **Phase 3 — stop CSV, backfill, validate.** Once validation holds, stop CSV
+  enrichment (new events DCS-only); backfill old events' canonical taxonomy from their
+  legacy column values; shadow-diff.
 - **Phase 4 — drop legacy columns** (irreversible — last).
 
 ---

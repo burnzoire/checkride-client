@@ -1051,9 +1051,10 @@ local function getRoleCoalition(target, initiatorCoalition)
     local attrs = desc.attributes or {}
 
     local role = nil
-    if attrs["SAM SR"] or attrs["SAM TR"] or attrs["SAM launcher"] then role = "sam"
-    elseif attrs["Armour"] or attrs["Tanks"] or attrs["IFV"] or attrs["APC"] then role = "armour"
-    elseif attrs["AAA"] then role = "aaa"
+    if attrs["SAM TR"] or attrs["SAM SR"] or attrs["SAM LL"] or attrs["SAM CC"]
+       or attrs["LR SAM"] or attrs["MR SAM"] or attrs["SR SAM"] then role = "sam"
+    elseif attrs["Tanks"] or attrs["Modern Tanks"] or attrs["Old Tanks"] or attrs["IFV"] or attrs["APC"] then role = "armour"
+    elseif attrs["Static AAA"] or attrs["Mobile AAA"] or attrs["AAA"] then role = "aaa"
     elseif attrs["Artillery"] then role = "artillery"
     elseif attrs["MLRS"] then role = "mlrs"
     elseif attrs["Infantry"] then role = "infantry"
@@ -1352,10 +1353,11 @@ function CheckrideMission.onShot(event)
         local okIDesc, iDesc = pcall(function() return initiator:getDesc() end)
         if okIDesc and iDesc then
             local attrs = iDesc.attributes or {}
-            if attrs["SAM SR"] or attrs["SAM TR"] or attrs["SAM launcher"] then role = "SAM"
-            elseif attrs["AAA"] then role = "AAA"
+            if attrs["SAM TR"] or attrs["SAM SR"] or attrs["SAM LL"] or attrs["SAM CC"]
+               or attrs["LR SAM"] or attrs["MR SAM"] or attrs["SR SAM"] then role = "SAM"
+            elseif attrs["Static AAA"] or attrs["Mobile AAA"] or attrs["AAA"] then role = "AAA"
             elseif attrs["Fighters"] or attrs["Multirole fighters"] or attrs["Bombers"] then role = "FIGHTER"
-            elseif attrs["Helicopters"] then role = "HELICOPTER"
+            elseif attrs["Attack helicopters"] or attrs["Transport helicopters"] then role = "HELICOPTER"
             elseif iDesc.category == Unit.Category.AIRPLANE then role = "FIGHTER"
             elseif iDesc.category == Unit.Category.HELICOPTER then role = "HELICOPTER"
             end
@@ -1559,9 +1561,9 @@ function CheckrideMission.onHit(event)
             local okVDesc, vDesc = pcall(function() return target:getDesc() end)
             if okVDesc and vDesc and type(vDesc.attributes) == "table" then
                 local wantedRoles = {
-                    "SAM SR","SAM TR","SAM launcher",
-                    "Armour","Tanks","IFV","APC",
-                    "AAA","Artillery","MLRS","Infantry",
+                    "SAM TR","SAM SR","SAM LL","SAM CC","LR SAM","MR SAM","SR SAM",
+                    "Tanks","Modern Tanks","Old Tanks","IFV","APC",
+                    "Static AAA","Mobile AAA","AAA","Artillery","MLRS","Infantry",
                 }
                 for _, r in ipairs(wantedRoles) do
                     if vDesc.attributes[r] then victimRoles[#victimRoles + 1] = r end

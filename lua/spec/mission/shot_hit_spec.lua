@@ -402,3 +402,92 @@ describe("CheckrideMission.onHit", function()
         assert.is_not_nil(CheckrideMission.activeWeaponShots["tie-a"])
     end)
 end)
+
+-- ---------------------------------------------------------------------------
+-- Victim role detection uses the real DCS attribute vocabulary (Tanks / Modern
+-- Tanks / Old Tanks, SAM TR/SR/LL/CC, Static/Mobile AAA, Attack/Transport
+-- helicopters) — not the dead strings (Armour, SAM, SAM launcher, Helicopters).
+describe("CheckrideMission victim role detection", function()
+    setup(function()
+        loader.load()
+    end)
+
+    before_each(function()
+        loader.reset_state()
+        _G.Unit = {
+            Category = { AIRPLANE=1, HELICOPTER=2, GROUND_UNIT=3, SHIP=4 },
+        }
+        _G.Object = { Category = { UNIT=1, WEAPON=2 } }
+        _G.coalition = { side = { RED=1, BLUE=2, NEUTRAL=0 } }
+        _G.CheckrideLookupUCID = function(name)
+            if name == "Maverick" then return "ucid-mav" end
+        end
+    end)
+
+    -- Lethal hit stashes victim roles for onKill; assert the real attributes land.
+    local function lethal_roles_for(attributes)
+        loader.capture_events()
+        local initiator = player_unit("Maverick", "ucid-mav")
+        local target = stubs.make_unit({
+            id   = 77,
+            desc = { category = Unit.Category.GROUND_UNIT, attributes = attributes },
+            life = 1.0, -- lethal
+        })
+        CheckrideMission.onHit({ initiator = initiator, weapon = nil, target = target, time = 500 })
+        local pending = CheckrideMission.pendingKillsByObjectId[77]
+        assert.is_not_nil(pending)
+        return pending.victimRoles
+    end
+
+    local function has(list, value)
+        for _, v in ipairs(list) do if v == value then return true end end
+        return false
+    end
+
+    it("captures Modern Tanks / Old Tanks on a lethal armour kill", function()
+        assert.is_true(has(lethal_roles_for({ ["Modern Tanks"] = true }), "Modern Tanks"))
+        assert.is_true(has(lethal_roles_for({ ["Old Tanks"] = true }), "Old Tanks"))
+    end)
+
+    it("captures SAM LL (the real attr for the dead 'SAM launcher')", function()
+        assert.is_true(has(lethal_roles_for({ ["SAM LL"] = true }), "SAM LL"))
+    end)
+
+    it("captures Static/Mobile AAA", function()
+        assert.is_true(has(lethal_roles_for({ ["Static AAA"] = true }), "Static AAA"))
+        assert.is_true(has(lethal_roles_for({ ["Mobile AAA"] = true }), "Mobile AAA"))
+    end)
+
+    it("does not capture the dead 'Armour' string", function()
+        assert.are.equal(0, #lethal_roles_for({ ["Armour"] = true }))
+    end)
+
+    -- Non-lethal hit runs getRoleCoalition; assert it classifies real attrs.
+    local function role_coalition_for(attributes)
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick", "ucid-mav")
+        local target = stubs.make_unit({
+            id        = 88,
+            desc      = { category = Unit.Category.GROUND_UNIT, attributes = attributes },
+            life      = 5.0, -- non-lethal
+            coalition = 1,   -- enemy of the BLUE(2) initiator
+        })
+        CheckrideMission.onHit({ initiator = initiator, weapon = nil, target = target, time = 600 })
+        for _, c in ipairs(captured) do
+            if c.type == "hit_enrichment" and c.roleCoalition then return c.roleCoalition end
+        end
+        return nil
+    end
+
+    it("classifies Modern Tanks as armour", function()
+        assert.are.equal("armour_enemy", role_coalition_for({ ["Modern Tanks"] = true }))
+    end)
+
+    it("classifies SAM LL as sam", function()
+        assert.are.equal("sam_enemy", role_coalition_for({ ["SAM LL"] = true }))
+    end)
+
+    it("classifies Static AAA as aaa", function()
+        assert.are.equal("aaa_enemy", role_coalition_for({ ["Static AAA"] = true }))
+    end)
+end)

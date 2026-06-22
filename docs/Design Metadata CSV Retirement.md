@@ -107,22 +107,89 @@ propulsion attribute; a P-51D's full attribute set is `{wsType_Air, wsType_Airpl
 wsType_Fighter, "Battleplanes"}`), which is **dropped by decision** (stats-only, the
 pages are slated for rework, jet-vs-prop targets aren't valued).
 
-**Apply as a read-time translation — do NOT backfill at cutover.** Old event rows
-stay frozen with their CSV values; new events carry raw DCS `event_data.metadata`. A
-single canonical translation map normalizes BOTH input vocabularies (legacy CSV
-values + DCS-native values) to one canonical output at read, so a stat shows one
-coherent series across the cutover with zero row rewrites. Consequence: new events
-need no ingest-time resolution — store the raw DCS metadata, translate on the way
-out. Wrinkle: the tag-schema stats are **materialized counters** (`tag→count`), so
-the translation applies at the **tag-normalization/rollup layer**, not just a UI
-label swap.
+**Storage model: flat hot columns + a jsonb cold sidecar — `events` stays wide.**
+The `events` table is deliberately wide and flat (discrete `character varying`
+columns: `weapon_category`, `weapon_guidance`, `victim_unit_domain`,
+`victim_unit_category`, …), partitioned by month, with **no jsonb on the hot path**.
+The materializer, the `feed_items_v1` view, and all filters/sorts read those flat
+columns — that's the efficiency contract and it does not change. So:
+
+- **Translate at INGEST into the existing flat columns.** `event_ingestor` keeps
+  populating the same taxonomy columns; only the *source* changes — from the CSV cache
+  lookup to `Metrics::TaxonomyTranslator(event_data.metadata)`. Readers are untouched.
+- **Persist the raw DCS metadata now, in a `jsonb metadata` sidecar.** It is
+  write-once / read-rarely (replay, backfill, future mission-proficiency derivations),
+  TOASTed out-of-line, and **never read on the hot path** — so it doesn't violate the
+  wide-column design. Persist it immediately, even before consumption is live: today
+  `event_ingestor` *drops* `metadata` (only keys matching real columns survive
+  `data.slice`), so every event in the interim is lost unless we capture it now.
+
+This replaces the earlier "read-time / translate on the way out" idea: a jsonb store
+read on the hot path would fight the wide-table design, and read-time translation only
+buys "map fixes apply to all history instantly." We trade that for the flat hot path —
+the cost is that improving the map later means a **replay/backfill** (re-run the
+translator over the stored `metadata` to rebuild the flat columns and re-materialize
+counters). Wrinkle: the tag-schema stats are **materialized counters** (`tag→count`)
+built at materialization (which runs at ingest), so the translator must be applied
+there — the canonical value lands in both the flat column and `MetricCounter.tags`.
+
+## Event column decisions: keep / drop / add (2026-06-22)
+
+A grep of `tag_schemas.rb`, `proficiencies.yml`, the `feed_items_v1` view, serializers
+and specs established exactly which taxonomy columns are read. Decisions:
+
+| Action | Column(s) | Source after retirement | Rationale |
+|---|---|---|---|
+| **Keep** | `killer_unit_family`, `victim_unit_family`, `unit_family`, `weapon_family` | `NameLookup` (YAML) | Live; already YAML-authoritative |
+| **Keep** | `weapon_category`, `weapon_guidance` | `TaxonomyTranslator` (metadata) | Live weapon proficiencies/stats |
+| **Keep** | `victim_unit_category` | `TaxonomyTranslator` (metadata) | Live + the lever for richer target stats (finer grain) |
+| **Keep** | `killer_unit_category`, `unit_category` | `TaxonomyTranslator` (metadata) | Currently unread — retained for future stats expansion |
+| **Keep** | `airdrome_type` | mission `isCarrier` / trivial list | Live (landings by type) |
+| **Drop** | `killer_unit_domain`, `victim_unit_domain`, `unit_domain` | — | Deterministic rollup of category; re-derive any time |
+| **Drop** | `killer_unit_role`, `victim_unit_role`, `weapon_role`, `unit_role` | — | Unread; finer grain re-derivable from raw attributes |
+| **Add** | `metadata` (`jsonb`) | client `event_data.metadata` | Insurance — see below |
+
+Keep 9, drop 7 (3 domains + 4 roles). Both drop classes are **reversible**: domain is a
+category rollup; role/finer-grain re-derives from the raw attributes — *provided the raw
+metadata is persisted* (the `metadata` add). `KILLS_BY_VICTIM_DOMAIN*` simply roll up
+from category instead of reading a column.
+
+**Explicitly NOT captured:** per-kill engagement range (`distanceNm`). The client
+computes it but doesn't attach it to the kill; we are choosing not to store it. Recorded
+so it's a conscious omission, not an oversight.
+
+**Finer victim category** (e.g. `tank`/`ifv`/`apc`/`artillery`/`sam`/`aaa`/`manpad`,
+ship-by-class) is a *translator value change*, not a new column — and it absorbs what the
+dropped `role` columns would have provided.
+
+### The `metadata` jsonb sidecar (the linchpin add)
+
+Persist the client's raw `event_data.metadata` into a `jsonb metadata` column at ingest,
+**now** — additive, no consumption. It is the project's insurance and pays off three ways:
+
+1. **Gap-proofing.** DCS can't be re-queried for past events, so anything not captured
+   at ingest is lost forever. With the raw blob retained, *every* column drop/coarsening
+   above is reversible — re-derive any granularity later by replay.
+2. **Stops active data loss.** Today `event_ingestor` *drops* `metadata` (only keys
+   matching real columns survive `data.slice`); every event until this ships loses its
+   raw taxonomy.
+3. **Client verification.** Persisting the blob lets us inspect exactly what the new
+   client emits in prod — an easy way to validate the client release before any backend
+   consumption.
+
+**Contract: never read on the hot path.** It is write-once / read-rarely (replay,
+backfill, future mission proficiencies, verification), TOASTed out-of-line, so it does
+not compromise the wide-flat design.
 
 ## Implementation oddities to expect (don't retire blind)
 
-1. **Cutover seam — resolved by the read-time translation map, not backfill.** Old
-   events keep CSV values; new events carry DCS-native values; the canonical
-   translator folds both at the tag-normalization layer. Only `jet`/`prop` history
-   folds to `air`. No row rewrites.
+1. **Cutover seam lives in the column *values*, and IS backfilled.** Because we keep
+   the flat columns and fill them at ingest, old rows hold legacy vocab
+   (`cluster_bomb`, `radar`, `sea`) while new rows hold canonical vocab (`bomb`,
+   `active_radar`, `sea`). A column with mixed vocab makes a stat incoherent, so old
+   rows must be normalized **in place** — run the translator's *legacy-input* side over
+   each old column value (deterministic; the legacy value is the input, no DCS needed).
+   Columns are NOT dropped; their values are normalized.
 2. **`AdminMetadataPage.tsx` orphaned** — it's the CSV editor UI; retiring the tables
    breaks it. Fold into the stats pages rework.
 3. **Lost auto-discovery** — `event_ingestor` does `find_or_create_by!` on unknown
@@ -130,47 +197,51 @@ label swap.
    a new module's weapon silently gets no metadata until noticed. Restore with an
    unmapped-value breadcrumb (log/alarm when an attribute or weapon hits no rule).
    Implemented in `Metrics::TaxonomyTranslator#breadcrumb`.
-4. **`hellfire_radar` proficiency filter must flip in Phase 1.** It currently filters
+4. **`hellfire_radar` proficiency filter must flip when the column source switches.** It currently filters
    `weapon_guidance: radar` (the legacy CSV value for AGM-114L). DCS reports AGM-114L as
    `RADAR_ACTIVE`, which the translator canonicalises to `active_radar` — so when the
    guidance tag is re-sourced from metadata, the filter must change to
    `weapon_guidance: active_radar`. Do NOT change it earlier: while the raw CSV column
    still feeds the tag, `active_radar` would not match and the proficiency would break.
 
-## End-state ladder: parallel → validate → backfill → drop columns
+## End-state ladder: persist → parallel → validate → switch → backfill → retire CSV
 
-The legacy resolved columns drop only at the very end, gated by a well-tested
-backfill. Two distinct backfills — don't conflate:
-- **Cutover backfill** — declined. Rewriting history just to launch; unnecessary
-  because the read-time translator handles the seam.
-- **Cleanup backfill** — deliberate, late, and the **prerequisite for dropping the
-  columns** (not optional polish).
-
-Why the backfill gates the drop: the translator reads whatever an event carries. New
-events carry `event_data.metadata`; **old events carry only the legacy columns (no
-metadata — they predate enrichment).** Drop those columns first and old events lose
-their taxonomy. So the cleanup backfill must first relocate old events' taxonomy OUT
-of the doomed columns — synthesize the canonical form (or `event_data.metadata`)
-FROM each old event's legacy column value via the same translation map
-(deterministic; the legacy value is the input, no DCS needed).
+**What gets retired is the CSV *tables* (`unit_metadata`/`weapon_metadata`/
+`airdrome_metadata`) + `AdminMetadataPage` — NOT the event taxonomy columns.** The
+columns remain the canonical hot-path store; we only change what fills them (CSV →
+translator) and normalize their historical values.
 
 The parallel run is a free correctness oracle: keep CSV enrichment ALIVE during
-parallel so new events carry BOTH the legacy columns and the DCS metadata, then
-continuously assert `translate(event_data.metadata) == legacy_column` and alarm on
-mismatch. Agreement over representative traffic is what earns trust to backfill.
+parallel so each new event gets its columns filled by CSV (authoritative) AND carries
+the raw `metadata`, then continuously assert
+`translate(event_data.metadata) == legacy_column` and alarm on mismatch. Agreement
+over representative traffic is what earns trust to switch the column source.
+
+Two distinct backfills — don't conflate:
+- **Cutover backfill** — declined. No need to rewrite history just to launch.
+- **Cleanup backfill** — deliberate, late: normalize old rows' column *values* from
+  legacy vocab to canonical, in place, via the translator's legacy-input side
+  (deterministic; **old events predate `metadata`, so the legacy column value is the
+  only input — no DCS needed**). Also re-materialize/migrate the counters built from
+  those old values so `MetricCounter.tags` share one vocab.
 
 Safe-backfill properties (events table is partitioned by month): idempotent,
-batched/throttled per partition, shadow-write + diff before drop. The column drop is
-the one irreversible step — last.
+batched/throttled per partition, shadow-write + diff. No irreversible column drop — the
+columns stay; the one-way step is dropping the CSV *tables*, done last.
 
 Ladder:
-1. New events get DCS metadata; read-time translator reconciles old(columns) +
-   new(metadata). **CSV stays alive as oracle.**
-2. Validate `translate(metadata) == legacy_column` on new traffic.
-3. Stop CSV enrichment (new events DCS-only).
-4. Backfill old events: synthesize canonical taxonomy from their legacy column values.
-5. Validate backfill (shadow diff).
-6. **Drop legacy columns** (irreversible — last).
+1. **Persist now.** Add the `jsonb metadata` sidecar; `event_ingestor` writes the raw
+   DCS metadata. CSV still fills the flat columns. (Can ship immediately — additive,
+   no consumption.)
+2. **Parallel oracle.** Compute `translate(metadata)` at ingest and assert it equals
+   the CSV-filled column; alarm on mismatch. Translation is shadow-only — it does NOT
+   feed the columns or any user-facing stat yet.
+3. **Validate** agreement on representative traffic.
+4. **Switch the source.** Fill the flat columns from `translate(metadata)` instead of
+   the CSV; stop CSV enrichment. Flip `hellfire_radar` filter to `active_radar` here.
+5. **Cleanup backfill + re-materialize.** Normalize old rows' column values to canonical
+   in place; re-materialize/migrate affected counters; shadow-diff.
+6. **Retire the CSV tables** + `AdminMetadataPage` (the one-way step — last).
 
 ## Supporting findings
 
@@ -210,18 +281,26 @@ Ladder:
   from `harvest:vocab` output. Fix the dead role strings (in the map and in
   `ARMOUR_ROLES` / mission Lua). Add the **GPS-bomb name list** to `proficiencies.yml`
   (consumed by the translation map). The generic weapon proficiencies keep their
-  `weapon_category`/`weapon_guidance` filters (re-sourced from metadata in Phase 1);
-  explicit family proficiencies and the combined `hellfire`/`AGM-114` are unchanged.
-- **Phase 1 — backend consumes metadata (parallel), validation is the gate.** Backend
-  reads `event_data.metadata` and computes the read-time translation as a
-  **shadow/oracle only**, alongside the still-live CSV enrichment. New events carry
-  both. **The translation is NOT used for any user-facing stats until
-  `translate(metadata) == legacy_column` holds on representative traffic** — validation
-  gates consumption (no window where broken data reaches production). Alarm on mismatch.
-- **Phase 3 — stop CSV, backfill, validate.** Once validation holds, stop CSV
-  enrichment (new events DCS-only); backfill old events' canonical taxonomy from their
-  legacy column values; shadow-diff.
-- **Phase 4 — drop legacy columns** (irreversible — last).
+  `weapon_category`/`weapon_guidance` filters (re-sourced from metadata when the column
+  source switches, Phase 3); explicit family proficiencies and the combined
+  `hellfire`/`AGM-114` are unchanged.
+- **Phase 1 — persist raw metadata (additive, ships immediately).** Add the
+  `jsonb metadata` sidecar column; `event_ingestor` writes the client's
+  `event_data.metadata` into it. CSV still fills the flat columns; no consumption yet.
+  This stops the current data loss (metadata is dropped at ingest today) and enables
+  later replay + mission proficiencies.
+- **Phase 2 — consume in parallel, validation is the gate.** At ingest, compute
+  `TaxonomyTranslator(metadata)` as a **shadow/oracle only**, alongside the still-live
+  CSV-filled columns, and assert it equals the CSV value. **Translation is NOT used to
+  fill columns or any user-facing stat until agreement holds on representative
+  traffic** — validation gates consumption. Alarm on mismatch.
+- **Phase 3 — switch the source.** Fill the flat columns (and counter tags) from
+  `TaxonomyTranslator(metadata)` instead of the CSV; stop CSV enrichment; flip the
+  `hellfire_radar` filter to `active_radar`.
+- **Phase 4 — cleanup backfill + retire CSV.** Normalize old rows' column values to
+  canonical in place via the translator's legacy-input side; re-materialize/migrate
+  affected counters; shadow-diff. Then retire the CSV *tables* + `AdminMetadataPage`.
+  **Columns are kept, not dropped.**
 
 ---
 

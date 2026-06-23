@@ -250,6 +250,37 @@
       </div>`;
   }
 
+  // The client-side WeaponTracker's view: the shots a kill is key-matched against.
+  // Distinct from "Ordnance" (the mission/pilotState weapon list) — this is exactly
+  // what drives the client-authoritative kill weapon attribution.
+  function renderWeaponTracker(pilot) {
+    const shots = Array.isArray(pilot && pilot.trackedShots) ? pilot.trackedShots : [];
+    let html = '<div class="state-section"><div class="section-title">Shot Tracker (attribution)</div>';
+
+    if (shots.length === 0) {
+      html += '<div style="font-size:12px;color:#4d5464;font-style:italic">No tracked shots</div></div>';
+      return html;
+    }
+
+    const rows = shots.map(s => {
+      const name = escapeHtml(s.weaponName || '?');
+      const statusLabel = s.inFlight ? 'IN FLIGHT' : 'HIT';
+      const statusColor = s.inFlight ? '#c8a03a' : '#3a8f5c';
+      return `<tr>
+        <td style="font-size:11px">${name}</td>
+        <td><span style="color:${statusColor};font-size:10px;font-weight:600">${statusLabel}</span></td>
+        <td style="font-size:11px;color:#7a8394;text-align:right">${fmt(s.targetObjectId, 0)}</td>
+        <td style="font-size:11px;color:#7a8394;text-align:right">${fmt(s.weaponObjectId, 0)}</td>
+      </tr>`;
+    }).join('');
+
+    html += `<table class="kills-table">
+        <thead><tr><th>Weapon</th><th>State</th><th style="text-align:right">Target id</th><th style="text-align:right">Weapon id</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    return html;
+  }
+
   function renderPilotState(pilot) {
     if (!pilot || !pilot.state) {
       return '<div id="no-selection">No state available</div>';
@@ -262,6 +293,7 @@
       </div>
       ${renderTelemetry(telemetry)}
       ${renderOrdnance(telemetry, state)}
+      ${renderWeaponTracker(pilot)}
       ${renderMissiles(state)}
       ${renderCombat(state)}
       ${renderSession(state)}
@@ -284,6 +316,7 @@
     renderRefuel,
     renderNavigation,
     renderGauges,
+    renderWeaponTracker,
     renderPilotState,
   };
 }));

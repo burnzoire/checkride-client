@@ -29,6 +29,7 @@ let eventProcessor;
 let gaugeSync;
 let sortieLogger;
 let achievementEngine;
+let weaponTracker;
 let healthChecker;
 let isQuitting = false;
 let updateReady = false;
@@ -274,6 +275,7 @@ async function bootstrap() {
   eventProcessor = appInitResult.eventProcessor;
   gaugeSync = appInitResult.gaugeSync;
   achievementEngine = appInitResult.achievementEngine;
+  weaponTracker = appInitResult.weaponTracker;
   healthChecker = appInitResult.healthChecker;
 
   setApplicationMenu();
@@ -385,7 +387,15 @@ ipcMain.handle('api:health', () => {
 
 ipcMain.handle('telemetry:snapshot', () => {
   if (!achievementEngine) return { pilots: [] };
-  return { pilots: achievementEngine.getAllPilotSnapshots() };
+  const pilots = achievementEngine.getAllPilotSnapshots();
+  // Attach the client-side shot tracker's view per pilot so the telemetry window
+  // shows what the kill-attribution key-match is working against.
+  if (weaponTracker) {
+    for (const pilot of pilots) {
+      pilot.trackedShots = weaponTracker.trackedShots(pilot.ucid);
+    }
+  }
+  return { pilots };
 });
 
 ipcMain.handle('sortie:open-file', async () => {

@@ -155,7 +155,7 @@ function buildBaseUrl(useSsl, host, port) {
   return `${scheme}://${host}${portSuffix}`;
 }
 
-function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, sortieLogger, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl }) {
+function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, sortieLogger, eventProcessor, achievementEngine, weaponTracker, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
   const warnedMismatchKeys = new Set();
@@ -163,7 +163,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   // Tracks each player's in-flight shots (from `shot_enrichment`) so a kill can be
   // attributed to the exact weapon that hit — a key-match, not a guess. This is the
   // client-authoritative source of truth for kill weapons.
-  const weaponTracker = new WeaponTracker();
+  const tracker = weaponTracker || new WeaponTracker();
   // Queues persisted kills until their mission `kill_enrichment` (separate,
   // unordered, persist=false) arrives so its DCS-sourced weapon/victim taxonomy
   // can be folded on; releases on arrival or after a short deadline. At the
@@ -172,7 +172,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   const killEventQueue = new KillEventQueue({
     missionScriptingEnabled: () => store.get('mission_scripting_enabled') !== false,
     resolveWeapon: ({ killerUcid, victimObjectId }) => {
-      const match = weaponTracker.matchKill({ killerUcid, victimObjectId });
+      const match = tracker.matchKill({ killerUcid, victimObjectId });
       if (!match) return null;
       const weapon = {};
       if (match.weaponName != null) weapon.weapon_name = match.weaponName;
@@ -206,10 +206,10 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
     // Feed the shot tracker so kills can be key-matched to the weapon that hit.
     if (event.type === 'shot_enrichment') {
-      weaponTracker.recordShot(event);
+      tracker.recordShot(event);
     }
     if (event.type === 'hit_enrichment') {
-      weaponTracker.recordHit({
+      tracker.recordHit({
         playerUcid: event.playerUcid,
         weaponObjectId: event.weaponObjectId,
         targetObjectId: event.targetObjectId,
@@ -435,6 +435,7 @@ async function initApp({ onLuaVersionMismatch, sortieLogger } = {}) {
 
   const eventProcessor = new EventProcessor()
   const achievementEngine = new AchievementEngine()
+  const weaponTracker = new WeaponTracker()
   const gaugeSync = new GaugeSync(apiClient)
 
   const newRelicClient = new NewRelicClient(process.env.NEW_RELIC_LICENSE_KEY);
@@ -447,7 +448,7 @@ async function initApp({ onLuaVersionMismatch, sortieLogger } = {}) {
   });
 
   const pilotProgressionUrl = `${useSsl ? 'https' : 'http'}://${apiHost}`;
-  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, sortieLogger, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl })
+  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, sortieLogger, eventProcessor, achievementEngine, weaponTracker, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl })
 
   const healthChecker = new HealthChecker(apiClient, store, undefined, (healthy) => {
     newRelicClient.recordLog('api health state changed', {
@@ -468,7 +469,7 @@ async function initApp({ onLuaVersionMismatch, sortieLogger } = {}) {
   const heartbeatService = new HeartbeatService(apiClient, undefined, () => connectedPlayerCount, newRelicClient)
   heartbeatService.start()
 
-  return { udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, healthChecker, heartbeatService };
+  return { udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, weaponTracker, healthChecker, heartbeatService };
 }
 
 module.exports = { initApp, attachEventPipeline, buildBaseUrl };

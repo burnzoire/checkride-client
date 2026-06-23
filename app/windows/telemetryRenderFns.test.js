@@ -1,6 +1,6 @@
 jest.mock('electron-log', () => ({ info: jest.fn(), error: jest.fn() }));
 
-const { renderPilotState, fmt, fmtPct } = require('./telemetryRenderFns');
+const { renderPilotState, renderWeaponTracker, fmt, fmtPct } = require('./telemetryRenderFns');
 const AchievementEngine = require('../services/achievementEngine');
 const PilotState = require('../services/pilotState');
 
@@ -104,6 +104,36 @@ describe('telemetryRenderFns — all serialized fields are visible', () => {
     it('renders longest refuel contact', () => expect(html).toContain(fmt(60.5)));
     it('renders sortie distance in gauges', () => expect(html).toContain(fmt(111.1)));
     it('renders NOE distance in gauges', () => expect(html).toContain(fmt(22.2)));
+  });
+});
+
+// ─── Shot Tracker (attribution) ──────────────────────────────────────────────
+
+describe('renderWeaponTracker', () => {
+  it('shows the empty state when there are no tracked shots', () => {
+    expect(renderWeaponTracker({ trackedShots: [] })).toContain('No tracked shots');
+    expect(renderWeaponTracker({})).toContain('No tracked shots');
+  });
+
+  it('renders each tracked shot with its weapon, state and ids', () => {
+    const html = renderWeaponTracker({
+      trackedShots: [
+        { weaponName: 'AGM-114K', inFlight: true, targetObjectId: 99, weaponObjectId: 201 },
+        { weaponName: 'AIM-9X', inFlight: false, targetObjectId: 88, weaponObjectId: 202 },
+      ],
+    });
+    expect(html).toContain('AGM-114K');
+    expect(html).toContain('IN FLIGHT');
+    expect(html).toContain('AIM-9X');
+    expect(html).toContain('HIT');
+    expect(html).toContain('>99<');
+    expect(html).toContain('>201<');
+  });
+
+  it('escapes weapon names', () => {
+    const html = renderWeaponTracker({ trackedShots: [{ weaponName: '<script>', inFlight: true }] });
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).not.toContain('<script>');
   });
 });
 

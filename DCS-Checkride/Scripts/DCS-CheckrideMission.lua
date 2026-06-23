@@ -1662,6 +1662,21 @@ function CheckrideMission.onHit(event)
     local shotState = pickPreferredWeaponCandidate(matchingShots, weaponKey, weaponObjectId)
     if not shotState then return end
 
+    -- Backfill the pending kill's weapon data from the launch-captured shot record
+    -- *before* the shot is consumed below. onHit doesn't always expose event.weapon,
+    -- and onKill can't recover the shot once it's removed here — so this is the only
+    -- chance to attach reliable launch-time weapon data to a direct-impact kill.
+    if targetObjectId then
+        local pendingKill = CheckrideMission.pendingKillsByObjectId[targetObjectId]
+        if pendingKill then
+            pendingKill.weaponDescRaw  = pendingKill.weaponDescRaw or shotState.weaponDescRaw
+            pendingKill.weaponGuidance = pendingKill.weaponGuidance or shotState.weaponGuidance
+            if not pendingKill.weaponClass or pendingKill.weaponClass == "UNKNOWN" then
+                pendingKill.weaponClass = shotState.weaponClass
+            end
+        end
+    end
+
     if isAirToAirMissileClass(shotState.weaponClass) then
         if target and not isAirTarget(target) then return end
     end

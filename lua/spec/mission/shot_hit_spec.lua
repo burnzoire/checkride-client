@@ -493,6 +493,36 @@ describe("CheckrideMission victim role detection", function()
         assert.are.equal(8, pending.weaponDescRaw.warheadMass)
     end)
 
+    it("backfills pending weapon data from the launch shot record when onHit lacks the weapon", function()
+        loader.capture_events()
+        local initiator = player_unit("Maverick", "ucid-mav")
+        -- Launch-captured shot record (the only place the weapon was alive).
+        CheckrideMission.activeWeaponShots["wk"] = {
+            weaponKey = "wk",
+            weaponClass = "OTHER",
+            weaponGuidance = "IR",
+            weaponDescRaw = { category = 1, missileCategory = 6, guidance = 7 },
+            startX = 0, startY = 0, startAlt = 1000,
+            targetObjectId = 91, inFlight = true,
+            playerUcid = "ucid-mav", playerName = "Maverick",
+            firedAt = 100, lastDataAt = 101,
+        }
+        local target = stubs.make_unit({
+            id    = 91,
+            desc  = { category = Unit.Category.GROUND_UNIT, attributes = { ["Tanks"] = true } },
+            point = { x = 1000, y = 900, z = 1000 },
+            life  = 1.0,
+        })
+        -- weapon = nil: onHit can't read it, so the desc must come from the shot record
+        -- before the outbound tracking consumes it.
+        CheckrideMission.onHit({ initiator = initiator, weapon = nil, target = target, time = 300 })
+        local pending = CheckrideMission.pendingKillsByObjectId[91]
+        assert.is_not_nil(pending)
+        assert.is_not_nil(pending.weaponDescRaw)
+        assert.are.equal(7, pending.weaponDescRaw.guidance)
+        assert.are.equal("OTHER", pending.weaponClass)
+    end)
+
     -- Non-lethal hit runs getRoleCoalition; assert it classifies real attrs.
     local function role_coalition_for(attributes)
         local captured = loader.capture_events()

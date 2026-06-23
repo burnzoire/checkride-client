@@ -53,10 +53,6 @@ function metadataFromEnrichment(event) {
     // Raw DCS weapon getDesc() snapshot, forwarded verbatim for the backend to
     // interpret (the name-mapped values above go through unreliable enum tables).
     desc_raw: event.weaponDescRaw ?? null,
-    // Gun kills carry no weapon in GameGUI or getDesc; the mission script recovers
-    // the gun from the shooter's active burst.
-    gun: event.gunKill ? true : null,
-    weapon_name: event.gunWeaponName ?? null,
   });
   const killer = compact({ category: event.killerUnitCategory ?? null });
   const victim = compact({

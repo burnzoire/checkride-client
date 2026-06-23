@@ -49,12 +49,6 @@ CheckrideMission.activeWeaponShots = CheckrideMission.activeWeaponShots or {}
 CheckrideMission.activeRefuelByPilot = CheckrideMission.activeRefuelByPilot or {}
 CheckrideMission.pendingKillsByObjectId = CheckrideMission.pendingKillsByObjectId or {}
 CheckrideMission.activeInboundMissiles = CheckrideMission.activeInboundMissiles or {}
--- Per-ucid gun-burst state, used to attribute gun kills: GameGUI reports an empty
--- weapon for guns, and there's no S_EVENT_SHOT/Weapon object, so a kill with no
--- identified weapon is matched to the shooter's active/just-ended burst.
-CheckrideMission.gunBurstByUcid = CheckrideMission.gunBurstByUcid or {}
--- A gun kill lands during, or just after, the burst — guns are short range.
-CheckrideMission.GUN_BURST_GRACE_S = 3
 
 local function checkrideMissionInfo(message)
     if log and log.write then
@@ -1355,21 +1349,13 @@ function CheckrideMission.onShootingStart(event)
     local playerName, _, ucid = CheckrideMission.getPlayerInfo(initiator)
     if not playerName then return end
 
-    local weaponName = shootingWeaponName(event)
-    if ucid then
-        CheckrideMission.gunBurstByUcid[ucid] = {
-            weaponName = weaponName,
-            startAtMs  = event.time,
-            endedAtMs  = nil,
-        }
-    end
-
+    -- Context only — the client builds state from this and decides attribution.
     CheckrideMission.sendEnrichmentEvent({
         type        = "gun_burst_start",
         source      = "mission",
         playerUcid  = ucid,
         playerName  = playerName,
-        weaponName  = weaponName,
+        weaponName  = shootingWeaponName(event),
         startAtMs   = event.time,
         missionTime = event.time,
     })
@@ -1381,18 +1367,12 @@ function CheckrideMission.onShootingEnd(event)
     local playerName, _, ucid = CheckrideMission.getPlayerInfo(initiator)
     if not playerName then return end
 
-    local burst = ucid and CheckrideMission.gunBurstByUcid[ucid] or nil
-    if burst then
-        burst.endedAtMs = event.time
-        if not burst.weaponName then burst.weaponName = shootingWeaponName(event) end
-    end
-
     CheckrideMission.sendEnrichmentEvent({
         type            = "gun_burst_end",
         source          = "mission",
         playerUcid      = ucid,
         playerName      = playerName,
-        weaponName      = burst and burst.weaponName or shootingWeaponName(event),
+        weaponName      = shootingWeaponName(event),
         ammoConsumption = event.ammo_consumption,
         endAtMs         = event.time,
         missionTime     = event.time,
@@ -2119,21 +2099,6 @@ function CheckrideMission.onKill(event)
         victimTypeName     = pending and pending.victimTypeName or nil,
         missionTime        = event.time,
     }
-
-    -- Gun kill: GameGUI reports an empty weapon and there's no Weapon object (guns
-    -- fire S_EVENT_SHOOTING_*, not S_EVENT_SHOT), so identify it from the shooter's
-    -- active/just-ended gun burst. A cluster bomblet is also weaponless, but the
-    -- shooter won't be gun-firing — so the burst correlation distinguishes them.
-    local hasWeapon = message.weaponDescRaw ~= nil
-        or (message.weaponClass ~= nil and message.weaponClass ~= "UNKNOWN")
-    if not hasWeapon and ucid then
-        local burst = CheckrideMission.gunBurstByUcid[ucid]
-        if burst and (burst.endedAtMs == nil
-                      or (event.time - burst.endedAtMs) <= CheckrideMission.GUN_BURST_GRACE_S) then
-            message.gunKill = true
-            message.gunWeaponName = burst.weaponName
-        end
-    end
 
     CheckrideMission.log(
         playerName .. " kill: " .. victimUnitCategory ..

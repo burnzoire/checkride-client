@@ -461,46 +461,6 @@ describe("CheckrideMission.onKill", function()
         assert.is_nil(CheckrideMission.activeWeaponShots["phoenix"])
     end)
 
-    it("attributes a gun kill from the shooter's active burst when the weapon is empty", function()
-        local captured = loader.capture_events()
-        local initiator = player_unit("Maverick")
-        initiator.getCoalition = function() return 2 end
-        local target = stubs.make_unit({
-            coalition = 1, id = 71,
-            desc = { category = Unit.Category.AIRPLANE, attributes = {} },
-        })
-
-        -- Shooter opens up with the gun, then kills with no weapon object.
-        local gun = stubs.make_weapon({ typeName = "weapons.guns.M_61" })
-        CheckrideMission.onShootingStart({ initiator = initiator, weapon = gun, time = 498 })
-        CheckrideMission.onKill({ initiator = initiator, target = target, weapon = nil, time = 500 })
-
-        local kill_ev = nil
-        for _, c in ipairs(captured) do
-            if c.type == "kill_enrichment" then kill_ev = c end
-        end
-        assert.is_not_nil(kill_ev)
-        assert.is_true(kill_ev.gunKill)
-        assert.are.equal("weapons.guns.M_61", kill_ev.gunWeaponName)
-    end)
-
-    it("does not mark a gun kill without a recent burst", function()
-        local captured = loader.capture_events()
-        local initiator = player_unit("Maverick")
-        initiator.getCoalition = function() return 2 end
-        local target = stubs.make_unit({
-            coalition = 1, id = 72,
-            desc = { category = Unit.Category.AIRPLANE, attributes = {} },
-        })
-        CheckrideMission.onKill({ initiator = initiator, target = target, weapon = nil, time = 500 })
-
-        local kill_ev = nil
-        for _, c in ipairs(captured) do
-            if c.type == "kill_enrichment" then kill_ev = c end
-        end
-        assert.is_not_nil(kill_ev)
-        assert.is_nil(kill_ev.gunKill)
-    end)
 end)
 
 describe("CheckrideMission.onShootingStart / onShootingEnd", function()
@@ -515,17 +475,13 @@ describe("CheckrideMission.onShootingStart / onShootingEnd", function()
         end
     end)
 
-    it("records the shooter's gun burst with the resolved weapon name", function()
+    -- The shooting handlers report raw context only; the client builds state and
+    -- decides attribution.
+    it("emits gun_burst_start with the resolved weapon name", function()
         local captured = loader.capture_events()
         local initiator = player_unit("Maverick")
         local gun = stubs.make_weapon({ typeName = "weapons.guns.GSh_301" })
         CheckrideMission.onShootingStart({ initiator = initiator, weapon = gun, time = 100 })
-
-        local burst = CheckrideMission.gunBurstByUcid["ucid-mav"]
-        assert.is_not_nil(burst)
-        assert.are.equal("weapons.guns.GSh_301", burst.weaponName)
-        assert.are.equal(100, burst.startAtMs)
-        assert.is_nil(burst.endedAtMs)
 
         local start_ev = nil
         for _, c in ipairs(captured) do
@@ -533,25 +489,26 @@ describe("CheckrideMission.onShootingStart / onShootingEnd", function()
         end
         assert.is_not_nil(start_ev)
         assert.are.equal("weapons.guns.GSh_301", start_ev.weaponName)
+        assert.are.equal(100, start_ev.startAtMs)
     end)
 
     it("falls back to event.weapon_name when there is no weapon object", function()
-        local initiator = player_unit("Maverick")
-        CheckrideMission.onShootingStart({ initiator = initiator, weapon = nil, weapon_name = "M_61", time = 100 })
-        local burst = CheckrideMission.gunBurstByUcid["ucid-mav"]
-        assert.is_not_nil(burst)
-        assert.are.equal("M_61", burst.weaponName)
-    end)
-
-    it("records burst end with ammo consumption", function()
         local captured = loader.capture_events()
         local initiator = player_unit("Maverick")
-        CheckrideMission.onShootingStart({ initiator = initiator, weapon_name = "M_61", time = 100 })
-        CheckrideMission.onShootingEnd({ initiator = initiator, weapon_name = "M_61", ammo_consumption = 42, time = 102 })
+        CheckrideMission.onShootingStart({ initiator = initiator, weapon = nil, weapon_name = "M_61", time = 100 })
 
-        local burst = CheckrideMission.gunBurstByUcid["ucid-mav"]
-        assert.is_not_nil(burst)
-        assert.are.equal(102, burst.endedAtMs)
+        local start_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "gun_burst_start" then start_ev = c end
+        end
+        assert.is_not_nil(start_ev)
+        assert.are.equal("M_61", start_ev.weaponName)
+    end)
+
+    it("emits gun_burst_end with ammo consumption", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick")
+        CheckrideMission.onShootingEnd({ initiator = initiator, weapon_name = "M_61", ammo_consumption = 42, time = 102 })
 
         local end_ev = nil
         for _, c in ipairs(captured) do

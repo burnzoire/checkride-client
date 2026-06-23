@@ -29,7 +29,6 @@ function M.reset_state()
     CheckrideMission.activeRefuelByPilot    = {}
     CheckrideMission.pendingKillsByObjectId = {}
     CheckrideMission.activeInboundMissiles  = {}
-    CheckrideMission.gunBurstByUcid         = {}
     CheckrideMission.pilotCarrierByUcid     = {}
     CheckrideMission.WorldHandlerRegistered = false
     local fs = CheckrideMission.FlightSample

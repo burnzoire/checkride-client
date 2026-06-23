@@ -50,12 +50,9 @@ function metadataFromEnrichment(event) {
   const weapon = compact({
     weapon_class: event.weaponClass ?? null,
     weapon_guidance: event.weaponGuidance ?? null,
-    // Raw DCS getDesc() integers, forwarded verbatim for the backend to interpret
-    // (the name-mapped values above go through unreliable enum tables). compact()
-    // keeps 0 (a valid category/guidance value).
-    weapon_category_raw: event.weaponCategoryRaw ?? null,
-    weapon_missile_category_raw: event.weaponMissileCategoryRaw ?? null,
-    weapon_guidance_raw: event.weaponGuidanceRaw ?? null,
+    // Raw DCS weapon getDesc() snapshot, forwarded verbatim for the backend to
+    // interpret (the name-mapped values above go through unreliable enum tables).
+    desc_raw: event.weaponDescRaw ?? null,
   });
   const killer = compact({ category: event.killerUnitCategory ?? null });
   const victim = compact({

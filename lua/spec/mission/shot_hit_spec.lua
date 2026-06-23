@@ -471,11 +471,13 @@ describe("CheckrideMission victim role detection", function()
         assert.is_true(has(roles, "Vehicles"))
     end)
 
-    it("stashes raw weapon descriptor integers at the killing hit", function()
+    it("stashes the raw weapon descriptor snapshot at the killing hit", function()
         loader.capture_events()
         local initiator = player_unit("Maverick", "ucid-mav")
         -- AGM-114K-like: category MISSILE(1), missileCategory OTHER(6), guidance 7.
-        local weapon = stubs.make_weapon({ desc = { category = 1, missileCategory = 6, guidance = 7 } })
+        local weapon = stubs.make_weapon({
+            desc = { category = 1, missileCategory = 6, guidance = 7, warhead = { mass = 8 } },
+        })
         local target = stubs.make_unit({
             id   = 78,
             desc = { category = Unit.Category.GROUND_UNIT, attributes = { ["Tanks"] = true } },
@@ -484,9 +486,11 @@ describe("CheckrideMission victim role detection", function()
         CheckrideMission.onHit({ initiator = initiator, weapon = weapon, target = target, time = 500 })
         local pending = CheckrideMission.pendingKillsByObjectId[78]
         assert.is_not_nil(pending)
-        assert.are.equal(1, pending.weaponCategoryRaw)
-        assert.are.equal(6, pending.weaponMissileCategoryRaw)
-        assert.are.equal(7, pending.weaponGuidanceRaw)
+        assert.is_not_nil(pending.weaponDescRaw)
+        assert.are.equal(1, pending.weaponDescRaw.category)
+        assert.are.equal(6, pending.weaponDescRaw.missileCategory)
+        assert.are.equal(7, pending.weaponDescRaw.guidance)
+        assert.are.equal(8, pending.weaponDescRaw.warheadMass)
     end)
 
     -- Non-lethal hit runs getRoleCoalition; assert it classifies real attrs.

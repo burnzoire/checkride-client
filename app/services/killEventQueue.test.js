@@ -67,23 +67,20 @@ describe("metadataFromEnrichment", () => {
     });
   });
 
-  it("forwards raw weapon descriptor integers, keeping 0", () => {
-    const md = metadataFromEnrichment(
-      enrichment({ weaponCategoryRaw: 1, weaponMissileCategoryRaw: 6, weaponGuidanceRaw: 7 })
-    );
+  it("forwards the raw weapon descriptor snapshot verbatim", () => {
+    const descRaw = {
+      category: 1,
+      missileCategory: 6,
+      guidance: 7,
+      displayName: "AGM-114K Hellfire",
+      warheadMass: 8,
+    };
+    const md = metadataFromEnrichment(enrichment({ weaponDescRaw: descRaw }));
     expect(md.weapon).toEqual({
       weapon_class: "AAM",
       weapon_guidance: "RADAR_ACTIVE",
-      weapon_category_raw: 1,
-      weapon_missile_category_raw: 6,
-      weapon_guidance_raw: 7,
+      desc_raw: descRaw,
     });
-  });
-
-  it("keeps a raw weapon value of 0 (e.g. SHELL / guidance NONE)", () => {
-    const md = metadataFromEnrichment(enrichment({ weaponCategoryRaw: 0, weaponGuidanceRaw: 0 }));
-    expect(md.weapon.weapon_category_raw).toBe(0);
-    expect(md.weapon.weapon_guidance_raw).toBe(0);
   });
 
   it("returns null when no taxonomy is present", () => {

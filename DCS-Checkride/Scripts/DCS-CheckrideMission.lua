@@ -1098,6 +1098,30 @@ local function classifyWeaponClass(weapon)
     return categoryName
 end
 
+-- Snapshot the raw weapon getDesc() fields verbatim — no interpretation. The backend
+-- decides what these mean; this avoids leaning on classifyWeaponClass / the enum name
+-- tables, which have proven both wrong (AGM-114K laser -> IR) and flaky. Capture
+-- wherever the weapon still exists; launch (onShot) is the reliable point.
+local function rawWeaponDesc(weapon)
+    if not weapon then return nil end
+    local okDesc, desc = pcall(function() return weapon:getDesc() end)
+    if not okDesc or type(desc) ~= "table" then return nil end
+
+    local snapshot = {
+        category        = desc.category,
+        missileCategory = desc.missileCategory,
+        guidance        = desc.guidance,
+        displayName     = desc.displayName,
+    }
+    if type(desc.warhead) == "table" then
+        snapshot.warheadType          = desc.warhead.type
+        snapshot.warheadMass          = desc.warhead.mass
+        snapshot.warheadCaliber       = desc.warhead.caliber
+        snapshot.warheadExplosiveMass = desc.warhead.explosiveMass
+    end
+    return snapshot
+end
+
 local function isAirToAirMissileClass(weaponClass)
     return weaponClass == "AAM"
 end
@@ -1444,11 +1468,14 @@ function CheckrideMission.onShot(event)
     if okWDesc and wDesc then
         weaponGuidance = GUIDANCE_NAMES[wDesc.guidance] or (wDesc.guidance and tostring(wDesc.guidance)) or nil
     end
+    -- Captured at launch where the weapon is guaranteed alive; carried to the kill.
+    local weaponDescRaw = rawWeaponDesc(weapon)
 
     CheckrideMission.activeWeaponShots[weaponKey] = {
         weaponKey = weaponKey,
         weaponClass = weaponClass,
         weaponGuidance = weaponGuidance,
+        weaponDescRaw = weaponDescRaw,
         startX = startPoint.x,
         startY = startPoint.z,
         startAlt = startPoint.y,
@@ -1577,19 +1604,16 @@ function CheckrideMission.onHit(event)
             end
 
             local weaponGuidance = nil
-            local weaponCategoryRaw, weaponMissileCategoryRaw, weaponGuidanceRaw = nil, nil, nil
             if weapon then
                 local okWDesc2, wDesc2 = pcall(function() return weapon:getDesc() end)
                 if okWDesc2 and wDesc2 then
                     weaponGuidance = GUIDANCE_NAMES[wDesc2.guidance] or
                                      (wDesc2.guidance and tostring(wDesc2.guidance)) or nil
-                    -- Raw integers stashed here (where the weapon still exists); the
-                    -- weapon object is usually gone by S_EVENT_KILL.
-                    weaponCategoryRaw        = wDesc2.category
-                    weaponMissileCategoryRaw = wDesc2.missileCategory
-                    weaponGuidanceRaw        = wDesc2.guidance
                 end
             end
+            -- Raw descriptor captured where the weapon still exists (usually gone by
+            -- S_EVENT_KILL); the kill prefers this, else the launch-time shot record.
+            local weaponDescRaw = rawWeaponDesc(weapon)
 
             local victimPoint = getObjectPoint(target)
             local victimTypeName = nil
@@ -1604,9 +1628,7 @@ function CheckrideMission.onHit(event)
                     victimRoles     = victimRoles,
                     weaponGuidance  = weaponGuidance,
                     weaponClass     = weaponClass,
-                    weaponCategoryRaw = weaponCategoryRaw,
-                    weaponMissileCategoryRaw = weaponMissileCategoryRaw,
-                    weaponGuidanceRaw = weaponGuidanceRaw,
+                    weaponDescRaw   = weaponDescRaw,
                     victimPositionX = victimPoint and victimPoint.x or nil,
                     victimPositionY = victimPoint and victimPoint.z or nil,
                     night           = CheckrideMission.isNight(event.time),
@@ -1915,13 +1937,15 @@ function CheckrideMission.onKill(event)
     -- lethal-hit paths do not expose event.weapon reliably.
     local fallbackGuidance = nil
     local fallbackWeaponClass = nil
-    local needsFallback = (pending == nil) or (pending.weaponGuidance == nil) or (pending.weaponClass == nil)
+    local fallbackWeaponDescRaw = nil
+    local needsFallback = (pending == nil) or (pending.weaponGuidance == nil) or (pending.weaponClass == nil) or (pending.weaponDescRaw == nil)
     if needsFallback and victimObjectId then
         local candidates = findInFlightWeaponCandidates(victimObjectId, nil, nil, ucid, playerName)
         local shot = pickPreferredWeaponCandidate(candidates, nil, nil)
         if shot then
             fallbackGuidance = shot.weaponGuidance
             fallbackWeaponClass = shot.weaponClass
+            fallbackWeaponDescRaw = shot.weaponDescRaw
             -- Only consume the shot when pending is nil (proximity-fuse: onHit never fired,
             -- so this IS the killing shot and it's safe to remove). When pending exists,
             -- the killing shot was already removed by onHit; this candidate is a different
@@ -2005,18 +2029,11 @@ function CheckrideMission.onKill(event)
         isCollision = okCat and weapCat == Object.Category.UNIT
     end
 
-    -- Raw weapon descriptor integers, forwarded verbatim for the backend to
-    -- interpret. The name-mapped weaponClass/weaponGuidance below go through enum
-    -- tables that have proven unreliable (e.g. AGM-114K laser mis-reported as IR),
-    -- so we ship the raw values too and let the API decide what they mean.
-    local weaponCategoryRaw, weaponMissileCategoryRaw, weaponGuidanceRaw = nil, nil, nil
+    -- Last-resort raw descriptor from the kill event's own weapon, if it survived to
+    -- S_EVENT_KILL (rare). pending (onHit) and the shot record are preferred.
+    local onKillDescRaw = nil
     if event.weapon and not isCollision then
-        local okWD, wd = pcall(function() return event.weapon:getDesc() end)
-        if okWD and wd then
-            weaponCategoryRaw        = wd.category
-            weaponMissileCategoryRaw = wd.missileCategory
-            weaponGuidanceRaw        = wd.guidance
-        end
+        onKillDescRaw = rawWeaponDesc(event.weapon)
     end
 
     local message = {
@@ -2034,12 +2051,10 @@ function CheckrideMission.onKill(event)
         victimRoles        = pending and pending.victimRoles or nil,
         weaponGuidance     = (pending and pending.weaponGuidance) or fallbackGuidance,
         weaponClass        = (pending and pending.weaponClass) or fallbackWeaponClass or (isCollision and "COLLISION" or nil),
-        -- Prefer the raw integers captured at onHit (the weapon is usually gone by
-        -- now); fall back to event.weapon. Lua treats 0 as truthy, so valid 0 values
-        -- (SHELL / guidance NONE) survive the `or`.
-        weaponCategoryRaw        = (pending and pending.weaponCategoryRaw) or weaponCategoryRaw,
-        weaponMissileCategoryRaw = (pending and pending.weaponMissileCategoryRaw) or weaponMissileCategoryRaw,
-        weaponGuidanceRaw        = (pending and pending.weaponGuidanceRaw) or weaponGuidanceRaw,
+        -- Raw weapon descriptor: prefer onHit's, then the launch-time shot record
+        -- (the reliable source — snapshotted while the weapon was alive), then the
+        -- kill event's weapon.
+        weaponDescRaw      = (pending and pending.weaponDescRaw) or fallbackWeaponDescRaw or onKillDescRaw,
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,

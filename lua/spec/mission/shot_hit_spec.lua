@@ -82,6 +82,14 @@ describe("CheckrideMission.onShot", function()
         end
         assert.is_not_nil(shot_ev)
         assert.are.equal("Maverick", shot_ev.playerName)
+        -- Carries the launch-captured raw descriptor + fired time so the client can
+        -- track the shot and attribute the kill (client-authoritative).
+        assert.are.equal("AIM-120C", shot_ev.weaponName)
+        assert.are.equal(201, shot_ev.weaponObjectId)
+        assert.are.equal(100, shot_ev.firedAt)
+        assert.is_not_nil(shot_ev.weaponDescRaw)
+        assert.are.equal(1, shot_ev.weaponDescRaw.category)
+        assert.are.equal(4, shot_ev.weaponDescRaw.guidance)
     end)
 
     it("tracks AI shot of guided missile at player as inbound missile", function()

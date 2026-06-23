@@ -303,6 +303,59 @@ describe("KillEventQueue", () => {
     expect(event.metadata).toBeDefined();
   });
 
+  describe("resolveWeapon (client-authoritative attribution)", () => {
+    it("merges the resolved weapon over the enrichment weapon at the rendezvous", async () => {
+      const resolveWeapon = jest.fn(() => ({ weapon_name: "AGM-114K", desc_raw: { guidance: 7 } }));
+      const { queue } = makeQueue({ resolveWeapon });
+
+      queue.recordEnrichment(enrichment({ victimObjectId: 4242 }));
+      const event = kill();
+      await queue.submitKill(event, () => Promise.resolve("sent"));
+
+      expect(resolveWeapon).toHaveBeenCalledWith({ killerUcid: "killer-1", victimObjectId: 4242 });
+      // Client weapon_name + desc_raw merged on; enrichment class/guidance preserved.
+      expect(event.metadata.weapon).toEqual({
+        weapon_class: "AAM",
+        weapon_guidance: "RADAR_ACTIVE",
+        weapon_name: "AGM-114K",
+        desc_raw: { guidance: 7 },
+      });
+    });
+
+    it("resolves a held kill on enrichment arrival, passing the enrichment victim object id", async () => {
+      const resolveWeapon = jest.fn(() => ({ weapon_name: "AIM-9X" }));
+      const { queue } = makeQueue({ resolveWeapon });
+
+      const event = kill();
+      const pending = queue.submitKill(event, () => Promise.resolve("sent"));
+      queue.recordEnrichment(enrichment({ victimObjectId: 77 }));
+      await pending;
+
+      expect(resolveWeapon).toHaveBeenCalledWith({ killerUcid: "killer-1", victimObjectId: 77 });
+      expect(event.metadata.weapon.weapon_name).toBe("AIM-9X");
+    });
+
+    it("leaves the enrichment weapon untouched when nothing key-matches", async () => {
+      const resolveWeapon = jest.fn(() => null);
+      const { queue } = makeQueue({ resolveWeapon });
+
+      queue.recordEnrichment(enrichment());
+      const event = kill();
+      await queue.submitKill(event, () => Promise.resolve("sent"));
+
+      expect(event.metadata.weapon).toEqual({ weapon_class: "AAM", weapon_guidance: "RADAR_ACTIVE" });
+    });
+
+    it("is not consulted for an AI kill that never rendezvous", async () => {
+      const resolveWeapon = jest.fn(() => ({ weapon_name: "x" }));
+      const { queue } = makeQueue({ resolveWeapon });
+
+      await queue.submitKill({ type: "kill", killerIsAi: true, killerUcid: "" }, () => Promise.resolve());
+
+      expect(resolveWeapon).not.toHaveBeenCalled();
+    });
+  });
+
   it("does not double-release when an enrichment arrives after the deadline", async () => {
     const { queue, timers } = makeQueue();
     const release = jest.fn(() => Promise.resolve());

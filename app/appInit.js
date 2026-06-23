@@ -5,6 +5,7 @@ const GaugeSync = require('./services/gaugeSync');
 const { EventProcessor } = require('./services/eventProcessor');
 const AchievementEngine = require('./services/achievementEngine');
 const { KillEventQueue } = require('./services/killEventQueue');
+const { WeaponTracker } = require('./services/weaponTracker');
 const { EventFactory, InvalidEventTypeError } = require('./factories/eventFactory');
 const { APIClient } = require('./clients/apiClient');
 const { HealthChecker } = require('./services/healthChecker');
@@ -159,11 +160,25 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   const engine = achievementEngine || new AchievementEngine();
   const warnedMismatchKeys = new Set();
   const welcomedUcids = new Set();
+  // Tracks each player's in-flight shots (from `shot_enrichment`) so a kill can be
+  // attributed to the exact weapon that hit — a key-match, not a guess. This is the
+  // client-authoritative source of truth for kill weapons.
+  const weaponTracker = new WeaponTracker();
   // Queues persisted kills until their mission `kill_enrichment` (separate,
   // unordered, persist=false) arrives so its DCS-sourced weapon/victim taxonomy
-  // can be folded on; releases on arrival or after a short deadline.
+  // can be folded on; releases on arrival or after a short deadline. At the
+  // rendezvous it asks `weaponTracker` to attribute the weapon (overriding the
+  // mission script's kill-time getDesc(), which is unreliable for guns/clusters).
   const killEventQueue = new KillEventQueue({
     missionScriptingEnabled: () => store.get('mission_scripting_enabled') !== false,
+    resolveWeapon: ({ killerUcid, victimObjectId }) => {
+      const match = weaponTracker.matchKill({ killerUcid, victimObjectId });
+      if (!match) return null;
+      const weapon = {};
+      if (match.weaponName != null) weapon.weapon_name = match.weaponName;
+      if (match.descRaw != null) weapon.desc_raw = match.descRaw;
+      return Object.keys(weapon).length > 0 ? weapon : null;
+    },
   });
   // Built from connect/change_slot events so mission-script events with null playerUcid
   // (due to the async CheckridePlayers injection race) can still be attributed correctly.
@@ -187,6 +202,18 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
     if (event.type === 'kill_enrichment') {
       killEventQueue.recordEnrichment(event);
+    }
+
+    // Feed the shot tracker so kills can be key-matched to the weapon that hit.
+    if (event.type === 'shot_enrichment') {
+      weaponTracker.recordShot(event);
+    }
+    if (event.type === 'hit_enrichment') {
+      weaponTracker.recordHit({
+        playerUcid: event.playerUcid,
+        weaponObjectId: event.weaponObjectId,
+        targetObjectId: event.targetObjectId,
+      });
     }
 
     if (event.type === 'flight_sample_enrichment' && !event.playerUcid && newRelicClient) {

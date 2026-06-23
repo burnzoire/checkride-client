@@ -73,6 +73,12 @@ class KillEventQueue {
     deadlineMs = DEFAULT_DEADLINE_MS,
     enrichmentTtlMs = ENRICHMENT_TTL_MS,
     missionScriptingEnabled = () => true,
+    // Client-authoritative weapon attribution. Called at the kill/enrichment
+    // rendezvous with { killerUcid, victimObjectId }; returns a partial weapon
+    // metadata object (e.g. { weapon_name, desc_raw }) to merge onto the kill, or
+    // null. This is where the client's own shot-tracking decides the weapon, rather
+    // than trusting the mission script's getDesc() at kill time. Optional.
+    resolveWeapon = null,
     now = () => Date.now(),
     schedule,
     cancel,
@@ -80,6 +86,7 @@ class KillEventQueue {
     this._deadlineMs = deadlineMs;
     this._enrichmentTtlMs = enrichmentTtlMs;
     this._missionScriptingEnabled = missionScriptingEnabled;
+    this._resolveWeapon = resolveWeapon;
     this._now = now;
     this._schedule = schedule || ((fn, ms) => setTimeout(fn, ms));
     this._cancel = cancel || ((handle) => clearTimeout(handle));
@@ -99,13 +106,14 @@ class KillEventQueue {
     const entry = {
       metadata: metadataFromEnrichment(event),
       victimTypeName: event.victimTypeName ?? null,
+      victimObjectId: event.victimObjectId ?? null,
       recordedAt: this._now(),
     };
 
     const pending = this._takePendingKill(killerUcid, entry.victimTypeName);
     if (pending) {
       this._cancel(pending.timer);
-      pending.resolve(this._send(pending.event, pending.release, entry.metadata));
+      pending.resolve(this._send(pending.event, pending.release, entry.metadata, entry.victimObjectId));
       return;
     }
 
@@ -137,7 +145,7 @@ class KillEventQueue {
 
     const entry = this._takeEnrichment(killerUcid, event.victimUnitType ?? null);
     if (entry) {
-      return this._send(event, release, entry.metadata);
+      return this._send(event, release, entry.metadata, entry.victimObjectId);
     }
 
     let resolve;
@@ -162,10 +170,24 @@ class KillEventQueue {
     return promise;
   }
 
-  _send(event, release, metadata) {
+  _send(event, release, metadata, victimObjectId = null) {
     if (metadata) {
       event.metadata = { ...(event.metadata || {}), ...metadata };
     }
+
+    // Client-authoritative weapon attribution: let the shot tracker decide the weapon
+    // from its own key-match and merge it over the (less reliable) enrichment weapon.
+    // Merges rather than replaces so the enrichment's class/guidance survive while the
+    // client supplies the authoritative weapon_name.
+    if (this._resolveWeapon) {
+      const killerUcid = event.killerUcid ?? event.playerUcid;
+      const matched = killerUcid ? this._resolveWeapon({ killerUcid, victimObjectId }) : null;
+      if (matched) {
+        event.metadata = event.metadata || {};
+        event.metadata.weapon = { ...(event.metadata.weapon || {}), ...matched };
+      }
+    }
+
     return release();
   }
 

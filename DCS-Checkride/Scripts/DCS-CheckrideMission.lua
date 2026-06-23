@@ -1524,6 +1524,9 @@ function CheckrideMission.onShot(event)
         weaponName = weaponName,
         weaponDisplayName = weaponDisplayName,
         weaponGuidance = weaponGuidance,
+        -- Raw getDesc() snapshot, captured at launch where the weapon is alive.
+        -- The client tracks the shot and attributes it to the kill (client-authoritative).
+        weaponDescRaw = weaponDescRaw,
         weaponObjectId = weaponObjectId,
         targetObjectId = targetObjectId,
         inFlight = true,
@@ -1533,6 +1536,7 @@ function CheckrideMission.onShot(event)
         startAlt = startPoint.y,
         speedKts = speedKts,
         speedMach = speedMach,
+        firedAt = event.time,
         missionTime = event.time,
     }
 

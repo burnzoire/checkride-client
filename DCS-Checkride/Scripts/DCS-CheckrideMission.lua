@@ -1577,11 +1577,17 @@ function CheckrideMission.onHit(event)
             end
 
             local weaponGuidance = nil
+            local weaponCategoryRaw, weaponMissileCategoryRaw, weaponGuidanceRaw = nil, nil, nil
             if weapon then
                 local okWDesc2, wDesc2 = pcall(function() return weapon:getDesc() end)
                 if okWDesc2 and wDesc2 then
                     weaponGuidance = GUIDANCE_NAMES[wDesc2.guidance] or
                                      (wDesc2.guidance and tostring(wDesc2.guidance)) or nil
+                    -- Raw integers stashed here (where the weapon still exists); the
+                    -- weapon object is usually gone by S_EVENT_KILL.
+                    weaponCategoryRaw        = wDesc2.category
+                    weaponMissileCategoryRaw = wDesc2.missileCategory
+                    weaponGuidanceRaw        = wDesc2.guidance
                 end
             end
 
@@ -1598,6 +1604,9 @@ function CheckrideMission.onHit(event)
                     victimRoles     = victimRoles,
                     weaponGuidance  = weaponGuidance,
                     weaponClass     = weaponClass,
+                    weaponCategoryRaw = weaponCategoryRaw,
+                    weaponMissileCategoryRaw = weaponMissileCategoryRaw,
+                    weaponGuidanceRaw = weaponGuidanceRaw,
                     victimPositionX = victimPoint and victimPoint.x or nil,
                     victimPositionY = victimPoint and victimPoint.z or nil,
                     night           = CheckrideMission.isNight(event.time),
@@ -2025,9 +2034,12 @@ function CheckrideMission.onKill(event)
         victimRoles        = pending and pending.victimRoles or nil,
         weaponGuidance     = (pending and pending.weaponGuidance) or fallbackGuidance,
         weaponClass        = (pending and pending.weaponClass) or fallbackWeaponClass or (isCollision and "COLLISION" or nil),
-        weaponCategoryRaw        = weaponCategoryRaw,
-        weaponMissileCategoryRaw = weaponMissileCategoryRaw,
-        weaponGuidanceRaw        = weaponGuidanceRaw,
+        -- Prefer the raw integers captured at onHit (the weapon is usually gone by
+        -- now); fall back to event.weapon. Lua treats 0 as truthy, so valid 0 values
+        -- (SHELL / guidance NONE) survive the `or`.
+        weaponCategoryRaw        = (pending and pending.weaponCategoryRaw) or weaponCategoryRaw,
+        weaponMissileCategoryRaw = (pending and pending.weaponMissileCategoryRaw) or weaponMissileCategoryRaw,
+        weaponGuidanceRaw        = (pending and pending.weaponGuidanceRaw) or weaponGuidanceRaw,
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,

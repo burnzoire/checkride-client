@@ -78,12 +78,23 @@ describe('WeaponTracker.matchKill', () => {
 });
 
 describe('WeaponTracker.recordHit', () => {
-  it('drops a spent shot so it no longer counts as in flight', () => {
+  it('grounds a hit shot so it no longer counts as airborne', () => {
     const { tracker } = makeTracker();
     tracker.recordShot(shot({ weaponObjectId: 201 }));
     expect(tracker.inFlightCount('killer-1')).toBe(1);
     tracker.recordHit({ playerUcid: 'killer-1', weaponObjectId: 201 });
     expect(tracker.inFlightCount('killer-1')).toBe(0);
+  });
+
+  it('keeps a hit shot tracked so the following lethal kill still matches it', () => {
+    const { tracker } = makeTracker();
+    tracker.recordShot(shot({ weaponObjectId: 201, targetObjectId: 99, weaponName: 'AGM-114K' }));
+    // Lethal hit: hit_enrichment arrives before the kill, grounding the shot...
+    tracker.recordHit({ playerUcid: 'killer-1', weaponObjectId: 201, targetObjectId: 99 });
+    expect(tracker.inFlightCount('killer-1')).toBe(0);
+    // ...but the kill can still attribute to it.
+    const match = tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 99 });
+    expect(match.weaponName).toBe('AGM-114K');
   });
 });
 
@@ -104,14 +115,18 @@ describe('WeaponTracker TTL', () => {
   });
 });
 
-describe('WeaponTracker.inFlightShots', () => {
-  it('returns a snapshot without mutating state', () => {
+describe('WeaponTracker.trackedShots', () => {
+  it('returns a snapshot (airborne + grounded) without mutating state', () => {
     const { tracker } = makeTracker();
-    tracker.recordShot(shot());
-    const snap = tracker.inFlightShots('killer-1');
-    expect(snap).toHaveLength(1);
-    expect(snap[0].weaponName).toBe('AGM-114K');
+    tracker.recordShot(shot({ weaponObjectId: 201 }));
+    tracker.recordShot(shot({ weaponObjectId: 202, targetObjectId: 88 }));
+    tracker.recordHit({ playerUcid: 'killer-1', weaponObjectId: 201 });
+
+    const snap = tracker.trackedShots('killer-1');
+    expect(snap).toHaveLength(2);
+    expect(snap.filter((s) => s.airborne)).toHaveLength(1);
+
     snap[0].weaponName = 'mutated';
-    expect(tracker.inFlightShots('killer-1')[0].weaponName).toBe('AGM-114K');
+    expect(tracker.trackedShots('killer-1')[0].weaponName).toBe('AGM-114K');
   });
 });

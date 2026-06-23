@@ -8,6 +8,7 @@ const { SortieLogger } = require('./services/sortieLogger');
 const store = require('./config');
 const { showSettingsWindow } = require('./windows/settingsWindow');
 const { showTelemetryWindow } = require('./windows/telemetryWindow');
+const { version: APP_VERSION } = require('./package.json');
 
 if (app.isPackaged) {
   delete process.env.DISCORD_INSECURE_TLS;
@@ -399,6 +400,13 @@ ipcMain.handle('sortie:open-file', async () => {
 });
 
 app.whenReady().then(async () => {
+  // The native About panel on Windows defaults to the executable's 4-part file
+  // version (e.g. 1.5.6.0), which drops the semver prerelease tag. Show the real
+  // package version (e.g. 1.5.6-beta3) instead.
+  app.setAboutPanelOptions({
+    applicationName: app.name,
+    applicationVersion: APP_VERSION,
+  });
   await bootstrap();
   if (app.isPackaged) {
     initAutoUpdater();

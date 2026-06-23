@@ -83,6 +83,19 @@ describe("metadataFromEnrichment", () => {
     });
   });
 
+  it("recovers a gun kill (empty weapon) from the shooter's burst", () => {
+    const md = metadataFromEnrichment(
+      enrichment({
+        weaponClass: null,
+        weaponGuidance: null,
+        weaponDescRaw: null,
+        gunKill: true,
+        gunWeaponName: "weapons.guns.M_61",
+      })
+    );
+    expect(md.weapon).toEqual({ gun: true, weapon_name: "weapons.guns.M_61" });
+  });
+
   it("returns null when no taxonomy is present", () => {
     expect(
       metadataFromEnrichment({

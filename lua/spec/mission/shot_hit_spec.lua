@@ -404,9 +404,9 @@ describe("CheckrideMission.onHit", function()
 end)
 
 -- ---------------------------------------------------------------------------
--- Victim role detection uses the real DCS attribute vocabulary (Tanks / Modern
--- Tanks / Old Tanks, SAM TR/SR/LL/CC, Static/Mobile AAA, Attack/Transport
--- helicopters) — not the dead strings (Armour, SAM, SAM launcher, Helicopters).
+-- Victim attributes are forwarded verbatim: the full DCS getDesc().attributes set,
+-- with no allow-list, so the backend interprets them and nothing is dropped. (The
+-- non-lethal getRoleCoalition path still classifies a curated subset — covered below.)
 describe("CheckrideMission victim role detection", function()
     setup(function()
         loader.load()
@@ -458,8 +458,17 @@ describe("CheckrideMission victim role detection", function()
         assert.is_true(has(lethal_roles_for({ ["Mobile AAA"] = true }), "Mobile AAA"))
     end)
 
-    it("does not capture the dead 'Armour' string", function()
-        assert.are.equal(0, #lethal_roles_for({ ["Armour"] = true }))
+    it("forwards the full attribute set verbatim, with no allow-list", function()
+        local roles = lethal_roles_for({
+            ["Modern Tanks"] = true,
+            ["Tanks"] = true,
+            ["Ground vehicles"] = true, -- not in any old curated list
+            ["Vehicles"] = true,
+        })
+        assert.are.equal(4, #roles)
+        assert.is_true(has(roles, "Modern Tanks"))
+        assert.is_true(has(roles, "Ground vehicles")) -- previously dropped by the allow-list
+        assert.is_true(has(roles, "Vehicles"))
     end)
 
     -- Non-lethal hit runs getRoleCoalition; assert it classifies real attrs.

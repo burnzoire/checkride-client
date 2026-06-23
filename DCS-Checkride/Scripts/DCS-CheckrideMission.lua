@@ -1045,6 +1045,11 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
     active.unitRef = entry.unit or active.unitRef
 end
 
+-- TODO(revise): in-Lua role classification — curated allow-list that drives a live
+-- feature (the non-lethal SEAD/anti-armor hit counter). It's proven flaky and only
+-- recognizes a hand-picked attribute subset. Direction is to forward raw attributes
+-- and classify server-side; replace this when the backend attribute->category map
+-- lands rather than expanding the list piecemeal.
 local function getRoleCoalition(target, initiatorCoalition)
     local okDesc, desc = pcall(function() return target:getDesc() end)
     if not okDesc or not desc then return nil end
@@ -1349,6 +1354,9 @@ function CheckrideMission.onShot(event)
         local guidance = wDesc.guidance
         if not guidance or guidance == 0 then return end  -- unguided, skip
 
+        -- TODO(revise): same curated/flaky in-Lua role classification as
+        -- getRoleCoalition (drives the inbound-missile warning). Replace with raw
+        -- attribute forwarding + server-side classification when the map lands.
         local role = nil
         local okIDesc, iDesc = pcall(function() return initiator:getDesc() end)
         if okIDesc and iDesc then
@@ -1557,16 +1565,14 @@ function CheckrideMission.onHit(event)
 
         if life and life <= 1.0 then
             -- ── Lethal hit: capture victim data while the object still exists ─
+            -- Forward the victim's FULL DCS attribute set verbatim — no allow-list.
+            -- A curated list silently drops attributes we can't recover later, and
+            -- the backend (not this script) is responsible for interpreting them.
             local victimRoles = {}
             local okVDesc, vDesc = pcall(function() return target:getDesc() end)
             if okVDesc and vDesc and type(vDesc.attributes) == "table" then
-                local wantedRoles = {
-                    "SAM TR","SAM SR","SAM LL","SAM CC","LR SAM","MR SAM","SR SAM",
-                    "Tanks","Modern Tanks","Old Tanks","IFV","APC",
-                    "Static AAA","Mobile AAA","AAA","Artillery","MLRS","Infantry",
-                }
-                for _, r in ipairs(wantedRoles) do
-                    if vDesc.attributes[r] then victimRoles[#victimRoles + 1] = r end
+                for attr in pairs(vDesc.attributes) do
+                    victimRoles[#victimRoles + 1] = attr
                 end
             end
 
@@ -1990,6 +1996,20 @@ function CheckrideMission.onKill(event)
         isCollision = okCat and weapCat == Object.Category.UNIT
     end
 
+    -- Raw weapon descriptor integers, forwarded verbatim for the backend to
+    -- interpret. The name-mapped weaponClass/weaponGuidance below go through enum
+    -- tables that have proven unreliable (e.g. AGM-114K laser mis-reported as IR),
+    -- so we ship the raw values too and let the API decide what they mean.
+    local weaponCategoryRaw, weaponMissileCategoryRaw, weaponGuidanceRaw = nil, nil, nil
+    if event.weapon and not isCollision then
+        local okWD, wd = pcall(function() return event.weapon:getDesc() end)
+        if okWD and wd then
+            weaponCategoryRaw        = wd.category
+            weaponMissileCategoryRaw = wd.missileCategory
+            weaponGuidanceRaw        = wd.guidance
+        end
+    end
+
     local message = {
         type               = "kill_enrichment",
         source             = "mission",
@@ -2005,6 +2025,9 @@ function CheckrideMission.onKill(event)
         victimRoles        = pending and pending.victimRoles or nil,
         weaponGuidance     = (pending and pending.weaponGuidance) or fallbackGuidance,
         weaponClass        = (pending and pending.weaponClass) or fallbackWeaponClass or (isCollision and "COLLISION" or nil),
+        weaponCategoryRaw        = weaponCategoryRaw,
+        weaponMissileCategoryRaw = weaponMissileCategoryRaw,
+        weaponGuidanceRaw        = weaponGuidanceRaw,
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,

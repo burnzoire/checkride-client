@@ -1,13 +1,13 @@
 // Tracks a player's shots (from mission `shot_enrichment` events) so a kill can be
 // attributed to the exact weapon that hit it — an identifier *key-match*, not a
 // heuristic. It also answers "does this player still have anything in the air?", which
-// gates the (later) gun-kill decision: if an unaccounted munition is airborne, a
-// weaponless kill is ambiguous and must not be assumed to be guns.
+// gates the (later) gun-kill decision: if an unaccounted munition is still in the air,
+// a weaponless kill is ambiguous and must not be assumed to be guns.
 //
 // Two distinct states, deliberately separated:
-//   - airborne   — still in the air; this is what the gun gate counts.
+//   - inFlight   — still in the air; this is what the gun gate counts.
 //   - tracked    — we still know its weapon (desc/attrs) so a kill can match it.
-// A reported hit drops a shot from *airborne* but keeps it *tracked*, so the kill that
+// A reported hit drops a shot from *inFlight* but keeps it *tracked*, so the kill that
 // follows a lethal hit can still key-match it. Shots leave entirely when matched to a
 // kill, or when they age out (a missile that missed and self-destructed must stop
 // blocking the gun gate forever).
@@ -37,7 +37,7 @@ class WeaponTracker {
       targetObjectId: event.targetObjectId ?? null,
       firedAtMs: event.firedAt ?? null, // mission time, carried for context only
       recordedAt: this._now(),
-      airborne: true,
+      inFlight: true,
     });
     this._byUcid.set(ucid, list);
   }
@@ -62,7 +62,7 @@ class WeaponTracker {
     return this._take(killerUcid, list, index);
   }
 
-  // A shot reported as a hit is no longer airborne, but stays tracked so the kill that
+  // A shot reported as a hit is no longer in flight, but stays tracked so the kill that
   // follows a lethal hit can still key-match it. Idempotent on already-grounded shots.
   recordHit({ playerUcid, weaponObjectId = null, targetObjectId = null } = {}) {
     this._prune();
@@ -71,12 +71,12 @@ class WeaponTracker {
 
     let shot = null;
     if (weaponObjectId != null) {
-      shot = list.find((s) => s.airborne && s.weaponObjectId != null && s.weaponObjectId === weaponObjectId);
+      shot = list.find((s) => s.inFlight && s.weaponObjectId != null && s.weaponObjectId === weaponObjectId);
     }
     if (!shot && targetObjectId != null) {
-      shot = list.find((s) => s.airborne && s.targetObjectId != null && s.targetObjectId === targetObjectId);
+      shot = list.find((s) => s.inFlight && s.targetObjectId != null && s.targetObjectId === targetObjectId);
     }
-    if (shot) shot.airborne = false;
+    if (shot) shot.inFlight = false;
   }
 
   // How many shots this player still has *in the air* — the gate for the gun-kill rule.
@@ -84,10 +84,10 @@ class WeaponTracker {
   inFlightCount(ucid) {
     this._prune();
     const list = ucid && this._byUcid.get(ucid);
-    return list ? list.filter((s) => s.airborne).length : 0;
+    return list ? list.filter((s) => s.inFlight).length : 0;
   }
 
-  // Snapshot of all tracked shots (airborne + already-hit) for telemetry/debug.
+  // Snapshot of all tracked shots (inFlight + already-hit) for telemetry/debug.
   trackedShots(ucid) {
     this._prune();
     const list = ucid && this._byUcid.get(ucid);

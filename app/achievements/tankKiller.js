@@ -1,6 +1,7 @@
 const Achievement = require('./achievement');
+const { ARMOUR_ROLES: ARMOUR_ROLE_LIST } = require('../constants/dcsRoles');
 
-const ARMOUR_ROLES = new Set(['Tanks', 'Modern Tanks', 'Old Tanks', 'IFV', 'APC']);
+const ARMOUR_ROLES = new Set(ARMOUR_ROLE_LIST);
 
 class TankKiller extends Achievement {
   constructor() {

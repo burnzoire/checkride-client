@@ -97,26 +97,34 @@ class WeaponTracker {
 
     const attributable = (s) => s.outcome === 'in_flight' || s.outcome === 'hit';
     let shot = null;
+    // Whether we pinned THE shot (so its launch point is trustworthy) vs just one shot
+    // of the right weapon type (good enough for name/desc, but not for distance).
+    let identifiedShot = false;
     if (weaponObjectId != null) {
       shot = list.find((s) => attributable(s) && idEq(s.weaponObjectId, weaponObjectId));
+      if (shot) identifiedShot = true;
     }
     if (!shot && victimObjectId != null) {
       shot = list.find((s) => attributable(s) && idEq(s.targetObjectId, victimObjectId));
+      if (shot) identifiedShot = true; // backfilled from the hit on this exact victim
     }
-    // Last resort: the kill's weapon name (GameGUI, reliable for missiles/bombs). DCS
-    // weapon ids are null and lethal hits emit no linking enrichment, so this is the
-    // working path for most kills. Same-name shots share a descriptor, so attributing
-    // the oldest is safe for weapon/desc — it does not claim a specific victim.
+    // Usual path: the kill's weapon name (GameGUI, reliable for missiles/bombs). DCS
+    // weapon ids are null and lethal hits emit no linking enrichment. Same-name shots
+    // share a descriptor, so this reliably yields the weapon + desc_raw — but it does
+    // NOT identify which shot, so it's only "the" shot when it's the sole candidate.
     if (!shot && weaponName != null) {
-      shot = list.find((s) => attributable(s) && weaponNameMatches(s, weaponName));
+      const named = list.filter((s) => attributable(s) && weaponNameMatches(s, weaponName));
+      shot = named[0] || null;
+      if (named.length === 1) identifiedShot = true;
     }
     if (!shot) return null;
 
     shot.outcome = 'killed';
-    // Engagement range = launch point to where the victim died. Both coordinates are
-    // reliable (no weapon id needed), so this recovers the distance the lethal-hit event
-    // can't — the weapon is usually gone by impact.
-    if (shot.distanceNm == null && shot.startX != null && shot.startY != null && victimPositionX != null && victimPositionY != null) {
+    // Engagement range = launch point → where the victim died. Both coordinates are
+    // reliable, but the launch point is the *specific* shot's — so only claim a distance
+    // when we actually identified the shot. A fuzzy name match across several in-flight
+    // same-type shots would attach the wrong launch point; leave it blank instead.
+    if (identifiedShot && shot.distanceNm == null && shot.startX != null && shot.startY != null && victimPositionX != null && victimPositionY != null) {
       const dx = shot.startX - victimPositionX;
       const dy = shot.startY - victimPositionY;
       shot.distanceNm = Math.sqrt(dx * dx + dy * dy) / METERS_PER_NM;

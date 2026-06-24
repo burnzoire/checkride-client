@@ -121,6 +121,18 @@ describe('WeaponTracker null-object-id attribution (the real DCS case)', () => {
     expect(tracker.trackedShots('killer-1')[0].distanceNm).toBeCloseTo(Math.SQRT2, 3);
   });
 
+  it('does NOT claim a distance from a fuzzy name match (several same-type shots in flight)', () => {
+    const { tracker } = makeTracker();
+    // Two AGM-114K in flight from different launch points — a name match can't tell which
+    // one hit, so its launch point (and thus distance) is not trustworthy.
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K', startX: 0, startY: 0 }));
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K', startX: 9000, startY: 9000 }));
+    const match = tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AGM-114K', victimPositionX: 1852, victimPositionY: 1852 });
+    expect(match).not.toBeNull(); // weapon/desc still attributed
+    const killed = tracker.trackedShots('killer-1').find((s) => s.outcome === 'killed');
+    expect(killed.distanceNm).toBeNull(); // but no fabricated distance
+  });
+
   it('does not cross-attribute a kill to a shot that never hit that victim', () => {
     const { tracker } = makeTracker();
     tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K' }));

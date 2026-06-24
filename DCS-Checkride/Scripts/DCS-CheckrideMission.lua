@@ -196,14 +196,20 @@ local MPS_TO_KNOTS = 1.9438444924406
 local METERS_TO_FEET = 3.2808398950131
 local METERS_TO_NM = 0.00053995680345572
 
+-- DCS Weapon.GuidanceType (a C++-exposed enum, not defined in any Lua file). The prior
+-- table was hand-guessed and wrong (it had 7=IR/8=LASER); the real enum — confirmed by a
+-- semi-active-laser AGM-114K reporting guidance 7 — is below. The dumpWeaponEnums() probe
+-- logs the live table at load so this stays honest against DCS/mod changes.
 local GUIDANCE_NAMES = {
-    [0]  = "NONE",
-    [4]  = "RADAR_ACTIVE",
-    [5]  = "RADAR_SEMI_ACTIVE",
-    [6]  = "RADAR_PASSIVE",
-    [7]  = "IR",
-    [8]  = "LASER",
-    [9]  = "TV",
+    [0] = "NONE",
+    [1] = "INS",
+    [2] = "IR",
+    [3] = "RADAR_ACTIVE",
+    [4] = "RADAR_SEMI_ACTIVE",
+    [5] = "RADAR_PASSIVE",
+    [6] = "TV",
+    [7] = "LASER",
+    [8] = "TELE",
 }
 
 -- Maps Weapon.Category integer → string name.
@@ -2144,10 +2150,31 @@ function CheckrideShowMessage(pilotKey, message, duration)
     CheckrideMission.log("CheckrideShowMessage: notified " .. tostring(pilotKey))
 end
 
+-- Logs DCS's live Weapon enum tables once at load. These are C++-exposed (not in any Lua
+-- file), so this is the only authoritative source for the integers getDesc() returns —
+-- used to verify GUIDANCE_NAMES/WEAPON_CATEGORY_NAMES against the actual DCS/mod build.
+function CheckrideMission.dumpWeaponEnums()
+    if type(Weapon) ~= "table" then
+        CheckrideMission.log("weapon enum: Weapon global unavailable")
+        return
+    end
+    for _, enumName in ipairs({ "GuidanceType", "Category", "MissileCategory", "WarheadType" }) do
+        local tbl = Weapon[enumName]
+        if type(tbl) == "table" then
+            for name, value in pairs(tbl) do
+                CheckrideMission.log(string.format("weapon enum: Weapon.%s.%s = %s", enumName, tostring(name), tostring(value)))
+            end
+        else
+            CheckrideMission.log("weapon enum: Weapon." .. enumName .. " unavailable")
+        end
+    end
+end
+
 -- ============================================================================
 -- Register
 -- ============================================================================
 local worldInitStatus = CheckrideMission.ensureWorldHandler()
 CheckrideMission.log('world init status: ' .. tostring(worldInitStatus))
 CheckrideMission.startWeaponSampler()
+pcall(CheckrideMission.dumpWeaponEnums)
 checkrideMissionInfo("Loaded - DCS-Checkride Mission Script v" .. CheckrideMission.version)

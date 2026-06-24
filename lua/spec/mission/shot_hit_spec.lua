@@ -559,4 +559,24 @@ describe("CheckrideMission victim role detection", function()
     it("classifies Static AAA as aaa", function()
         assert.are.equal("aaa_enemy", role_coalition_for({ ["Static AAA"] = true }))
     end)
+
+    it("carries the weapon name + victim id so the client can mark the firing shot hit", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick", "ucid-mav")
+        local weapon = stubs.make_weapon({ typeName = "AGM_114K" })
+        local target = stubs.make_unit({
+            id        = 88,
+            desc      = { category = Unit.Category.GROUND_UNIT, attributes = { ["Modern Tanks"] = true } },
+            life      = 5.0, -- non-lethal
+            coalition = 1,
+        })
+        CheckrideMission.onHit({ initiator = initiator, weapon = weapon, target = target, time = 600 })
+        local hit = nil
+        for _, c in ipairs(captured) do
+            if c.type == "hit_enrichment" then hit = c end
+        end
+        assert.is_not_nil(hit)
+        assert.are.equal("AGM_114K", hit.weaponName)
+        assert.are.equal(88, hit.targetObjectId)
+    end)
 end)

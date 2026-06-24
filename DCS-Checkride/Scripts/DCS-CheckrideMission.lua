@@ -1671,18 +1671,24 @@ function CheckrideMission.onHit(event)
             -- No event emitted here — onKill completes and emits kill_enrichment.
 
         elseif life and life > 1.0 then
-            -- ── Non-lethal hit: emit lightweight hit counter ──────────────────
+            -- ── Non-lethal hit ────────────────────────────────────────────────
+            -- The role-coalition hit counter, plus the weapon name and the reliable
+            -- victim id: the client uses those to mark the firing shot 'hit' (it stays
+            -- hit, never a miss) and to backfill the victim so a delayed cook-off death
+            -- key-matches the right shot.
             local killerCoal = nil
             pcall(function() killerCoal = initiator:getCoalition() end)
             local roleCoalition = getRoleCoalition(target, killerCoal)
             if roleCoalition then
                 CheckrideMission.sendEnrichmentEvent({
-                    type         = "hit_enrichment",
-                    source       = "mission",
-                    playerUcid   = ucid,
-                    playerName   = playerName,
-                    roleCoalition = roleCoalition,
-                    missionTime  = event.time,
+                    type           = "hit_enrichment",
+                    source         = "mission",
+                    playerUcid     = ucid,
+                    playerName     = playerName,
+                    roleCoalition  = roleCoalition,
+                    weaponName     = getWeaponTypeName(weapon),
+                    targetObjectId = targetObjectId,
+                    missionTime    = event.time,
                 })
             end
         end

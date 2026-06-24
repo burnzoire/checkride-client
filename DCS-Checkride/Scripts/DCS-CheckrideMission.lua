@@ -221,14 +221,16 @@ local WEAPON_CATEGORY_NAMES = {
     [4] = "TORPEDO",
 }
 
--- Maps Weapon.MissileCategory integer → string name.
+-- Maps Weapon.MissileCategory integer → string name (the C++-exposed DCS enum; the
+-- dumpWeaponEnums probe logs the live table to verify). [5] was hand-coded "ARM" but the
+-- documented enum has CRUISE=5 (ARM is not a MissileCategory); an AGM-114K confirmed 6=OTHER.
 -- Missiles matching a sub-category return that name instead of "MISSILE".
 local MISSILE_CATEGORY_NAMES = {
     [1] = "AAM",
     [2] = "SAM",
     [3] = "BM",
     [4] = "ANTI_SHIP",
-    [5] = "ARM",
+    [5] = "CRUISE",
     [6] = "OTHER",
 }
 

@@ -126,14 +126,21 @@
   }
 
   function renderCombat(s) {
-    const killsHtml = s.kills && s.kills.length > 0
+    // Drop collateral/scenery hits: GameGUI counts them but they carry no unit identity
+    // (no type/id/roles) and aren't persisted to the API.
+    const kills = (s.kills || []).filter(k => k.victimTypeName || k.victimAirType);
+    const killsHtml = kills.length > 0
       ? `<table class="kills-table">
            <thead><tr><th>Type</th><th>Target</th><th>Weapon</th><th>At kill</th><th>Carrier</th></tr></thead>
-           <tbody>${s.kills.map(k => {
+           <tbody>${kills.map(k => {
              const targetName = escapeHtml(k.victimTypeName || k.victimAirType || '—');
              const subLabel = k.victimAirType === 'HELICOPTER' ? ' <span style="font-size:10px;color:#7a8394">HELO</span>' : '';
-             // The launch-captured weapon name, not the broken getDesc class/guidance.
-             const weaponDesc = escapeHtml(k.weaponName || '—');
+             // The launch-captured weapon name + raw descriptor metadata (e.g. guidance),
+             // not the broken getDesc class/guidance strings.
+             const meta = weaponMeta(k.weaponDescRaw);
+             const weaponDesc = k.weaponName
+               ? `${escapeHtml(k.weaponName)}${meta !== '—' ? ` <span style="color:#4d5464">${escapeHtml(meta)}</span>` : ''}`
+               : '—';
              const flags = [];
              if (k.night) flags.push('<span style="color:#7a8394;font-size:10px">NIGHT</span>');
              if (k.avengedFriendly) flags.push('<span style="color:#c8a03a;font-size:10px">AVENGER</span>');
@@ -233,6 +240,20 @@
     miss: { label: 'MISS', color: '#e07b6b' },
   };
 
+  // DCS Weapon.Category — reliable. Guidance enum is NOT (e.g. 7 is LASER, not what the
+  // tables say), so the raw value is shown verbatim for the backend/operator to read.
+  const WEAPON_CATEGORY = { 0: 'Shell', 1: 'Missile', 2: 'Rocket', 3: 'Bomb' };
+
+  // Compact descriptor summary from the raw getDesc() snapshot, e.g. "Missile · g7".
+  function weaponMeta(descRaw) {
+    if (!descRaw || typeof descRaw !== 'object') return '—';
+    const parts = [];
+    if (descRaw.category != null) parts.push(WEAPON_CATEGORY[descRaw.category] || ('cat ' + descRaw.category));
+    if (descRaw.guidance != null) parts.push('g' + descRaw.guidance);
+    if (descRaw.warheadMass != null) parts.push(fmt(descRaw.warheadMass) + 'kg');
+    return parts.length ? parts.join(' · ') : '—';
+  }
+
   // The single source of weapon state — the client WeaponTracker's shots with their
   // event-driven outcome. Replaces the old separate "fired" / "shot tracker" views.
   // This is exactly what drives the client-authoritative kill attribution.
@@ -261,13 +282,13 @@
       return `<tr>
         <td style="font-size:11px">${name}</td>
         <td><span style="color:${outcome.color};font-size:10px;font-weight:600">${outcome.label}</span></td>
+        <td style="font-size:11px;color:#7a8394">${escapeHtml(weaponMeta(s.descRaw))}</td>
         <td style="font-size:11px;color:#7a8394;text-align:right">${dist}</td>
-        <td style="font-size:11px;color:#7a8394;text-align:right">${fmt(s.targetObjectId, 0)}</td>
       </tr>`;
     }).join('');
 
     html += `<table class="kills-table">
-        <thead><tr><th>Weapon</th><th>Outcome</th><th style="text-align:right">Dist.</th><th style="text-align:right">Target id</th></tr></thead>
+        <thead><tr><th>Weapon</th><th>Outcome</th><th>Metadata</th><th style="text-align:right">Dist.</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
     return html;

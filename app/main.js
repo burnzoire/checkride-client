@@ -395,8 +395,27 @@ ipcMain.handle('telemetry:snapshot', () => {
   if (weaponTracker) {
     for (const pilot of pilots) {
       if (!pilot.state) continue;
-      pilot.state.weaponsFired = weaponTracker.trackedShots(pilot.ucid);
+      const weapons = weaponTracker.trackedShots(pilot.ucid);
+      pilot.state.weaponsFired = weapons;
       pilot.state.gunBurst = weaponTracker.gunBurst(pilot.ucid);
+
+      // The kill_enrichment usually lacks the weapon (the mission script's desc capture
+      // fails), but the tracker knows it. Assign credited shots to the real kills in
+      // order — collateral kills have no victim and are skipped; same-weapon kills make
+      // ordering moot. Display only; the API gets the weapon via resolveWeapon.
+      const kills = pilot.state.state?.kills;
+      if (Array.isArray(kills)) {
+        const killedShots = weapons.filter((s) => s.outcome === 'killed');
+        let si = 0;
+        for (const kill of kills) {
+          if (!kill.victimTypeName && !kill.victimAirType) continue;
+          if (!kill.weaponName && si < killedShots.length) {
+            const shot = killedShots[si++];
+            kill.weaponName = shot.weaponDisplayName || shot.weaponName;
+            kill.weaponDescRaw = kill.weaponDescRaw || shot.descRaw;
+          }
+        }
+      }
     }
   }
   return { pilots };

@@ -1,8 +1,10 @@
 // Tracks a player's shots (from mission `shot_enrichment` events) so a kill can be
 // attributed to the exact weapon that hit it — an identifier *key-match*, not a
-// heuristic. It also answers "does this player still have anything in the air?", which
-// gates the (later) gun-kill decision: if an unaccounted munition is still in the air,
-// a weaponless kill is ambiguous and must not be assumed to be guns.
+// heuristic. It also decides gun kills: guns fire no Weapon object, so a gun kill
+// arrives weaponless and is attributed from the preceding gun burst — but only when
+// guns are the unambiguous explanation (nothing else in the air, no recent
+// submunition-dispensing impact). If an unaccounted munition is still airborne, a
+// weaponless kill is ambiguous and is left unattributed rather than assumed to be guns.
 //
 // Two distinct states, deliberately separated:
 //   - inFlight   — still in the air; this is what the gun gate counts.
@@ -13,13 +15,25 @@
 // blocking the gun gate forever).
 
 const DEFAULT_TTL_MS = 30000;
+// Guns produce no Weapon object, so a gun kill arrives weaponless and can't be
+// key-matched. We attribute it from the gun burst that immediately preceded it —
+// but only within a short grace window after the burst ends, since the kill event
+// lands a beat later. 5s is generous enough to keep soft kills from a long strafe.
+const DEFAULT_GUN_GRACE_MS = 5000;
+
+// DCS Weapon.Category: SHELL=0, MISSILE=1, ROCKET=2, BOMB=3. Rockets and bombs can
+// dispense submunitions that kill (also weaponlessly) for a few seconds after impact.
+const SUBMUNITION_CAPABLE_CATEGORIES = new Set([2, 3]);
 
 class WeaponTracker {
-  constructor({ ttlMs = DEFAULT_TTL_MS, now = () => Date.now() } = {}) {
+  constructor({ ttlMs = DEFAULT_TTL_MS, gunGraceMs = DEFAULT_GUN_GRACE_MS, now = () => Date.now() } = {}) {
     this._ttlMs = ttlMs;
+    this._gunGraceMs = gunGraceMs;
     this._now = now;
-    // ucid -> [{ weaponName, descRaw, weaponObjectId, targetObjectId, firedAtMs, recordedAt }]
+    // ucid -> [{ weaponName, descRaw, weaponObjectId, targetObjectId, firedAtMs, recordedAt, inFlight, groundedAt }]
     this._byUcid = new Map();
+    // ucid -> { weaponName, startedAt, endedAt, active } — the most recent gun burst.
+    this._gunBursts = new Map();
   }
 
   // Record an outbound shot. No-op for anything but a shot_enrichment with a ucid.
@@ -76,7 +90,77 @@ class WeaponTracker {
     if (!shot && targetObjectId != null) {
       shot = list.find((s) => s.inFlight && s.targetObjectId != null && s.targetObjectId === targetObjectId);
     }
-    if (shot) shot.inFlight = false;
+    if (shot) {
+      shot.inFlight = false;
+      shot.groundedAt = this._now(); // when its submunitions (if any) start mattering
+    }
+  }
+
+  // Track a player's gun burst (from gun_burst_start / gun_burst_end). The burst
+  // carries the actual gun type so a gun kill is attributed to e.g. "GAU-8", not
+  // a generic "gun". No-op without a ucid.
+  recordGunBurst(event) {
+    if (!event) return;
+    const ucid = event.playerUcid;
+    if (!ucid) return;
+    const now = this._now();
+
+    if (event.type === 'gun_burst_start') {
+      this._gunBursts.set(ucid, { weaponName: event.weaponName ?? null, startedAt: now, endedAt: null, active: true });
+    } else if (event.type === 'gun_burst_end') {
+      const burst = this._gunBursts.get(ucid) || { weaponName: null, startedAt: now };
+      burst.weaponName = event.weaponName ?? burst.weaponName;
+      burst.active = false;
+      burst.endedAt = now;
+      this._gunBursts.set(ucid, burst);
+    }
+  }
+
+  // Decide whether a weaponless kill was a gun kill, returning the gun's weapon name
+  // (or null). Conservative by design: only call it guns when guns are the
+  // *unambiguous* explanation. Refrains — leaving the kill unattributed — if anything
+  // else could be responsible: a munition still airborne, or a rocket/bomb that just
+  // impacted and may be spewing submunition kills. Better a false-negative than
+  // labelling a missile or cluster kill as guns.
+  matchGunKill({ killerUcid } = {}) {
+    this._prune();
+    if (!killerUcid) return null;
+
+    const burst = this._recentGunBurst(killerUcid);
+    if (!burst) return null;
+    if (this.inFlightCount(killerUcid) > 0) return null;
+    if (this._hasRecentSubmunitionActivity(killerUcid)) return null;
+
+    return { weaponName: burst.weaponName ?? null, reason: 'gun' };
+  }
+
+  // The current/recent gun burst for telemetry, or null.
+  gunBurst(ucid) {
+    this._prune();
+    const burst = ucid && this._recentGunBurst(ucid);
+    return burst ? { weaponName: burst.weaponName ?? null, active: !!burst.active } : null;
+  }
+
+  _recentGunBurst(ucid) {
+    const burst = this._gunBursts.get(ucid);
+    if (!burst) return null;
+    if (burst.active) return burst;
+    if (burst.endedAt != null && this._now() - burst.endedAt <= this._gunGraceMs) return burst;
+    return null;
+  }
+
+  _hasRecentSubmunitionActivity(ucid) {
+    const list = this._byUcid.get(ucid);
+    if (!list) return false;
+    const now = this._now();
+    return list.some(
+      (s) =>
+        !s.inFlight &&
+        s.groundedAt != null &&
+        now - s.groundedAt <= this._gunGraceMs &&
+        s.descRaw &&
+        SUBMUNITION_CAPABLE_CATEGORIES.has(s.descRaw.category)
+    );
   }
 
   // How many shots this player still has *in the air* — the gate for the gun-kill rule.
@@ -101,13 +185,19 @@ class WeaponTracker {
   }
 
   _prune() {
-    const cutoff = this._now() - this._ttlMs;
+    const now = this._now();
+    const cutoff = now - this._ttlMs;
     for (const [ucid, list] of this._byUcid) {
       const kept = list.filter((s) => s.recordedAt >= cutoff);
       if (kept.length > 0) this._byUcid.set(ucid, kept);
       else this._byUcid.delete(ucid);
     }
+    for (const [ucid, burst] of this._gunBursts) {
+      if (!burst.active && burst.endedAt != null && now - burst.endedAt > this._gunGraceMs) {
+        this._gunBursts.delete(ucid);
+      }
+    }
   }
 }
 
-module.exports = { WeaponTracker, DEFAULT_TTL_MS };
+module.exports = { WeaponTracker, DEFAULT_TTL_MS, DEFAULT_GUN_GRACE_MS };

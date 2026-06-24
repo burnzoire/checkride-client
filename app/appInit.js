@@ -172,12 +172,21 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   const killEventQueue = new KillEventQueue({
     missionScriptingEnabled: () => store.get('mission_scripting_enabled') !== false,
     resolveWeapon: ({ killerUcid, victimObjectId }) => {
+      // First, the exact key-match against a tracked shot.
       const match = tracker.matchKill({ killerUcid, victimObjectId });
-      if (!match) return null;
-      const weapon = {};
-      if (match.weaponName != null) weapon.weapon_name = match.weaponName;
-      if (match.descRaw != null) weapon.desc_raw = match.descRaw;
-      return Object.keys(weapon).length > 0 ? weapon : null;
+      if (match) {
+        const weapon = {};
+        if (match.weaponName != null) weapon.weapon_name = match.weaponName;
+        if (match.descRaw != null) weapon.desc_raw = match.descRaw;
+        return Object.keys(weapon).length > 0 ? weapon : null;
+      }
+      // No tracked shot hit this victim — a weaponless kill. Decide guns only when
+      // unambiguous; otherwise leave it unattributed.
+      const gun = tracker.matchGunKill({ killerUcid });
+      if (gun && gun.weaponName != null) {
+        return { weapon_name: gun.weaponName, attribution: 'gun' };
+      }
+      return null;
     },
   });
   // Built from connect/change_slot events so mission-script events with null playerUcid
@@ -214,6 +223,9 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         weaponObjectId: event.weaponObjectId,
         targetObjectId: event.targetObjectId,
       });
+    }
+    if (event.type === 'gun_burst_start' || event.type === 'gun_burst_end') {
+      tracker.recordGunBurst(event);
     }
 
     if (event.type === 'flight_sample_enrichment' && !event.playerUcid && newRelicClient) {

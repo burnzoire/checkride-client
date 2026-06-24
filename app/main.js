@@ -393,6 +393,7 @@ ipcMain.handle('telemetry:snapshot', () => {
   if (weaponTracker) {
     for (const pilot of pilots) {
       pilot.trackedShots = weaponTracker.trackedShots(pilot.ucid);
+      pilot.gunBurst = weaponTracker.gunBurst(pilot.ucid);
     }
   }
   return { pilots };

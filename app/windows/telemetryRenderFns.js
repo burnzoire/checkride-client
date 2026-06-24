@@ -255,7 +255,15 @@
   // what drives the client-authoritative kill weapon attribution.
   function renderWeaponTracker(pilot) {
     const shots = Array.isArray(pilot && pilot.trackedShots) ? pilot.trackedShots : [];
+    const gunBurst = pilot && pilot.gunBurst;
     let html = '<div class="state-section"><div class="section-title">Shot Tracker (attribution)</div>';
+
+    if (gunBurst) {
+      const label = gunBurst.active ? 'FIRING' : 'recent';
+      const color = gunBurst.active ? '#c8a03a' : '#7a8394';
+      html += `<div style="font-size:11px;margin-bottom:6px">Gun burst:
+        <span style="color:${color};font-weight:600">${escapeHtml(gunBurst.weaponName || 'gun')} (${label})</span></div>`;
+    }
 
     if (shots.length === 0) {
       html += '<div style="font-size:12px;color:#4d5464;font-style:italic">No tracked shots</div></div>';

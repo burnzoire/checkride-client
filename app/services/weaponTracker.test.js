@@ -98,6 +98,65 @@ describe('WeaponTracker.recordHit', () => {
   });
 });
 
+describe('WeaponTracker gun kills', () => {
+  const gunStart = (ucid = 'killer-1', weaponName = 'GAU-8') => ({ type: 'gun_burst_start', playerUcid: ucid, weaponName });
+  const gunEnd = (ucid = 'killer-1', weaponName = 'GAU-8') => ({ type: 'gun_burst_end', playerUcid: ucid, weaponName });
+
+  it('attributes a weaponless kill to the active gun burst, with the real gun type', () => {
+    const { tracker } = makeTracker();
+    tracker.recordGunBurst(gunStart());
+    expect(tracker.matchGunKill({ killerUcid: 'killer-1' })).toEqual({ weaponName: 'GAU-8', reason: 'gun' });
+  });
+
+  it('returns null when there is no gun burst', () => {
+    const { tracker } = makeTracker();
+    expect(tracker.matchGunKill({ killerUcid: 'killer-1' })).toBeNull();
+  });
+
+  it('refrains while a munition is still in the air (ambiguous)', () => {
+    const { tracker } = makeTracker();
+    tracker.recordGunBurst(gunStart());
+    tracker.recordShot(shot()); // a missile still in flight
+    expect(tracker.matchGunKill({ killerUcid: 'killer-1' })).toBeNull();
+  });
+
+  it('refrains when a rocket/bomb just impacted — submunitions could be the cause', () => {
+    const { tracker } = makeTracker();
+    tracker.recordGunBurst(gunStart());
+    tracker.recordShot(shot({ weaponObjectId: 301, targetObjectId: 55, weaponName: 'CBU-87', weaponDescRaw: { category: 3 } }));
+    tracker.recordHit({ playerUcid: 'killer-1', weaponObjectId: 301 }); // dispenser impacts → grounded
+    expect(tracker.inFlightCount('killer-1')).toBe(0); // nothing airborne...
+    expect(tracker.matchGunKill({ killerUcid: 'killer-1' })).toBeNull(); // ...but still ambiguous
+  });
+
+  it('attributes guns once submunition activity ages past the grace window', () => {
+    const { tracker, tick } = makeTracker({ gunGraceMs: 5000 });
+    tracker.recordGunBurst(gunStart());
+    tracker.recordShot(shot({ weaponObjectId: 301, weaponName: 'CBU-87', weaponDescRaw: { category: 3 } }));
+    tracker.recordHit({ playerUcid: 'killer-1', weaponObjectId: 301 });
+    tick(5001);
+    tracker.recordGunBurst(gunStart()); // fresh burst after the cluster settled
+    expect(tracker.matchGunKill({ killerUcid: 'killer-1' })).toEqual({ weaponName: 'GAU-8', reason: 'gun' });
+  });
+
+  it('honours the grace window after the burst ends', () => {
+    const { tracker, tick } = makeTracker({ gunGraceMs: 5000 });
+    tracker.recordGunBurst(gunStart());
+    tracker.recordGunBurst(gunEnd());
+    tick(4999);
+    expect(tracker.matchGunKill({ killerUcid: 'killer-1' })).not.toBeNull();
+    tick(2); // past grace
+    expect(tracker.matchGunKill({ killerUcid: 'killer-1' })).toBeNull();
+  });
+
+  it('exposes the current/recent gun burst for telemetry', () => {
+    const { tracker } = makeTracker();
+    expect(tracker.gunBurst('killer-1')).toBeNull();
+    tracker.recordGunBurst(gunStart());
+    expect(tracker.gunBurst('killer-1')).toEqual({ weaponName: 'GAU-8', active: true });
+  });
+});
+
 describe('WeaponTracker TTL', () => {
   it('evicts shots that are never consumed (missed and self-destructed)', () => {
     const { tracker, tick } = makeTracker({ ttlMs: 30000 });

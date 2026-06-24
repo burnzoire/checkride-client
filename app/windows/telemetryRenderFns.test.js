@@ -135,6 +135,13 @@ describe('renderWeaponTracker', () => {
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('<script>');
   });
+
+  it('shows an active gun burst with its weapon type', () => {
+    const html = renderWeaponTracker({ trackedShots: [], gunBurst: { weaponName: 'GAU-8', active: true } });
+    expect(html).toContain('Gun burst');
+    expect(html).toContain('GAU-8');
+    expect(html).toContain('FIRING');
+  });
 });
 
 // ─── fmt / fmtPct ────────────────────────────────────────────────────────────

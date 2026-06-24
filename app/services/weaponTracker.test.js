@@ -206,6 +206,32 @@ describe('WeaponTracker.recordHit', () => {
     const match = tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 99 });
     expect(match.weaponName).toBe('AGM-114K');
   });
+
+  it('never downgrades a confirmed hit to a miss, however long the cook-off takes', () => {
+    const { tracker, tick } = makeTracker({ sampleStaleMs: 5000, impactGraceMs: 90000 });
+    tracker.recordShot(shot({ weaponKey: 'wk', weaponObjectId: 201 }));
+    tracker.recordHit({ playerUcid: 'killer-1', weaponObjectId: 201 });
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('hit');
+    tick(10 * 60 * 1000); // ten minutes later
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('hit'); // still hit, not miss
+  });
+
+  it('upgrades an impacted shot to hit when a confirmed hit arrives late', () => {
+    const { tracker, tick } = makeTracker({ sampleStaleMs: 5000, impactGraceMs: 90000 });
+    tracker.recordShot(shot({ weaponKey: 'wk', weaponObjectId: 201, weaponName: 'AGM-114K' }));
+    tracker.recordSample({ type: 'weapon_sample_enrichment', playerUcid: 'killer-1', weaponKey: 'wk', positionX: 1, positionY: 1 });
+    tick(6000); // samples stopped → impacted
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('impacted');
+    tracker.recordHit({ playerUcid: 'killer-1', weaponName: 'AGM-114K' });
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('hit');
+  });
+
+  it('does not flag any shot from a weaponless hit event (no identity = no guess)', () => {
+    const { tracker } = makeTracker();
+    tracker.recordShot(shot({ weaponObjectId: null, weaponName: 'AGM-114K' }));
+    tracker.recordHit({ playerUcid: 'killer-1' }); // no weaponObjectId, no weaponName
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('in_flight');
+  });
 });
 
 describe('WeaponTracker gun kills', () => {

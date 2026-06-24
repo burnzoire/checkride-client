@@ -119,7 +119,7 @@ describe('renderCombat', () => {
     });
     expect(html).toContain('T-55');
     expect(html).toContain('AGM-114K');
-    expect(html).toContain('Missile · g7');
+    expect(html).toContain('Missile · Laser');
     // Header row + the single real kill row; the collateral kill is filtered out.
     expect((html.match(/<tr>/g) || []).length).toBe(2);
   });
@@ -151,7 +151,7 @@ describe('renderWeaponTracker', () => {
     expect(html).toContain('3.4 nm');
     expect(html).toContain('IN FLIGHT');
     expect(html).toContain('MISS');
-    expect(html).toContain('Missile · g7'); // raw descriptor metadata
+    expect(html).toContain('Missile · Laser'); // guidance 7 → Laser (corrected enum)
   });
 
   it('escapes weapon names', () => {

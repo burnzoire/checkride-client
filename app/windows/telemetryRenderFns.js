@@ -241,16 +241,19 @@
     miss: { label: 'MISS', color: '#e07b6b' },
   };
 
-  // DCS Weapon.Category — reliable. Guidance enum is NOT (e.g. 7 is LASER, not what the
-  // tables say), so the raw value is shown verbatim for the backend/operator to read.
+  // DCS Weapon.Category / Weapon.GuidanceType (the corrected, verified enum — 7 is LASER).
   const WEAPON_CATEGORY = { 0: 'Shell', 1: 'Missile', 2: 'Rocket', 3: 'Bomb' };
+  const WEAPON_GUIDANCE = {
+    0: 'Unguided', 1: 'INS', 2: 'IR', 3: 'Active radar', 4: 'SARH',
+    5: 'Passive radar', 6: 'TV', 7: 'Laser', 8: 'Datalink',
+  };
 
-  // Compact descriptor summary from the raw getDesc() snapshot, e.g. "Missile · g7".
+  // Compact descriptor summary from the raw getDesc() snapshot, e.g. "Missile · Laser".
   function weaponMeta(descRaw) {
     if (!descRaw || typeof descRaw !== 'object') return '—';
     const parts = [];
     if (descRaw.category != null) parts.push(WEAPON_CATEGORY[descRaw.category] || ('cat ' + descRaw.category));
-    if (descRaw.guidance != null) parts.push('g' + descRaw.guidance);
+    if (descRaw.guidance != null) parts.push(WEAPON_GUIDANCE[descRaw.guidance] || ('guidance ' + descRaw.guidance));
     if (descRaw.warheadMass != null) parts.push(fmt(descRaw.warheadMass) + 'kg');
     return parts.length ? parts.join(' · ') : '—';
   }

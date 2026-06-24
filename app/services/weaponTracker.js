@@ -23,7 +23,8 @@ const DEFAULT_TTL_MS = 30000; // never-sampled fallback: in_flight -> miss after
 // long means the weapon is gone (impacted/self-destructed).
 const DEFAULT_SAMPLE_STALE_MS = 5000;
 // How long an impacted shot stays attributable for a delayed death before it's a miss.
-const DEFAULT_IMPACT_GRACE_MS = 30000;
+// Generous: a burning unit can cook off well after the weapon impacted.
+const DEFAULT_IMPACT_GRACE_MS = 90000;
 // In-flight shots that never resolve become 'miss' at the TTL (so they stop gating
 // guns) but stay visible. They're hard-deleted only much later so the telemetry
 // "weapons fired" view reflects most of a sortie without growing unbounded.
@@ -204,34 +205,33 @@ class WeaponTracker {
     return { weaponName: shot.weaponName, descRaw: shot.descRaw };
   }
 
-  // Record an impact. Links the hit to its shot so the shot can be marked hit and,
-  // crucially, so the hit's *reliable* target object id (the victim unit) is backfilled
-  // onto the shot for the kill to key-match later. Weapon ids being null, the shot↔hit
-  // link falls back to the weapon name (same-type shots share descriptors, so this is
-  // safe for attribution), then to the oldest in-flight shot. The shot stays tracked.
+  // Record a *confirmed* impact (an explicit hit_enrichment). Marks the shot 'hit' — a
+  // terminal-positive state that is never downgraded to a miss — and backfills the hit's
+  // reliable target object id (the victim unit) for the kill to key-match. The link is
+  // the weapon id, else the weapon name (same-type shots share a descriptor). With NO
+  // identifying info (a weaponless hit event) we do NOT guess: flagging an arbitrary shot
+  // would mislabel the wrong missile. A confirmed hit can land while still in flight or
+  // just after we inferred impact, so both are upgradable.
   recordHit({ playerUcid, weaponObjectId = null, targetObjectId = null, distanceNm = null, weaponName = null } = {}) {
     this._prune();
     const list = playerUcid && this._byUcid.get(playerUcid);
     if (!list || list.length === 0) return;
 
-    const inFlight = (s) => s.outcome === 'in_flight';
+    const upgradable = (s) => s.outcome === 'in_flight' || s.outcome === 'impacted';
     let shot = null;
     if (weaponObjectId != null) {
-      shot = list.find((s) => inFlight(s) && idEq(s.weaponObjectId, weaponObjectId));
+      shot = list.find((s) => upgradable(s) && idEq(s.weaponObjectId, weaponObjectId));
     }
     if (!shot && weaponName != null) {
-      shot = list.find((s) => inFlight(s) && s.weaponName === weaponName);
+      shot = list.find((s) => upgradable(s) && s.weaponName === weaponName);
     }
-    if (!shot) {
-      shot = list.find(inFlight); // oldest in-flight shot
-    }
-    if (shot) {
-      shot.outcome = 'hit';
-      shot.groundedAt = this._now(); // when its submunitions (if any) start mattering
-      if (distanceNm != null) shot.distanceNm = distanceNm;
-      // The hit knows the victim reliably; remember it so the kill can attribute.
-      if (targetObjectId != null) shot.targetObjectId = targetObjectId;
-    }
+    if (!shot) return; // no weapon identity → don't flag a random shot
+
+    shot.outcome = 'hit';
+    shot.groundedAt = this._now(); // when its submunitions (if any) start mattering
+    if (distanceNm != null) shot.distanceNm = distanceNm;
+    // The hit knows the victim reliably; remember it so the kill can attribute.
+    if (targetObjectId != null) shot.targetObjectId = targetObjectId;
   }
 
   // Track a player's gun burst (from gun_burst_start / gun_burst_end). The burst

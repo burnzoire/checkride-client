@@ -18,7 +18,12 @@
 // kill, or when they age out (a missile that missed and self-destructed must stop
 // blocking the gun gate forever).
 
-const DEFAULT_TTL_MS = 30000;
+const DEFAULT_TTL_MS = 30000; // never-sampled fallback: in_flight -> miss after this
+// Position samples arrive ~1/s while a weapon flies and stop at impact, so a gap this
+// long means the weapon is gone (impacted/self-destructed).
+const DEFAULT_SAMPLE_STALE_MS = 5000;
+// How long an impacted shot stays attributable for a delayed death before it's a miss.
+const DEFAULT_IMPACT_GRACE_MS = 30000;
 // In-flight shots that never resolve become 'miss' at the TTL (so they stop gating
 // guns) but stay visible. They're hard-deleted only much later so the telemetry
 // "weapons fired" view reflects most of a sortie without growing unbounded.
@@ -69,16 +74,28 @@ const weaponNameMatches = (shot, name) =>
   name != null && (shot.weaponName === name || shot.weaponDisplayName === name);
 
 class WeaponTracker {
-  constructor({ ttlMs = DEFAULT_TTL_MS, hardTtlMs = DEFAULT_HARD_TTL_MS, gunGraceMs = DEFAULT_GUN_GRACE_MS, now = () => Date.now() } = {}) {
+  constructor({
+    ttlMs = DEFAULT_TTL_MS,
+    sampleStaleMs = DEFAULT_SAMPLE_STALE_MS,
+    impactGraceMs = DEFAULT_IMPACT_GRACE_MS,
+    hardTtlMs = DEFAULT_HARD_TTL_MS,
+    gunGraceMs = DEFAULT_GUN_GRACE_MS,
+    now = () => Date.now(),
+  } = {}) {
     this._ttlMs = ttlMs;
+    this._sampleStaleMs = sampleStaleMs;
+    this._impactGraceMs = impactGraceMs;
     this._hardTtlMs = hardTtlMs;
     this._gunGraceMs = gunGraceMs;
     this._now = now;
     // ucid -> [{ weaponName, descRaw, weaponObjectId, targetObjectId, firedAtMs,
-    //            recordedAt, outcome, groundedAt, distanceNm }]
-    // outcome: 'in_flight' -> 'hit' (impact) -> 'killed' (attributed to a kill); or
-    // 'miss' once an unresolved in-flight shot ages past the TTL. It is the single
-    // source of weapon state for both attribution and the telemetry display.
+    //            recordedAt, outcome, groundedAt, distanceNm, lastSampleAt, lastPosition }]
+    // outcome lifecycle:
+    //   in_flight -> impacted (position samples stopped — the weapon is gone) -> killed
+    //   (a kill arrived) | miss (no kill within the grace). 'hit' is set by an explicit
+    //   hit_enrichment. A delayed death stays attributable through 'impacted', so a kill
+    //   that lands seconds after impact still credits the shot. It is the single source
+    //   of weapon state for both attribution and the telemetry display.
     this._byUcid = new Map();
     // ucid -> { weaponName, startedAt, endedAt, active } — the most recent gun burst.
     this._gunBursts = new Map();
@@ -103,6 +120,7 @@ class WeaponTracker {
       startY: event.startY ?? null,
       lastPositionX: null, // updated from in-flight samples; ~impact point at the end
       lastPositionY: null,
+      lastSampleAt: null, // when we last saw the weapon alive (a positioned sample)
       firedAtMs: event.firedAt ?? null, // mission time, carried for context only
       recordedAt: this._now(),
       outcome: 'in_flight',
@@ -124,6 +142,7 @@ class WeaponTracker {
     if (shot && event.positionX != null && event.positionY != null) {
       shot.lastPositionX = event.positionX;
       shot.lastPositionY = event.positionY;
+      shot.lastSampleAt = this._now(); // weapon still alive at this moment
     }
   }
 
@@ -138,7 +157,9 @@ class WeaponTracker {
     const list = killerUcid && this._byUcid.get(killerUcid);
     if (!list || list.length === 0) return null;
 
-    const attributable = (s) => s.outcome === 'in_flight' || s.outcome === 'hit';
+    // A delayed death still credits the shot: in flight, impacted, or hit — anything not
+    // already resolved (killed/miss).
+    const attributable = (s) => s.outcome === 'in_flight' || s.outcome === 'impacted' || s.outcome === 'hit';
     let shot = null;
     // Whether we pinned THE shot (so its launch point is trustworthy) vs just one shot
     // of the right weapon type (good enough for name/desc, but not for distance).
@@ -270,14 +291,13 @@ class WeaponTracker {
     const list = this._byUcid.get(ucid);
     if (!list) return false;
     const now = this._now();
-    return list.some(
-      (s) =>
-        (s.outcome === 'hit' || s.outcome === 'killed') &&
-        s.groundedAt != null &&
-        now - s.groundedAt <= this._gunGraceMs &&
-        s.descRaw &&
-        SUBMUNITION_CAPABLE_CATEGORIES.has(s.descRaw.category)
-    );
+    return list.some((s) => {
+      if (!s.descRaw || !SUBMUNITION_CAPABLE_CATEGORIES.has(s.descRaw.category)) return false;
+      // A rocket/bomb that just impacted may be spewing submunition kills. "Just" = its
+      // hit (groundedAt) or its impact (samples stopping, lastSampleAt) was within grace.
+      const at = s.groundedAt ?? (s.outcome === 'impacted' ? s.lastSampleAt : null);
+      return at != null && now - at <= this._gunGraceMs;
+    });
   }
 
   // How many shots this player still has *in the air* — the gate for the gun-kill rule.
@@ -300,9 +320,15 @@ class WeaponTracker {
     const now = this._now();
     for (const [ucid, list] of this._byUcid) {
       for (const s of list) {
-        // An in-flight shot that never resolved is a miss once it ages out — it stops
-        // gating guns but stays visible in the weapons view.
-        if (s.outcome === 'in_flight' && now - s.recordedAt > this._ttlMs) {
+        if (s.outcome !== 'in_flight' && s.outcome !== 'impacted') continue;
+        if (s.lastSampleAt != null) {
+          // We saw it fly: position samples stopping means it impacted (stops gating
+          // guns); it then stays attributable for a delayed death before becoming a miss.
+          const sinceSample = now - s.lastSampleAt;
+          if (s.outcome === 'in_flight' && sinceSample > this._sampleStaleMs) s.outcome = 'impacted';
+          if (s.outcome === 'impacted' && sinceSample > this._impactGraceMs) s.outcome = 'miss';
+        } else if (now - s.recordedAt > this._ttlMs) {
+          // Never sampled — fall back to a fire-time TTL.
           s.outcome = 'miss';
         }
       }
@@ -318,4 +344,11 @@ class WeaponTracker {
   }
 }
 
-module.exports = { WeaponTracker, DEFAULT_TTL_MS, DEFAULT_HARD_TTL_MS, DEFAULT_GUN_GRACE_MS };
+module.exports = {
+  WeaponTracker,
+  DEFAULT_TTL_MS,
+  DEFAULT_SAMPLE_STALE_MS,
+  DEFAULT_IMPACT_GRACE_MS,
+  DEFAULT_HARD_TTL_MS,
+  DEFAULT_GUN_GRACE_MS,
+};

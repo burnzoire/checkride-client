@@ -235,6 +235,7 @@
 
   const WEAPON_OUTCOME = {
     in_flight: { label: 'IN FLIGHT', color: '#c8a03a' },
+    impacted: { label: 'IMPACTED', color: '#c8a03a' },
     hit: { label: 'HIT', color: '#3a8f5c' },
     killed: { label: 'KILLED', color: '#3a8f5c' },
     miss: { label: 'MISS', color: '#e07b6b' },

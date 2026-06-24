@@ -267,6 +267,43 @@ describe('WeaponTracker gun kills', () => {
   });
 });
 
+describe('WeaponTracker impacted lifecycle (delayed death)', () => {
+  const sample = (weaponKey, x, y, ucid = 'killer-1') => ({
+    type: 'weapon_sample_enrichment', playerUcid: ucid, weaponKey, positionX: x, positionY: y,
+  });
+
+  it('moves a sampled shot to impacted when samples stop, freeing the gun gate', () => {
+    const { tracker, tick } = makeTracker({ sampleStaleMs: 5000, impactGraceMs: 30000 });
+    tracker.recordShot(shot({ weaponKey: 'wk', weaponObjectId: null }));
+    tracker.recordSample(sample('wk', 1000, 1000));
+    expect(tracker.inFlightCount('killer-1')).toBe(1);
+    tick(5001); // position samples stopped → impacted
+    expect(tracker.inFlightCount('killer-1')).toBe(0); // no longer blocks the gun gate
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('impacted');
+  });
+
+  it('still credits a kill that lands seconds after impact', () => {
+    const { tracker, tick } = makeTracker({ sampleStaleMs: 5000, impactGraceMs: 30000 });
+    tracker.recordShot(shot({ weaponKey: 'wk', weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K' }));
+    tracker.recordSample(sample('wk', 1000, 1000));
+    tick(10000); // impacted, within the grace
+    const match = tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AGM-114K' });
+    expect(match).not.toBeNull();
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('killed');
+  });
+
+  it('becomes a miss only once the grace lapses with no kill', () => {
+    const { tracker, tick } = makeTracker({ sampleStaleMs: 5000, impactGraceMs: 30000 });
+    tracker.recordShot(shot({ weaponKey: 'wk' }));
+    tracker.recordSample(sample('wk', 1000, 1000));
+    tick(29000); // impacted, still attributable
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('impacted');
+    tick(2000); // past the grace
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('miss');
+    expect(tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AGM-114K' })).toBeNull();
+  });
+});
+
 describe('WeaponTracker TTL', () => {
   it('turns an unresolved in-flight shot into a miss at the TTL (off the gate, still visible)', () => {
     const { tracker, tick } = makeTracker({ ttlMs: 30000 });

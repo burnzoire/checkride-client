@@ -182,7 +182,8 @@ class KillEventQueue {
     // client supplies the authoritative weapon_name.
     if (this._resolveWeapon) {
       const killerUcid = event.killerUcid ?? event.playerUcid;
-      const matched = killerUcid ? this._resolveWeapon({ killerUcid, victimObjectId }) : null;
+      const weaponName = event.weaponName ?? event.weapon_name ?? null;
+      const matched = killerUcid ? this._resolveWeapon({ killerUcid, victimObjectId, weaponName }) : null;
       if (matched) {
         event.metadata = event.metadata || {};
         event.metadata.weapon = { ...(event.metadata.weapon || {}), ...matched };

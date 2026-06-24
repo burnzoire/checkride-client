@@ -1,6 +1,10 @@
 // Tracks a player's shots (from mission `shot_enrichment` events) so a kill can be
-// attributed to the exact weapon that hit it — an identifier *key-match*, not a
-// heuristic. It also decides gun kills: guns fire no Weapon object, so a gun kill
+// attributed to the weapon that hit it. DCS Weapon objects have no reliable object id
+// (getID() returns nil) and a LOAL shot has no target lock, so we can't key on the
+// weapon. The reliable anchor is the *hit*: its target is the victim unit, whose id is
+// solid (and is the same id the kill carries). So the chain is shot →(weapon name)→ hit
+// →(backfills victim id onto the shot)→ kill, matched by victim id.
+// It also decides gun kills: guns fire no Weapon object, so a gun kill
 // arrives weaponless and is attributed from the preceding gun burst — but only when
 // guns are the unambiguous explanation (nothing else in the air, no recent
 // submunition-dispensing impact). If an unaccounted munition is still airborne, a
@@ -29,6 +33,15 @@ const DEFAULT_GUN_GRACE_MS = 5000;
 // dispense submunitions that kill (also weaponlessly) for a few seconds after impact.
 const SUBMUNITION_CAPABLE_CATEGORIES = new Set([2, 3]);
 
+// Object ids cross event/transport boundaries as either numbers or strings, so compare
+// them stringwise. Both must be present to count as a match.
+const idEq = (a, b) => a != null && b != null && String(a) === String(b);
+
+// The kill's weapon name (GameGUI) may be the type name ("AGM_114K") or the display
+// name ("AGM-114K"); a shot carries both, so match against either.
+const weaponNameMatches = (shot, name) =>
+  name != null && (shot.weaponName === name || shot.weaponDisplayName === name);
+
 class WeaponTracker {
   constructor({ ttlMs = DEFAULT_TTL_MS, hardTtlMs = DEFAULT_HARD_TTL_MS, gunGraceMs = DEFAULT_GUN_GRACE_MS, now = () => Date.now() } = {}) {
     this._ttlMs = ttlMs;
@@ -55,9 +68,10 @@ class WeaponTracker {
     const list = this._byUcid.get(ucid) || [];
     list.push({
       weaponName: event.weaponName ?? null,
+      weaponDisplayName: event.weaponDisplayName ?? null,
       descRaw: event.weaponDescRaw ?? null,
-      weaponObjectId: event.weaponObjectId ?? null,
-      targetObjectId: event.targetObjectId ?? null,
+      weaponObjectId: event.weaponObjectId ?? null, // usually null — DCS weapons have no reliable id
+      targetObjectId: event.targetObjectId ?? null, // usually null (LOAL); backfilled on the hit
       firedAtMs: event.firedAt ?? null, // mission time, carried for context only
       recordedAt: this._now(),
       outcome: 'in_flight',
@@ -67,12 +81,13 @@ class WeaponTracker {
     this._byUcid.set(ucid, list);
   }
 
-  // Key-match a kill to one of the killer's shots and mark it 'killed'. Prefer the
-  // weapon object id (exact), else the victim object id (the shot was aimed here).
-  // Only matches a still-attributable shot (in flight, or impacted but not yet
-  // credited), so a second kill on the same victim won't re-use it. Returns
-  // { weaponName, descRaw } or null when nothing matches.
-  matchKill({ killerUcid, victimObjectId = null, weaponObjectId = null } = {}) {
+  // Attribute a kill to one of the killer's shots and mark it 'killed'. DCS weapon
+  // object ids are unreliable (null for Weapon objects), so the working key is the
+  // victim object id, which the *hit* backfilled onto the shot (the hit's target is
+  // the victim unit, whose id is reliable — same id the kill carries). Only matches a
+  // still-attributable shot (in flight or impacted, not yet credited) so a second kill
+  // on the same victim won't re-use it. Returns { weaponName, descRaw } or null.
+  matchKill({ killerUcid, victimObjectId = null, weaponObjectId = null, weaponName = null } = {}) {
     this._prune();
     const list = killerUcid && this._byUcid.get(killerUcid);
     if (!list || list.length === 0) return null;
@@ -80,10 +95,17 @@ class WeaponTracker {
     const attributable = (s) => s.outcome === 'in_flight' || s.outcome === 'hit';
     let shot = null;
     if (weaponObjectId != null) {
-      shot = list.find((s) => attributable(s) && s.weaponObjectId != null && s.weaponObjectId === weaponObjectId);
+      shot = list.find((s) => attributable(s) && idEq(s.weaponObjectId, weaponObjectId));
     }
     if (!shot && victimObjectId != null) {
-      shot = list.find((s) => attributable(s) && s.targetObjectId != null && s.targetObjectId === victimObjectId);
+      shot = list.find((s) => attributable(s) && idEq(s.targetObjectId, victimObjectId));
+    }
+    // Last resort: the kill's weapon name (GameGUI, reliable for missiles/bombs). DCS
+    // weapon ids are null and lethal hits emit no linking enrichment, so this is the
+    // working path for most kills. Same-name shots share a descriptor, so attributing
+    // the oldest is safe for weapon/desc — it does not claim a specific victim.
+    if (!shot && weaponName != null) {
+      shot = list.find((s) => attributable(s) && weaponNameMatches(s, weaponName));
     }
     if (!shot) return null;
 
@@ -91,24 +113,33 @@ class WeaponTracker {
     return { weaponName: shot.weaponName, descRaw: shot.descRaw };
   }
 
-  // A shot reported as a hit is no longer in flight, but stays tracked so the kill that
-  // follows a lethal hit can still key-match it. Idempotent on already-grounded shots.
-  recordHit({ playerUcid, weaponObjectId = null, targetObjectId = null, distanceNm = null } = {}) {
+  // Record an impact. Links the hit to its shot so the shot can be marked hit and,
+  // crucially, so the hit's *reliable* target object id (the victim unit) is backfilled
+  // onto the shot for the kill to key-match later. Weapon ids being null, the shot↔hit
+  // link falls back to the weapon name (same-type shots share descriptors, so this is
+  // safe for attribution), then to the oldest in-flight shot. The shot stays tracked.
+  recordHit({ playerUcid, weaponObjectId = null, targetObjectId = null, distanceNm = null, weaponName = null } = {}) {
     this._prune();
     const list = playerUcid && this._byUcid.get(playerUcid);
     if (!list || list.length === 0) return;
 
+    const inFlight = (s) => s.outcome === 'in_flight';
     let shot = null;
     if (weaponObjectId != null) {
-      shot = list.find((s) => s.outcome === 'in_flight' && s.weaponObjectId != null && s.weaponObjectId === weaponObjectId);
+      shot = list.find((s) => inFlight(s) && idEq(s.weaponObjectId, weaponObjectId));
     }
-    if (!shot && targetObjectId != null) {
-      shot = list.find((s) => s.outcome === 'in_flight' && s.targetObjectId != null && s.targetObjectId === targetObjectId);
+    if (!shot && weaponName != null) {
+      shot = list.find((s) => inFlight(s) && s.weaponName === weaponName);
+    }
+    if (!shot) {
+      shot = list.find(inFlight); // oldest in-flight shot
     }
     if (shot) {
       shot.outcome = 'hit';
       shot.groundedAt = this._now(); // when its submunitions (if any) start mattering
       if (distanceNm != null) shot.distanceNm = distanceNm;
+      // The hit knows the victim reliably; remember it so the kill can attribute.
+      if (targetObjectId != null) shot.targetObjectId = targetObjectId;
     }
   }
 

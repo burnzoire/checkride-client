@@ -309,7 +309,7 @@ describe("KillEventQueue", () => {
       const event = kill();
       await queue.submitKill(event, () => Promise.resolve("sent"));
 
-      expect(resolveWeapon).toHaveBeenCalledWith({ killerUcid: "killer-1", victimObjectId: 4242 });
+      expect(resolveWeapon).toHaveBeenCalledWith({ killerUcid: "killer-1", victimObjectId: 4242, weaponName: "AIM-120C" });
       // Client weapon_name + desc_raw merged over the enrichment's desc_raw.
       expect(event.metadata.weapon).toEqual({
         weapon_name: "AGM-114K",
@@ -326,7 +326,7 @@ describe("KillEventQueue", () => {
       queue.recordEnrichment(enrichment({ victimObjectId: 77 }));
       await pending;
 
-      expect(resolveWeapon).toHaveBeenCalledWith({ killerUcid: "killer-1", victimObjectId: 77 });
+      expect(resolveWeapon).toHaveBeenCalledWith({ killerUcid: "killer-1", victimObjectId: 77, weaponName: "AIM-120C" });
       expect(event.metadata.weapon.weapon_name).toBe("AIM-9X");
     });
 

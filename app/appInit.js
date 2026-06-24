@@ -171,17 +171,17 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   // mission script's kill-time getDesc(), which is unreliable for guns/clusters).
   const killEventQueue = new KillEventQueue({
     missionScriptingEnabled: () => store.get('mission_scripting_enabled') !== false,
-    resolveWeapon: ({ killerUcid, victimObjectId }) => {
-      // First, the exact key-match against a tracked shot.
-      const match = tracker.matchKill({ killerUcid, victimObjectId });
+    resolveWeapon: ({ killerUcid, victimObjectId, weaponName }) => {
+      // Match the kill to a tracked shot (by name when ids/hit-links are absent, which
+      // is the norm). Marks the shot 'killed' for the telemetry view and supplies the
+      // launch-captured desc_raw — the reliable descriptor source, which also fixes the
+      // first-kill case where the mission script's onHit desc capture missed.
+      const match = tracker.matchKill({ killerUcid, victimObjectId, weaponName });
       if (match) {
-        const weapon = {};
-        if (match.weaponName != null) weapon.weapon_name = match.weaponName;
-        if (match.descRaw != null) weapon.desc_raw = match.descRaw;
-        return Object.keys(weapon).length > 0 ? weapon : null;
+        return match.descRaw != null ? { desc_raw: match.descRaw } : null;
       }
-      // No tracked shot hit this victim — a weaponless kill. Decide guns only when
-      // unambiguous; otherwise leave it unattributed.
+      // No named weapon / no tracked shot — likely a gun or cluster kill (GameGUI
+      // reports those weaponless). Decide guns only when unambiguous.
       const gun = tracker.matchGunKill({ killerUcid });
       if (gun && gun.weaponName != null) {
         return { weapon_name: gun.weaponName, attribution: 'gun' };
@@ -223,6 +223,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         weaponObjectId: event.weaponObjectId,
         targetObjectId: event.targetObjectId,
         distanceNm: event.distanceNm,
+        weaponName: event.weaponName,
       });
     }
     if (event.type === 'gun_burst_start' || event.type === 'gun_burst_end') {

@@ -80,6 +80,47 @@ describe('WeaponTracker.matchKill', () => {
   });
 });
 
+describe('WeaponTracker null-object-id attribution (the real DCS case)', () => {
+  it('attributes via the hit-backfilled victim id when shots carry no object ids', () => {
+    const { tracker } = makeTracker();
+    // DCS gives weapons no usable object id, and a LOAL shot has no target lock.
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K' }));
+    // The hit knows the victim reliably (a unit id) and the weapon name.
+    tracker.recordHit({ playerUcid: 'killer-1', weaponObjectId: null, targetObjectId: '5', weaponName: 'AGM-114K' });
+    // The kill carries the same victim id, arriving as a number via a different transport.
+    const match = tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 5 });
+    expect(match).toEqual({ weaponName: 'AGM-114K', descRaw: { category: 1, guidance: 7 } });
+  });
+
+  it('marks the shot hit by weapon name and backfills the victim id when ids are missing', () => {
+    const { tracker } = makeTracker();
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K' }));
+    tracker.recordHit({ playerUcid: 'killer-1', targetObjectId: '5', weaponName: 'AGM-114K', distanceNm: 2.1 });
+    const [s] = tracker.trackedShots('killer-1');
+    expect(s.outcome).toBe('hit');
+    expect(s.distanceNm).toBe(2.1);
+    expect(s.targetObjectId).toBe('5');
+  });
+
+  it('attributes by the kill weapon name when there is no hit link at all', () => {
+    const { tracker } = makeTracker();
+    // No hit_enrichment for a lethal kill, and no usable ids — only the shot + the kill.
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AGM_114K', weaponDisplayName: 'AGM-114K' }));
+    // The kill carries the GameGUI display name.
+    const match = tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AGM-114K' });
+    expect(match.descRaw).toEqual({ category: 1, guidance: 7 });
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('killed');
+  });
+
+  it('does not cross-attribute a kill to a shot that never hit that victim', () => {
+    const { tracker } = makeTracker();
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K' }));
+    tracker.recordHit({ playerUcid: 'killer-1', targetObjectId: '5', weaponName: 'AGM-114K' });
+    // A kill on a different victim the weapon never hit: no backfilled match.
+    expect(tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 999 })).toBeNull();
+  });
+});
+
 describe('WeaponTracker.recordHit', () => {
   it('grounds a hit shot (outcome hit, off the in-flight count) instantly, with distance', () => {
     const { tracker } = makeTracker();

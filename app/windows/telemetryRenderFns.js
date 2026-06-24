@@ -128,13 +128,12 @@
   function renderCombat(s) {
     const killsHtml = s.kills && s.kills.length > 0
       ? `<table class="kills-table">
-           <thead><tr><th></th><th>Target</th><th>Weapon</th><th>At kill</th><th>Dist.</th></tr></thead>
+           <thead><tr><th>Type</th><th>Target</th><th>Weapon</th><th>At kill</th><th>Carrier</th></tr></thead>
            <tbody>${s.kills.map(k => {
              const targetName = escapeHtml(k.victimTypeName || k.victimAirType || '—');
              const subLabel = k.victimAirType === 'HELICOPTER' ? ' <span style="font-size:10px;color:#7a8394">HELO</span>' : '';
-             // Client-authoritative attribution (key-matched weapon), not the broken
-             // getDesc class/guidance. Unattributed kills show "—" rather than a guess.
-             const weaponDesc = escapeHtml(k.attributedWeapon || '—');
+             // The launch-captured weapon name, not the broken getDesc class/guidance.
+             const weaponDesc = escapeHtml(k.weaponName || '—');
              const flags = [];
              if (k.night) flags.push('<span style="color:#7a8394;font-size:10px">NIGHT</span>');
              if (k.avengedFriendly) flags.push('<span style="color:#c8a03a;font-size:10px">AVENGER</span>');
@@ -240,6 +239,7 @@
   function renderWeaponTracker(pilot) {
     const shots = Array.isArray(pilot && pilot.weapons) ? pilot.weapons : [];
     const gunBurst = pilot && pilot.gunBurst;
+    const weaponLabel = (s) => s.weaponDisplayName || s.weaponName || '?';
     let html = '<div class="state-section"><div class="section-title">Weapons Fired</div>';
 
     if (gunBurst) {
@@ -255,7 +255,7 @@
     }
 
     const rows = shots.map(s => {
-      const name = escapeHtml(s.weaponName || '?');
+      const name = escapeHtml(weaponLabel(s));
       const outcome = WEAPON_OUTCOME[s.outcome] || { label: String(s.outcome || '—').toUpperCase(), color: '#7a8394' };
       const dist = s.distanceNm != null ? fmt(s.distanceNm) + ' nm' : '—';
       return `<tr>
@@ -277,14 +277,14 @@
     if (!pilot || !pilot.state) {
       return '<div id="no-selection">No state available</div>';
     }
-    const { telemetry, state, gauges } = pilot.state;
+    const { telemetry, state, gauges, weaponsFired, gunBurst } = pilot.state;
     return `
       <div style="padding-bottom:8px;border-bottom:1px solid #2e3340;margin-bottom:16px">
         <div style="font-size:15px;font-weight:600;color:#dde3ee">${pilot.name}</div>
         <div style="font-size:11px;color:#4d5464;margin-top:2px">${pilot.ucid}</div>
       </div>
       ${renderTelemetry(telemetry)}
-      ${renderWeaponTracker(pilot)}
+      ${renderWeaponTracker({ weapons: weaponsFired, gunBurst })}
       ${renderOrdnance(telemetry)}
       ${renderMissiles(state)}
       ${renderCombat(state)}

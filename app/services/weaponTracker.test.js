@@ -112,6 +112,15 @@ describe('WeaponTracker null-object-id attribution (the real DCS case)', () => {
     expect(tracker.trackedShots('killer-1')[0].outcome).toBe('killed');
   });
 
+  it('computes the launch-to-death engagement range from reliable coordinates', () => {
+    const { tracker } = makeTracker();
+    // Launch at the origin; victim dies 1852 m east + 1852 m north → ~1.414 nm.
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K', startX: 0, startY: 0 }));
+    const match = tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AGM-114K', victimPositionX: 1852, victimPositionY: 1852 });
+    expect(match).not.toBeNull();
+    expect(tracker.trackedShots('killer-1')[0].distanceNm).toBeCloseTo(Math.SQRT2, 3);
+  });
+
   it('does not cross-attribute a kill to a shot that never hit that victim', () => {
     const { tracker } = makeTracker();
     tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K' }));

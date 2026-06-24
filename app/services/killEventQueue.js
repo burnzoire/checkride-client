@@ -108,13 +108,15 @@ class KillEventQueue {
       metadata: metadataFromEnrichment(event),
       victimTypeName: event.victimTypeName ?? null,
       victimObjectId: event.victimObjectId ?? null,
+      victimPositionX: event.victimPositionX ?? null,
+      victimPositionY: event.victimPositionY ?? null,
       recordedAt: this._now(),
     };
 
     const pending = this._takePendingKill(killerUcid, entry.victimTypeName);
     if (pending) {
       this._cancel(pending.timer);
-      pending.resolve(this._send(pending.event, pending.release, entry.metadata, entry.victimObjectId));
+      pending.resolve(this._send(pending.event, pending.release, entry.metadata, entry));
       return;
     }
 
@@ -146,7 +148,7 @@ class KillEventQueue {
 
     const entry = this._takeEnrichment(killerUcid, event.victimUnitType ?? null);
     if (entry) {
-      return this._send(event, release, entry.metadata, entry.victimObjectId);
+      return this._send(event, release, entry.metadata, entry);
     }
 
     let resolve;
@@ -171,19 +173,27 @@ class KillEventQueue {
     return promise;
   }
 
-  _send(event, release, metadata, victimObjectId = null) {
+  _send(event, release, metadata, ctx = {}) {
     if (metadata) {
       event.metadata = { ...(event.metadata || {}), ...metadata };
     }
 
     // Client-authoritative weapon attribution: let the shot tracker decide the weapon
-    // from its own key-match and merge it over the (less reliable) enrichment weapon.
-    // Merges rather than replaces so the enrichment's class/guidance survive while the
-    // client supplies the authoritative weapon_name.
+    // from its own key/name-match and merge it over the (less reliable) enrichment
+    // weapon. The victim position (from the enrichment) lets the tracker compute the
+    // launch→death engagement range.
     if (this._resolveWeapon) {
       const killerUcid = event.killerUcid ?? event.playerUcid;
       const weaponName = event.weaponName ?? event.weapon_name ?? null;
-      const matched = killerUcid ? this._resolveWeapon({ killerUcid, victimObjectId, weaponName }) : null;
+      const matched = killerUcid
+        ? this._resolveWeapon({
+            killerUcid,
+            weaponName,
+            victimObjectId: ctx.victimObjectId ?? null,
+            victimPositionX: ctx.victimPositionX ?? null,
+            victimPositionY: ctx.victimPositionY ?? null,
+          })
+        : null;
       if (matched) {
         event.metadata = event.metadata || {};
         event.metadata.weapon = { ...(event.metadata.weapon || {}), ...matched };

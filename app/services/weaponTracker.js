@@ -28,6 +28,7 @@ const DEFAULT_HARD_TTL_MS = 600000;
 // but only within a short grace window after the burst ends, since the kill event
 // lands a beat later. 5s is generous enough to keep soft kills from a long strafe.
 const DEFAULT_GUN_GRACE_MS = 5000;
+const METERS_PER_NM = 1852;
 
 // DCS Weapon.Category: SHELL=0, MISSILE=1, ROCKET=2, BOMB=3. Rockets and bombs can
 // dispense submunitions that kill (also weaponlessly) for a few seconds after impact.
@@ -72,6 +73,8 @@ class WeaponTracker {
       descRaw: event.weaponDescRaw ?? null,
       weaponObjectId: event.weaponObjectId ?? null, // usually null — DCS weapons have no reliable id
       targetObjectId: event.targetObjectId ?? null, // usually null (LOAL); backfilled on the hit
+      startX: event.startX ?? null, // launch point — for the kill-range calc
+      startY: event.startY ?? null,
       firedAtMs: event.firedAt ?? null, // mission time, carried for context only
       recordedAt: this._now(),
       outcome: 'in_flight',
@@ -87,7 +90,7 @@ class WeaponTracker {
   // the victim unit, whose id is reliable — same id the kill carries). Only matches a
   // still-attributable shot (in flight or impacted, not yet credited) so a second kill
   // on the same victim won't re-use it. Returns { weaponName, descRaw } or null.
-  matchKill({ killerUcid, victimObjectId = null, weaponObjectId = null, weaponName = null } = {}) {
+  matchKill({ killerUcid, victimObjectId = null, weaponObjectId = null, weaponName = null, victimPositionX = null, victimPositionY = null } = {}) {
     this._prune();
     const list = killerUcid && this._byUcid.get(killerUcid);
     if (!list || list.length === 0) return null;
@@ -110,6 +113,14 @@ class WeaponTracker {
     if (!shot) return null;
 
     shot.outcome = 'killed';
+    // Engagement range = launch point to where the victim died. Both coordinates are
+    // reliable (no weapon id needed), so this recovers the distance the lethal-hit event
+    // can't — the weapon is usually gone by impact.
+    if (shot.distanceNm == null && shot.startX != null && shot.startY != null && victimPositionX != null && victimPositionY != null) {
+      const dx = shot.startX - victimPositionX;
+      const dy = shot.startY - victimPositionY;
+      shot.distanceNm = Math.sqrt(dx * dx + dy * dy) / METERS_PER_NM;
+    }
     return { weaponName: shot.weaponName, descRaw: shot.descRaw };
   }
 

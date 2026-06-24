@@ -171,12 +171,12 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   // mission script's kill-time getDesc(), which is unreliable for guns/clusters).
   const killEventQueue = new KillEventQueue({
     missionScriptingEnabled: () => store.get('mission_scripting_enabled') !== false,
-    resolveWeapon: ({ killerUcid, victimObjectId, weaponName }) => {
+    resolveWeapon: ({ killerUcid, victimObjectId, weaponName, victimPositionX, victimPositionY }) => {
       // Match the kill to a tracked shot (by name when ids/hit-links are absent, which
-      // is the norm). Marks the shot 'killed' for the telemetry view and supplies the
-      // launch-captured desc_raw — the reliable descriptor source, which also fixes the
-      // first-kill case where the mission script's onHit desc capture missed.
-      const match = tracker.matchKill({ killerUcid, victimObjectId, weaponName });
+      // is the norm). Marks the shot 'killed' for the telemetry view, supplies the
+      // launch-captured desc_raw (also fixes the first-kill missing desc), and — from the
+      // victim's death position — computes the launch→death engagement range.
+      const match = tracker.matchKill({ killerUcid, victimObjectId, weaponName, victimPositionX, victimPositionY });
       if (match) {
         return match.descRaw != null ? { desc_raw: match.descRaw } : null;
       }

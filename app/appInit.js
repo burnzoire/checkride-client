@@ -222,6 +222,7 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         playerUcid: event.playerUcid,
         weaponObjectId: event.weaponObjectId,
         targetObjectId: event.targetObjectId,
+        distanceNm: event.distanceNm,
       });
     }
     if (event.type === 'gun_burst_start' || event.type === 'gun_burst_end') {

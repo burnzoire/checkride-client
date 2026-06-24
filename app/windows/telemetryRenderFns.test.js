@@ -110,34 +110,35 @@ describe('telemetryRenderFns — all serialized fields are visible', () => {
 // ─── Shot Tracker (attribution) ──────────────────────────────────────────────
 
 describe('renderWeaponTracker', () => {
-  it('shows the empty state when there are no tracked shots', () => {
-    expect(renderWeaponTracker({ trackedShots: [] })).toContain('No tracked shots');
-    expect(renderWeaponTracker({})).toContain('No tracked shots');
+  it('shows the empty state when no weapons have been fired', () => {
+    expect(renderWeaponTracker({ weapons: [] })).toContain('No weapons fired');
+    expect(renderWeaponTracker({})).toContain('No weapons fired');
   });
 
-  it('renders each tracked shot with its weapon, state and ids', () => {
+  it('renders each fired weapon with its outcome and distance', () => {
     const html = renderWeaponTracker({
-      trackedShots: [
-        { weaponName: 'AGM-114K', inFlight: true, targetObjectId: 99, weaponObjectId: 201 },
-        { weaponName: 'AIM-9X', inFlight: false, targetObjectId: 88, weaponObjectId: 202 },
+      weapons: [
+        { weaponName: 'AGM-114K', outcome: 'killed', distanceNm: 3.4, targetObjectId: 99 },
+        { weaponName: 'AIM-9X', outcome: 'in_flight', targetObjectId: 88 },
+        { weaponName: 'AIM-120C', outcome: 'miss', targetObjectId: 77 },
       ],
     });
     expect(html).toContain('AGM-114K');
+    expect(html).toContain('KILLED');
+    expect(html).toContain('3.4 nm');
     expect(html).toContain('IN FLIGHT');
-    expect(html).toContain('AIM-9X');
-    expect(html).toContain('HIT');
+    expect(html).toContain('MISS');
     expect(html).toContain('>99<');
-    expect(html).toContain('>201<');
   });
 
   it('escapes weapon names', () => {
-    const html = renderWeaponTracker({ trackedShots: [{ weaponName: '<script>', inFlight: true }] });
+    const html = renderWeaponTracker({ weapons: [{ weaponName: '<script>', outcome: 'in_flight' }] });
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('<script>');
   });
 
   it('shows an active gun burst with its weapon type', () => {
-    const html = renderWeaponTracker({ trackedShots: [], gunBurst: { weaponName: 'GAU-8', active: true } });
+    const html = renderWeaponTracker({ weapons: [], gunBurst: { weaponName: 'GAU-8', active: true } });
     expect(html).toContain('Gun burst');
     expect(html).toContain('GAU-8');
     expect(html).toContain('FIRING');

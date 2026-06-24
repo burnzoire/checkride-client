@@ -66,34 +66,13 @@
       </div>`;
   }
 
-  function renderOrdnance(telemetry, state) {
+  // Current payload — what's loaded right now (raw GetAmmo rows). Distinct from
+  // "Weapons Fired" (what's been launched), which the tracker view owns.
+  function renderOrdnance(telemetry) {
     const payload = Array.isArray(telemetry.payload) ? telemetry.payload : [];
-    const weapons = Array.isArray(state.weapons) ? state.weapons : [];
 
-    let html = '<div class="state-section"><div class="section-title">Ordnance</div>';
+    let html = '<div class="state-section"><div class="section-title">Payload</div>';
 
-    // In-flight weapons
-    if (weapons.length > 0) {
-      const rows = weapons.map(w => {
-        const name = escapeHtml(w.weaponDisplayName || w.weaponName || w.weaponClass || w.weaponKey || '?');
-        const statusLabel = w.inFlight ? 'IN FLIGHT' : (w.hitOrMiss ?? w.status ?? '—');
-        const statusColor = w.inFlight ? '#c8a03a' : w.hitOrMiss === 'hit' ? '#3a8f5c' : w.hitOrMiss === 'miss' ? '#e07b6b' : '#7a8394';
-        const dist = w.distanceNm != null ? fmt(w.distanceNm) + ' nm' : '—';
-        return `<tr>
-          <td style="font-size:11px">${name}</td>
-          <td style="font-size:11px;color:#7a8394">${escapeHtml(w.weaponClass || '—')}</td>
-          <td><span style="color:${statusColor};font-size:10px;font-weight:600">${statusLabel}</span></td>
-          <td style="font-size:11px;color:#7a8394;text-align:right">${dist}</td>
-        </tr>`;
-      }).join('');
-      html += `<div style="font-size:11px;color:#4d5464;margin-bottom:4px">Fired (${weapons.length})</div>
-        <table class="kills-table" style="margin-bottom:10px">
-          <thead><tr><th>Weapon</th><th>Class</th><th>Status</th><th style="text-align:right">Dist.</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>`;
-    }
-
-    // Current payload — raw GetAmmo rows
     if (payload.length > 0) {
       const rows = payload.map(item => {
         const name = escapeHtml(item.displayName || item.typeName || 'Unknown');
@@ -104,15 +83,12 @@
           <td style="font-size:11px;text-align:right">${item.count}</td>
         </tr>`;
       }).join('');
-      html += `<div style="font-size:11px;color:#4d5464;margin-bottom:4px">Current payload</div>
-        <table class="kills-table">
+      html += `<table class="kills-table">
           <thead><tr><th>Weapon</th><th>Type</th><th style="text-align:right">Qty</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>`;
-    }
-
-    if (weapons.length === 0 && payload.length === 0) {
-      html += '<div style="font-size:12px;color:#4d5464;font-style:italic">No ordnance data</div>';
+    } else {
+      html += '<div style="font-size:12px;color:#4d5464;font-style:italic">No payload data</div>';
     }
 
     html += '</div>';
@@ -156,8 +132,9 @@
            <tbody>${s.kills.map(k => {
              const targetName = escapeHtml(k.victimTypeName || k.victimAirType || '—');
              const subLabel = k.victimAirType === 'HELICOPTER' ? ' <span style="font-size:10px;color:#7a8394">HELO</span>' : '';
-             const weaponParts = [k.weaponClass, k.weaponGuidance].filter(v => v != null && v !== '');
-             const weaponDesc = escapeHtml(weaponParts.join(' / ') || '—');
+             // Client-authoritative attribution (key-matched weapon), not the broken
+             // getDesc class/guidance. Unattributed kills show "—" rather than a guess.
+             const weaponDesc = escapeHtml(k.attributedWeapon || '—');
              const flags = [];
              if (k.night) flags.push('<span style="color:#7a8394;font-size:10px">NIGHT</span>');
              if (k.avengedFriendly) flags.push('<span style="color:#c8a03a;font-size:10px">AVENGER</span>');
@@ -250,13 +227,20 @@
       </div>`;
   }
 
-  // The client-side WeaponTracker's view: the shots a kill is key-matched against.
-  // Distinct from "Ordnance" (the mission/pilotState weapon list) — this is exactly
-  // what drives the client-authoritative kill weapon attribution.
+  const WEAPON_OUTCOME = {
+    in_flight: { label: 'IN FLIGHT', color: '#c8a03a' },
+    hit: { label: 'HIT', color: '#3a8f5c' },
+    killed: { label: 'KILLED', color: '#3a8f5c' },
+    miss: { label: 'MISS', color: '#e07b6b' },
+  };
+
+  // The single source of weapon state — the client WeaponTracker's shots with their
+  // event-driven outcome. Replaces the old separate "fired" / "shot tracker" views.
+  // This is exactly what drives the client-authoritative kill attribution.
   function renderWeaponTracker(pilot) {
-    const shots = Array.isArray(pilot && pilot.trackedShots) ? pilot.trackedShots : [];
+    const shots = Array.isArray(pilot && pilot.weapons) ? pilot.weapons : [];
     const gunBurst = pilot && pilot.gunBurst;
-    let html = '<div class="state-section"><div class="section-title">Shot Tracker (attribution)</div>';
+    let html = '<div class="state-section"><div class="section-title">Weapons Fired</div>';
 
     if (gunBurst) {
       const label = gunBurst.active ? 'FIRING' : 'recent';
@@ -266,24 +250,24 @@
     }
 
     if (shots.length === 0) {
-      html += '<div style="font-size:12px;color:#4d5464;font-style:italic">No tracked shots</div></div>';
+      html += '<div style="font-size:12px;color:#4d5464;font-style:italic">No weapons fired</div></div>';
       return html;
     }
 
     const rows = shots.map(s => {
       const name = escapeHtml(s.weaponName || '?');
-      const statusLabel = s.inFlight ? 'IN FLIGHT' : 'HIT';
-      const statusColor = s.inFlight ? '#c8a03a' : '#3a8f5c';
+      const outcome = WEAPON_OUTCOME[s.outcome] || { label: String(s.outcome || '—').toUpperCase(), color: '#7a8394' };
+      const dist = s.distanceNm != null ? fmt(s.distanceNm) + ' nm' : '—';
       return `<tr>
         <td style="font-size:11px">${name}</td>
-        <td><span style="color:${statusColor};font-size:10px;font-weight:600">${statusLabel}</span></td>
+        <td><span style="color:${outcome.color};font-size:10px;font-weight:600">${outcome.label}</span></td>
+        <td style="font-size:11px;color:#7a8394;text-align:right">${dist}</td>
         <td style="font-size:11px;color:#7a8394;text-align:right">${fmt(s.targetObjectId, 0)}</td>
-        <td style="font-size:11px;color:#7a8394;text-align:right">${fmt(s.weaponObjectId, 0)}</td>
       </tr>`;
     }).join('');
 
     html += `<table class="kills-table">
-        <thead><tr><th>Weapon</th><th>State</th><th style="text-align:right">Target id</th><th style="text-align:right">Weapon id</th></tr></thead>
+        <thead><tr><th>Weapon</th><th>Outcome</th><th style="text-align:right">Dist.</th><th style="text-align:right">Target id</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
     return html;
@@ -300,8 +284,8 @@
         <div style="font-size:11px;color:#4d5464;margin-top:2px">${pilot.ucid}</div>
       </div>
       ${renderTelemetry(telemetry)}
-      ${renderOrdnance(telemetry, state)}
       ${renderWeaponTracker(pilot)}
+      ${renderOrdnance(telemetry)}
       ${renderMissiles(state)}
       ${renderCombat(state)}
       ${renderSession(state)}

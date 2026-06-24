@@ -42,11 +42,14 @@ describe('WeaponTracker.matchKill', () => {
     expect(match).toEqual({ weaponName: 'AGM-114K', descRaw: { category: 1, guidance: 7 } });
   });
 
-  it('consumes the matched shot (removes it from in-flight)', () => {
+  it('marks the matched shot killed (off the in-flight count) and will not re-credit it', () => {
     const { tracker } = makeTracker();
     tracker.recordShot(shot());
-    tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 99 });
+    expect(tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 99 })).not.toBeNull();
     expect(tracker.inFlightCount('killer-1')).toBe(0);
+    // A second kill on the same victim must not re-use the already-credited shot.
+    expect(tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 99 })).toBeNull();
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('killed');
   });
 
   it('prefers weapon object id over victim object id', () => {
@@ -78,12 +81,15 @@ describe('WeaponTracker.matchKill', () => {
 });
 
 describe('WeaponTracker.recordHit', () => {
-  it('grounds a hit shot so it no longer counts as inFlight', () => {
+  it('grounds a hit shot (outcome hit, off the in-flight count) instantly, with distance', () => {
     const { tracker } = makeTracker();
     tracker.recordShot(shot({ weaponObjectId: 201 }));
     expect(tracker.inFlightCount('killer-1')).toBe(1);
-    tracker.recordHit({ playerUcid: 'killer-1', weaponObjectId: 201 });
+    tracker.recordHit({ playerUcid: 'killer-1', weaponObjectId: 201, distanceNm: 3.2 });
     expect(tracker.inFlightCount('killer-1')).toBe(0);
+    const [s] = tracker.trackedShots('killer-1');
+    expect(s.outcome).toBe('hit');
+    expect(s.distanceNm).toBe(3.2);
   });
 
   it('keeps a hit shot tracked so the following lethal kill still matches it', () => {
@@ -158,12 +164,22 @@ describe('WeaponTracker gun kills', () => {
 });
 
 describe('WeaponTracker TTL', () => {
-  it('evicts shots that are never consumed (missed and self-destructed)', () => {
+  it('turns an unresolved in-flight shot into a miss at the TTL (off the gate, still visible)', () => {
     const { tracker, tick } = makeTracker({ ttlMs: 30000 });
     tracker.recordShot(shot());
     tick(30001);
     expect(tracker.inFlightCount('killer-1')).toBe(0);
     expect(tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 99 })).toBeNull();
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('miss'); // still shown as a miss
+  });
+
+  it('hard-deletes shots only after the long retention window', () => {
+    const { tracker, tick } = makeTracker({ ttlMs: 30000, hardTtlMs: 600000 });
+    tracker.recordShot(shot());
+    tick(599999);
+    expect(tracker.trackedShots('killer-1')).toHaveLength(1);
+    tick(2);
+    expect(tracker.trackedShots('killer-1')).toHaveLength(0);
   });
 
   it('keeps shots that are still within the window', () => {

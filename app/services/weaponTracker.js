@@ -15,6 +15,10 @@
 // blocking the gun gate forever).
 
 const DEFAULT_TTL_MS = 30000;
+// In-flight shots that never resolve become 'miss' at the TTL (so they stop gating
+// guns) but stay visible. They're hard-deleted only much later so the telemetry
+// "weapons fired" view reflects most of a sortie without growing unbounded.
+const DEFAULT_HARD_TTL_MS = 600000;
 // Guns produce no Weapon object, so a gun kill arrives weaponless and can't be
 // key-matched. We attribute it from the gun burst that immediately preceded it —
 // but only within a short grace window after the burst ends, since the kill event
@@ -26,11 +30,16 @@ const DEFAULT_GUN_GRACE_MS = 5000;
 const SUBMUNITION_CAPABLE_CATEGORIES = new Set([2, 3]);
 
 class WeaponTracker {
-  constructor({ ttlMs = DEFAULT_TTL_MS, gunGraceMs = DEFAULT_GUN_GRACE_MS, now = () => Date.now() } = {}) {
+  constructor({ ttlMs = DEFAULT_TTL_MS, hardTtlMs = DEFAULT_HARD_TTL_MS, gunGraceMs = DEFAULT_GUN_GRACE_MS, now = () => Date.now() } = {}) {
     this._ttlMs = ttlMs;
+    this._hardTtlMs = hardTtlMs;
     this._gunGraceMs = gunGraceMs;
     this._now = now;
-    // ucid -> [{ weaponName, descRaw, weaponObjectId, targetObjectId, firedAtMs, recordedAt, inFlight, groundedAt }]
+    // ucid -> [{ weaponName, descRaw, weaponObjectId, targetObjectId, firedAtMs,
+    //            recordedAt, outcome, groundedAt, distanceNm }]
+    // outcome: 'in_flight' -> 'hit' (impact) -> 'killed' (attributed to a kill); or
+    // 'miss' once an unresolved in-flight shot ages past the TTL. It is the single
+    // source of weapon state for both attribution and the telemetry display.
     this._byUcid = new Map();
     // ucid -> { weaponName, startedAt, endedAt, active } — the most recent gun burst.
     this._gunBursts = new Map();
@@ -51,48 +60,55 @@ class WeaponTracker {
       targetObjectId: event.targetObjectId ?? null,
       firedAtMs: event.firedAt ?? null, // mission time, carried for context only
       recordedAt: this._now(),
-      inFlight: true,
+      outcome: 'in_flight',
+      groundedAt: null,
+      distanceNm: null,
     });
     this._byUcid.set(ucid, list);
   }
 
-  // Key-match a kill to one of the killer's in-flight shots and consume it. Prefer the
+  // Key-match a kill to one of the killer's shots and mark it 'killed'. Prefer the
   // weapon object id (exact), else the victim object id (the shot was aimed here).
-  // Returns { weaponName, descRaw } or null when nothing matches.
+  // Only matches a still-attributable shot (in flight, or impacted but not yet
+  // credited), so a second kill on the same victim won't re-use it. Returns
+  // { weaponName, descRaw } or null when nothing matches.
   matchKill({ killerUcid, victimObjectId = null, weaponObjectId = null } = {}) {
     this._prune();
     const list = killerUcid && this._byUcid.get(killerUcid);
     if (!list || list.length === 0) return null;
 
-    let index = -1;
+    const attributable = (s) => s.outcome === 'in_flight' || s.outcome === 'hit';
+    let shot = null;
     if (weaponObjectId != null) {
-      index = list.findIndex((s) => s.weaponObjectId != null && s.weaponObjectId === weaponObjectId);
+      shot = list.find((s) => attributable(s) && s.weaponObjectId != null && s.weaponObjectId === weaponObjectId);
     }
-    if (index === -1 && victimObjectId != null) {
-      index = list.findIndex((s) => s.targetObjectId != null && s.targetObjectId === victimObjectId);
+    if (!shot && victimObjectId != null) {
+      shot = list.find((s) => attributable(s) && s.targetObjectId != null && s.targetObjectId === victimObjectId);
     }
-    if (index === -1) return null;
+    if (!shot) return null;
 
-    return this._take(killerUcid, list, index);
+    shot.outcome = 'killed';
+    return { weaponName: shot.weaponName, descRaw: shot.descRaw };
   }
 
   // A shot reported as a hit is no longer in flight, but stays tracked so the kill that
   // follows a lethal hit can still key-match it. Idempotent on already-grounded shots.
-  recordHit({ playerUcid, weaponObjectId = null, targetObjectId = null } = {}) {
+  recordHit({ playerUcid, weaponObjectId = null, targetObjectId = null, distanceNm = null } = {}) {
     this._prune();
     const list = playerUcid && this._byUcid.get(playerUcid);
     if (!list || list.length === 0) return;
 
     let shot = null;
     if (weaponObjectId != null) {
-      shot = list.find((s) => s.inFlight && s.weaponObjectId != null && s.weaponObjectId === weaponObjectId);
+      shot = list.find((s) => s.outcome === 'in_flight' && s.weaponObjectId != null && s.weaponObjectId === weaponObjectId);
     }
     if (!shot && targetObjectId != null) {
-      shot = list.find((s) => s.inFlight && s.targetObjectId != null && s.targetObjectId === targetObjectId);
+      shot = list.find((s) => s.outcome === 'in_flight' && s.targetObjectId != null && s.targetObjectId === targetObjectId);
     }
     if (shot) {
-      shot.inFlight = false;
+      shot.outcome = 'hit';
       shot.groundedAt = this._now(); // when its submunitions (if any) start mattering
+      if (distanceNm != null) shot.distanceNm = distanceNm;
     }
   }
 
@@ -155,7 +171,7 @@ class WeaponTracker {
     const now = this._now();
     return list.some(
       (s) =>
-        !s.inFlight &&
+        (s.outcome === 'hit' || s.outcome === 'killed') &&
         s.groundedAt != null &&
         now - s.groundedAt <= this._gunGraceMs &&
         s.descRaw &&
@@ -164,31 +180,32 @@ class WeaponTracker {
   }
 
   // How many shots this player still has *in the air* — the gate for the gun-kill rule.
-  // Already-hit shots don't count.
+  // Impacted/credited/missed shots don't count.
   inFlightCount(ucid) {
     this._prune();
     const list = ucid && this._byUcid.get(ucid);
-    return list ? list.filter((s) => s.inFlight).length : 0;
+    return list ? list.filter((s) => s.outcome === 'in_flight').length : 0;
   }
 
-  // Snapshot of all tracked shots (inFlight + already-hit) for telemetry/debug.
+  // Snapshot of every tracked shot with its outcome — the single weapon dataset the
+  // telemetry "weapons fired" view renders.
   trackedShots(ucid) {
     this._prune();
     const list = ucid && this._byUcid.get(ucid);
-    return list ? list.map((s) => ({ ...s })) : [];
-  }
-
-  _take(ucid, list, index) {
-    const [shot] = list.splice(index, 1);
-    if (list.length === 0) this._byUcid.delete(ucid);
-    return { weaponName: shot.weaponName, descRaw: shot.descRaw };
+    return list ? list.map((s) => ({ ...s, inFlight: s.outcome === 'in_flight' })) : [];
   }
 
   _prune() {
     const now = this._now();
-    const cutoff = now - this._ttlMs;
     for (const [ucid, list] of this._byUcid) {
-      const kept = list.filter((s) => s.recordedAt >= cutoff);
+      for (const s of list) {
+        // An in-flight shot that never resolved is a miss once it ages out — it stops
+        // gating guns but stays visible in the weapons view.
+        if (s.outcome === 'in_flight' && now - s.recordedAt > this._ttlMs) {
+          s.outcome = 'miss';
+        }
+      }
+      const kept = list.filter((s) => now - s.recordedAt <= this._hardTtlMs);
       if (kept.length > 0) this._byUcid.set(ucid, kept);
       else this._byUcid.delete(ucid);
     }
@@ -200,4 +217,4 @@ class WeaponTracker {
   }
 }
 
-module.exports = { WeaponTracker, DEFAULT_TTL_MS, DEFAULT_GUN_GRACE_MS };
+module.exports = { WeaponTracker, DEFAULT_TTL_MS, DEFAULT_HARD_TTL_MS, DEFAULT_GUN_GRACE_MS };

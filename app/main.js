@@ -388,12 +388,23 @@ ipcMain.handle('api:health', () => {
 ipcMain.handle('telemetry:snapshot', () => {
   if (!achievementEngine) return { pilots: [] };
   const pilots = achievementEngine.getAllPilotSnapshots();
-  // Attach the client-side shot tracker's view per pilot so the telemetry window
-  // shows what the kill-attribution key-match is working against.
+  // The shot tracker is the single weapon-state source for telemetry. Attach its view
+  // and correlate each kill to the shot credited with it, so Combat shows the
+  // client-authoritative weapon rather than the broken getDesc class/guidance.
   if (weaponTracker) {
     for (const pilot of pilots) {
-      pilot.trackedShots = weaponTracker.trackedShots(pilot.ucid);
+      const weapons = weaponTracker.trackedShots(pilot.ucid);
+      pilot.weapons = weapons;
       pilot.gunBurst = weaponTracker.gunBurst(pilot.ucid);
+
+      const kills = pilot.state?.state?.kills;
+      if (Array.isArray(kills)) {
+        for (const kill of kills) {
+          if (kill.victimObjectId == null) continue;
+          const shot = weapons.find((s) => s.outcome === 'killed' && s.targetObjectId === kill.victimObjectId);
+          if (shot) kill.attributedWeapon = shot.weaponName;
+        }
+      }
     }
   }
   return { pilots };

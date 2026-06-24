@@ -217,6 +217,9 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     if (event.type === 'shot_enrichment') {
       tracker.recordShot(event);
     }
+    if (event.type === 'weapon_sample_enrichment') {
+      tracker.recordSample(event);
+    }
     if (event.type === 'hit_enrichment') {
       tracker.recordHit({
         playerUcid: event.playerUcid,

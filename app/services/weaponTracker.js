@@ -29,6 +29,31 @@ const DEFAULT_HARD_TTL_MS = 600000;
 // lands a beat later. 5s is generous enough to keep soft kills from a long strafe.
 const DEFAULT_GUN_GRACE_MS = 5000;
 const METERS_PER_NM = 1852;
+// A weapon's last in-flight sample is at most a sampling-gap short of impact (a fast
+// missile covers a few km between samples), so a terminal position farther than this
+// from where the victim died is almost certainly a different engagement — don't use it.
+const PROXIMITY_MAX_M = 5000;
+
+// Of several candidate shots, the one whose last tracked position is closest to a point
+// (where the victim died) — i.e. the weapon that flew there. Null if none has a position
+// or the nearest is implausibly far.
+function nearestShotToPoint(shots, x, y) {
+  if (x == null || y == null) return null;
+  let best = null;
+  let bestD2 = Infinity;
+  for (const s of shots) {
+    if (s.lastPositionX == null || s.lastPositionY == null) continue;
+    const dx = s.lastPositionX - x;
+    const dy = s.lastPositionY - y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      best = s;
+    }
+  }
+  if (!best) return null;
+  return bestD2 <= PROXIMITY_MAX_M * PROXIMITY_MAX_M ? best : null;
+}
 
 // DCS Weapon.Category: SHELL=0, MISSILE=1, ROCKET=2, BOMB=3. Rockets and bombs can
 // dispense submunitions that kill (also weaponlessly) for a few seconds after impact.
@@ -68,6 +93,7 @@ class WeaponTracker {
     this._prune();
     const list = this._byUcid.get(ucid) || [];
     list.push({
+      weaponKey: event.weaponKey ?? null, // stable launch key; links the in-flight samples
       weaponName: event.weaponName ?? null,
       weaponDisplayName: event.weaponDisplayName ?? null,
       descRaw: event.weaponDescRaw ?? null,
@@ -75,6 +101,8 @@ class WeaponTracker {
       targetObjectId: event.targetObjectId ?? null, // usually null (LOAL); backfilled on the hit
       startX: event.startX ?? null, // launch point — for the kill-range calc
       startY: event.startY ?? null,
+      lastPositionX: null, // updated from in-flight samples; ~impact point at the end
+      lastPositionY: null,
       firedAtMs: event.firedAt ?? null, // mission time, carried for context only
       recordedAt: this._now(),
       outcome: 'in_flight',
@@ -82,6 +110,21 @@ class WeaponTracker {
       distanceNm: null,
     });
     this._byUcid.set(ucid, list);
+  }
+
+  // Update a tracked shot's last-known position from an in-flight weapon sample. This
+  // trajectory is what lets a kill be attributed to the *specific* weapon that flew to
+  // the victim (the one whose terminal position is nearest the death point), rather than
+  // guessing among same-type shots. No-op for anything but a sample with a known shot.
+  recordSample(event) {
+    if (!event || event.type !== 'weapon_sample_enrichment') return;
+    const list = event.playerUcid && this._byUcid.get(event.playerUcid);
+    if (!list || event.weaponKey == null) return;
+    const shot = list.find((s) => s.weaponKey != null && s.weaponKey === event.weaponKey);
+    if (shot && event.positionX != null && event.positionY != null) {
+      shot.lastPositionX = event.positionX;
+      shot.lastPositionY = event.positionY;
+    }
   }
 
   // Attribute a kill to one of the killer's shots and mark it 'killed'. DCS weapon
@@ -110,12 +153,20 @@ class WeaponTracker {
     }
     // Usual path: the kill's weapon name (GameGUI, reliable for missiles/bombs). DCS
     // weapon ids are null and lethal hits emit no linking enrichment. Same-name shots
-    // share a descriptor, so this reliably yields the weapon + desc_raw — but it does
-    // NOT identify which shot, so it's only "the" shot when it's the sole candidate.
+    // share a descriptor, so this reliably yields the weapon + desc_raw.
     if (!shot && weaponName != null) {
       const named = list.filter((s) => attributable(s) && weaponNameMatches(s, weaponName));
-      shot = named[0] || null;
-      if (named.length === 1) identifiedShot = true;
+      if (named.length === 1) {
+        shot = named[0];
+        identifiedShot = true; // sole candidate — unambiguous
+      } else if (named.length > 1) {
+        // Several same-type shots in flight: the one that hit this victim is the one
+        // whose trajectory ended nearest the death point. If we can place it, that's a
+        // real identification; otherwise fall back to the oldest for weapon/desc only.
+        const near = nearestShotToPoint(named, victimPositionX, victimPositionY);
+        shot = near || named[0];
+        identifiedShot = near != null;
+      }
     }
     if (!shot) return null;
 

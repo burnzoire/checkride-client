@@ -142,6 +142,48 @@ describe('WeaponTracker null-object-id attribution (the real DCS case)', () => {
   });
 });
 
+describe('WeaponTracker terminal-position proximity', () => {
+  const sample = (weaponKey, x, y, ucid = 'killer-1') => ({
+    type: 'weapon_sample_enrichment', playerUcid: ucid, weaponKey, positionX: x, positionY: y,
+  });
+
+  it('attributes a ripple kill to the weapon whose trajectory ended nearest the victim', () => {
+    const { tracker } = makeTracker();
+    // Two AGM-114K from different launch points, flying to two different victims.
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponKey: 'wk-A', weaponName: 'AGM-114K', startX: 0, startY: 0 }));
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponKey: 'wk-B', weaponName: 'AGM-114K', startX: 10000, startY: 0 }));
+    tracker.recordSample(sample('wk-A', 8000, 0)); // A's terminal position
+    tracker.recordSample(sample('wk-B', 2000, 0)); // B's terminal position
+    // Victim died at (2050,0) — nearest B's terminal position.
+    const match = tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AGM-114K', victimPositionX: 2050, victimPositionY: 0 });
+    expect(match).not.toBeNull();
+    const killed = tracker.trackedShots('killer-1').find((s) => s.outcome === 'killed');
+    expect(killed.weaponKey).toBe('wk-B');
+    // Distance from B's launch (10000,0) to death (2050,0) = 7950 m.
+    expect(killed.distanceNm).toBeCloseTo(7950 / 1852, 2);
+  });
+
+  it('falls back to weapon/desc only (no distance) when no sample placed the shots', () => {
+    const { tracker } = makeTracker();
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponKey: 'wk-A', weaponName: 'AGM-114K', startX: 0, startY: 0 }));
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponKey: 'wk-B', weaponName: 'AGM-114K', startX: 10000, startY: 0 }));
+    const match = tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AGM-114K', victimPositionX: 2050, victimPositionY: 0 });
+    expect(match).not.toBeNull();
+    expect(tracker.trackedShots('killer-1').find((s) => s.outcome === 'killed').distanceNm).toBeNull();
+  });
+
+  it('rejects an implausibly far nearest shot (the kill was not from a tracked shot)', () => {
+    const { tracker } = makeTracker();
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponKey: 'wk-A', weaponName: 'AGM-114K', startX: 0, startY: 0 }));
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponKey: 'wk-B', weaponName: 'AGM-114K', startX: 0, startY: 0 }));
+    tracker.recordSample(sample('wk-A', 50000, 0));
+    tracker.recordSample(sample('wk-B', 60000, 0));
+    const match = tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AGM-114K', victimPositionX: 0, victimPositionY: 0 });
+    expect(match).not.toBeNull(); // weapon/desc still attributed
+    expect(tracker.trackedShots('killer-1').find((s) => s.outcome === 'killed').distanceNm).toBeNull(); // but no distance
+  });
+});
+
 describe('WeaponTracker.recordHit', () => {
   it('grounds a hit shot (outcome hit, off the in-flight count) instantly, with distance', () => {
     const { tracker } = makeTracker();

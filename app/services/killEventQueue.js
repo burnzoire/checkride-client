@@ -47,11 +47,12 @@ function metadataFromEnrichment(event) {
   const roles =
     Array.isArray(event.victimRoles) && event.victimRoles.length > 0 ? event.victimRoles : null;
 
+  // Raw DCS getDesc() snapshot only. The mission script's name-mapped class/guidance
+  // go through unreliable enum tables (guidance 7 gets mislabelled "IR" when it's
+  // LASER; a Hellfire's class comes back "OTHER"), so we forward the raw values
+  // verbatim and let the backend translate. The client also merges the authoritative
+  // weapon_name onto this (see KillEventQueue.resolveWeapon).
   const weapon = compact({
-    weapon_class: event.weaponClass ?? null,
-    weapon_guidance: event.weaponGuidance ?? null,
-    // Raw DCS weapon getDesc() snapshot, forwarded verbatim for the backend to
-    // interpret (the name-mapped values above go through unreliable enum tables).
     desc_raw: event.weaponDescRaw ?? null,
   });
   const killer = compact({ category: event.killerUnitCategory ?? null });

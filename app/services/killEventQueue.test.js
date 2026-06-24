@@ -59,15 +59,16 @@ const makeQueue = (opts = {}) => {
 };
 
 describe("metadataFromEnrichment", () => {
-  it("maps weapon/killer/victim taxonomy and drops null fields", () => {
+  it("maps killer/victim taxonomy and drops the unreliable weapon translation", () => {
+    // weaponClass/weaponGuidance from the mission script are NOT forwarded — they go
+    // through broken enum tables. Only desc_raw (here absent) and killer/victim carry.
     expect(metadataFromEnrichment(enrichment({ victimRoles: ["Fighters"] }))).toEqual({
-      weapon: { weapon_class: "AAM", weapon_guidance: "RADAR_ACTIVE" },
       killer: { category: "AIRPLANE" },
       victim: { category: "air", air_type: "AIRPLANE", roles: ["Fighters"] },
     });
   });
 
-  it("forwards the raw weapon descriptor snapshot verbatim", () => {
+  it("forwards the raw weapon descriptor snapshot verbatim, without the enum translation", () => {
     const descRaw = {
       category: 1,
       missileCategory: 6,
@@ -76,19 +77,14 @@ describe("metadataFromEnrichment", () => {
       warheadMass: 8,
     };
     const md = metadataFromEnrichment(enrichment({ weaponDescRaw: descRaw }));
-    expect(md.weapon).toEqual({
-      weapon_class: "AAM",
-      weapon_guidance: "RADAR_ACTIVE",
-      desc_raw: descRaw,
-    });
+    expect(md.weapon).toEqual({ desc_raw: descRaw });
   });
 
   it("returns null when no taxonomy is present", () => {
     expect(
       metadataFromEnrichment({
         type: "kill_enrichment",
-        weaponClass: null,
-        weaponGuidance: null,
+        weaponDescRaw: null,
         killerUnitCategory: null,
         victimUnitCategory: null,
         victimAirType: null,
@@ -144,7 +140,6 @@ describe("KillEventQueue", () => {
     expect(release).toHaveBeenCalledTimes(1);
     expect(timers.pending()).toBe(0); // no deadline timer needed
     expect(event.metadata).toEqual({
-      weapon: { weapon_class: "AAM", weapon_guidance: "RADAR_ACTIVE" },
       killer: { category: "AIRPLANE" },
       victim: { category: "air", air_type: "AIRPLANE", roles: ["Fighters"] },
     });
@@ -165,7 +160,8 @@ describe("KillEventQueue", () => {
     await expect(pending).resolves.toBe("sent");
     expect(release).toHaveBeenCalledTimes(1);
     expect(timers.pending()).toBe(0); // deadline cancelled on release
-    expect(event.metadata.weapon).toEqual({ weapon_class: "AAM", weapon_guidance: "RADAR_ACTIVE" });
+    expect(event.metadata.killer).toEqual({ category: "AIRPLANE" });
+    expect(event.metadata.victim.roles).toEqual(["Fighters"]);
   });
 
   it("releases without metadata when the deadline trips", async () => {
@@ -239,13 +235,13 @@ describe("KillEventQueue", () => {
   it("matches the enrichment whose victim type matches the kill", async () => {
     const { queue } = makeQueue();
 
-    queue.recordEnrichment(enrichment({ victimTypeName: "Su-27", weaponClass: "SAM" }));
-    queue.recordEnrichment(enrichment({ victimTypeName: "MiG-29A", weaponClass: "AAM" }));
+    queue.recordEnrichment(enrichment({ victimTypeName: "Su-27", weaponDescRaw: { displayName: "R-27" } }));
+    queue.recordEnrichment(enrichment({ victimTypeName: "MiG-29A", weaponDescRaw: { displayName: "R-73" } }));
 
     const event = kill({ victimUnitType: "MiG-29A" });
     await queue.submitKill(event, () => Promise.resolve());
 
-    expect(event.metadata.weapon.weapon_class).toBe("AAM");
+    expect(event.metadata.weapon.desc_raw.displayName).toBe("R-73");
   });
 
   it("matches a held kill to the enrichment by victim type", async () => {
@@ -256,13 +252,13 @@ describe("KillEventQueue", () => {
     const suPromise = queue.submitKill(su, () => Promise.resolve());
     const migPromise = queue.submitKill(mig, () => Promise.resolve());
 
-    queue.recordEnrichment(enrichment({ victimTypeName: "MiG-29A", weaponGuidance: "IR" }));
+    queue.recordEnrichment(enrichment({ victimTypeName: "MiG-29A", weaponDescRaw: { guidance: 4 } }));
     await migPromise;
-    expect(mig.metadata.weapon.weapon_guidance).toBe("IR");
+    expect(mig.metadata.weapon.desc_raw.guidance).toBe(4);
 
-    queue.recordEnrichment(enrichment({ victimTypeName: "Su-27", weaponGuidance: "LASER" }));
+    queue.recordEnrichment(enrichment({ victimTypeName: "Su-27", weaponDescRaw: { guidance: 7 } }));
     await suPromise;
-    expect(su.metadata.weapon.weapon_guidance).toBe("LASER");
+    expect(su.metadata.weapon.desc_raw.guidance).toBe(7);
   });
 
   it("ignores non-enrichment events and enrichments without a killer ucid", async () => {
@@ -308,15 +304,14 @@ describe("KillEventQueue", () => {
       const resolveWeapon = jest.fn(() => ({ weapon_name: "AGM-114K", desc_raw: { guidance: 7 } }));
       const { queue } = makeQueue({ resolveWeapon });
 
-      queue.recordEnrichment(enrichment({ victimObjectId: 4242 }));
+      // Enrichment carries a raw descriptor; the client supplies the authoritative name.
+      queue.recordEnrichment(enrichment({ victimObjectId: 4242, weaponDescRaw: { displayName: "AGM-114K" } }));
       const event = kill();
       await queue.submitKill(event, () => Promise.resolve("sent"));
 
       expect(resolveWeapon).toHaveBeenCalledWith({ killerUcid: "killer-1", victimObjectId: 4242 });
-      // Client weapon_name + desc_raw merged on; enrichment class/guidance preserved.
+      // Client weapon_name + desc_raw merged over the enrichment's desc_raw.
       expect(event.metadata.weapon).toEqual({
-        weapon_class: "AAM",
-        weapon_guidance: "RADAR_ACTIVE",
         weapon_name: "AGM-114K",
         desc_raw: { guidance: 7 },
       });
@@ -339,11 +334,11 @@ describe("KillEventQueue", () => {
       const resolveWeapon = jest.fn(() => null);
       const { queue } = makeQueue({ resolveWeapon });
 
-      queue.recordEnrichment(enrichment());
+      queue.recordEnrichment(enrichment({ weaponDescRaw: { displayName: "AGM-114K" } }));
       const event = kill();
       await queue.submitKill(event, () => Promise.resolve("sent"));
 
-      expect(event.metadata.weapon).toEqual({ weapon_class: "AAM", weapon_guidance: "RADAR_ACTIVE" });
+      expect(event.metadata.weapon).toEqual({ desc_raw: { displayName: "AGM-114K" } });
     });
 
     it("is not consulted for an AI kill that never rendezvous", async () => {

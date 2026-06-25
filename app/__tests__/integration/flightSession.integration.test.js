@@ -1,3 +1,12 @@
+// This suite exercises flight-session state (flight_uid, duration_seconds) with mission
+// scripting OFF — a valid config where there are no mission enrichments, so the
+// takeoff/landing rendezvous sends the persisted GameGUI events immediately. (The
+// rendezvous + airbase fold are covered in takeoffLandingQueue.test.js.)
+jest.mock('../../config', () => ({
+  get: (key) => (key === 'mission_scripting_enabled' ? false : undefined),
+  set: jest.fn(),
+}));
+
 const { attachEventPipeline } = require('../../appInit');
 
 describe('Flight session integration', () => {

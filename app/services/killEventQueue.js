@@ -1,39 +1,24 @@
 // Queues persisted kill events so the mission script's DCS-sourced weapon/victim
-// taxonomy (delivered separately on a persist=false kill_enrichment) can be
-// folded onto the kill before it is sent.
+// taxonomy (delivered separately on a persist=false kill_enrichment) can be folded onto
+// the kill before it is sent. This is the kill-specific configuration of the shared
+// EnrichmentQueue rendezvous (keyed by killer ucid, discriminated by victim type).
 //
-// The persisted `kill` (GameGUI environment) and its `kill_enrichment` (mission
-// environment) arrive as two separate, unordered UDP events. This is a symmetric
-// rendezvous keyed by killer ucid: whichever arrives first waits for the other.
-// The kill is released — and only then sent — the moment its enrichment arrives,
-// or after a short deadline if none does. No kill is ever dropped: AI victims,
-// collisions, onHit-missed proximity kills, and mission-scripting-disabled
-// servers all legitimately produce no enrichment, and those kills send on the
-// deadline with whatever metadata they have.
-//
-// `kill` drives no achievement evaluation (no dispatch entry in the engine), so
-// deferring a kill only delays its API save + summary; nothing else in the
-// pipeline depends on its timing.
+// No kill is ever dropped: AI victims, collisions, onHit-missed proximity kills, and
+// mission-scripting-disabled servers all legitimately produce no enrichment, and those
+// kills send on the deadline with whatever metadata they have. `kill` drives no
+// achievement evaluation, so deferring a kill only delays its API save + summary.
 
-const DEFAULT_DEADLINE_MS = 2000;
-const ENRICHMENT_TTL_MS = 15000;
+const {
+  EnrichmentQueue,
+  compact,
+  DEFAULT_DEADLINE_MS,
+  DEFAULT_ENRICHMENT_TTL_MS: ENRICHMENT_TTL_MS,
+} = require("./enrichmentQueue");
 
-function compact(obj) {
-  const out = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (value !== undefined && value !== null) out[key] = value;
-  }
-  return out;
-}
-
-// A kill's initiator is AI (or otherwise unattributable to a player). The mission
-// script skips emitting kill_enrichment for AI initiators, so these kills never
-// get enrichment and must not be held.
-//
-// The GameGUI stamps an explicit `killerIsAi` flag at the source — authoritative,
-// and it distinguishes a genuine AI participant from a player whose ucid is merely
-// unknown. For resilience against older Lua that predates the flag, fall back to
-// inferring AI from a missing ucid / "AI" name.
+// A kill's initiator is AI (or otherwise unattributable to a player). The mission script
+// skips emitting kill_enrichment for AI initiators, so these kills never get enrichment
+// and must not be held. The GameGUI stamps an explicit `killerIsAi` flag (authoritative);
+// fall back to inferring AI from a missing ucid / "AI" name for older Lua.
 function killerIsAi(event) {
   if (typeof event.killerIsAi === "boolean") return event.killerIsAi;
 
@@ -41,20 +26,17 @@ function killerIsAi(event) {
   return event.killerName === "AI" || ucid === undefined || ucid === null || ucid === "";
 }
 
-// Map a mission kill_enrichment to the nested-by-actor metadata shape, or null
-// when it carries no usable taxonomy.
+// Map a mission kill_enrichment to the nested-by-actor metadata shape, or null when it
+// carries no usable taxonomy.
 function metadataFromEnrichment(event) {
   const roles =
     Array.isArray(event.victimRoles) && event.victimRoles.length > 0 ? event.victimRoles : null;
 
-  // Raw DCS getDesc() snapshot only. The mission script's name-mapped class/guidance
-  // go through unreliable enum tables (guidance 7 gets mislabelled "IR" when it's
-  // LASER; a Hellfire's class comes back "OTHER"), so we forward the raw values
-  // verbatim and let the backend translate. The client also merges the authoritative
-  // weapon_name onto this (see KillEventQueue.resolveWeapon).
-  const weapon = compact({
-    desc_raw: event.weaponDescRaw ?? null,
-  });
+  // Raw DCS getDesc() snapshot only. The mission script's name-mapped class/guidance go
+  // through unreliable enum tables (guidance 7 mislabelled "IR" when it's LASER; a
+  // Hellfire's class comes back "OTHER"), so we forward the raw values and let the
+  // backend translate. The client merges the authoritative weapon_name on (resolveWeapon).
+  const weapon = compact({ desc_raw: event.weaponDescRaw ?? null });
   const killer = compact({ category: event.killerUnitCategory ?? null });
   const victim = compact({
     category: event.victimUnitCategory ?? null,
@@ -74,180 +56,60 @@ class KillEventQueue {
     deadlineMs = DEFAULT_DEADLINE_MS,
     enrichmentTtlMs = ENRICHMENT_TTL_MS,
     missionScriptingEnabled = () => true,
-    // Client-authoritative weapon attribution. Called at the kill/enrichment
-    // rendezvous with { killerUcid, victimObjectId }; returns a partial weapon
-    // metadata object (e.g. { weapon_name, desc_raw }) to merge onto the kill, or
-    // null. This is where the client's own shot-tracking decides the weapon, rather
-    // than trusting the mission script's getDesc() at kill time. Optional.
+    // Client-authoritative weapon attribution. Called at the rendezvous; returns a
+    // partial weapon metadata object (e.g. { weapon_name, desc_raw }) to merge, or null.
     resolveWeapon = null,
     now = () => Date.now(),
     schedule,
     cancel,
   } = {}) {
-    this._deadlineMs = deadlineMs;
-    this._enrichmentTtlMs = enrichmentTtlMs;
-    this._missionScriptingEnabled = missionScriptingEnabled;
-    this._resolveWeapon = resolveWeapon;
-    this._now = now;
-    this._schedule = schedule || ((fn, ms) => setTimeout(fn, ms));
-    this._cancel = cancel || ((handle) => clearTimeout(handle));
-    this._enrichments = new Map(); // killerUcid -> [{ metadata, victimTypeName, recordedAt }]
-    this._pendingKills = new Map(); // killerUcid -> [{ event, release, resolve, timer, victimType }]
+    this._queue = new EnrichmentQueue({
+      deadlineMs,
+      enrichmentTtlMs,
+      now,
+      schedule,
+      cancel,
+      enrichmentType: "kill_enrichment",
+      keyOf: (e) => e.killerUcid ?? e.playerUcid,
+      metadataFrom: metadataFromEnrichment,
+      submitDiscriminatorOf: (e) => e.victimUnitType ?? null,
+      enrichmentDiscriminatorOf: (e) => e.victimTypeName ?? null,
+      entryExtras: (e) => ({
+        victimObjectId: e.victimObjectId ?? null,
+        victimPositionX: e.victimPositionX ?? null,
+        victimPositionY: e.victimPositionY ?? null,
+      }),
+      // AI initiator (no enrichment will come) or mission scripting off → don't hold.
+      shouldSendImmediately: (e) => killerIsAi(e) || !missionScriptingEnabled(),
+      onFold: (event, entry) => {
+        if (!resolveWeapon) return;
+        const killerUcid = event.killerUcid ?? event.playerUcid;
+        if (!killerUcid) return;
+        const x = entry && entry.extras;
+        const matched = resolveWeapon({
+          killerUcid,
+          weaponName: event.weaponName ?? event.weapon_name ?? null,
+          victimObjectId: (x && x.victimObjectId) ?? null,
+          victimPositionX: (x && x.victimPositionX) ?? null,
+          victimPositionY: (x && x.victimPositionY) ?? null,
+        });
+        if (matched) {
+          event.metadata = event.metadata || {};
+          event.metadata.weapon = { ...(event.metadata.weapon || {}), ...matched };
+        }
+      },
+    });
   }
 
   // Buffer a mission kill_enrichment, or release a kill already waiting for it.
   recordEnrichment(event) {
-    if (!event || event.type !== "kill_enrichment") return;
-
-    const killerUcid = event.playerUcid;
-    if (!killerUcid) return;
-
-    this._pruneEnrichments();
-
-    const entry = {
-      metadata: metadataFromEnrichment(event),
-      victimTypeName: event.victimTypeName ?? null,
-      victimObjectId: event.victimObjectId ?? null,
-      victimPositionX: event.victimPositionX ?? null,
-      victimPositionY: event.victimPositionY ?? null,
-      recordedAt: this._now(),
-    };
-
-    const pending = this._takePendingKill(killerUcid, entry.victimTypeName);
-    if (pending) {
-      this._cancel(pending.timer);
-      pending.resolve(this._send(pending.event, pending.release, entry.metadata, entry));
-      return;
-    }
-
-    const list = this._enrichments.get(killerUcid) || [];
-    list.push(entry);
-    this._enrichments.set(killerUcid, list);
+    return this._queue.recordEnrichment(event);
   }
 
-  // Submit a persisted kill for sending. `release` runs the actual send pipeline
-  // and is invoked exactly once. Returns a promise that resolves when the kill is
-  // sent (immediately, on enrichment arrival, or on deadline).
+  // Submit a persisted kill for sending. `release` runs the send pipeline exactly once;
+  // returns a promise that resolves when the kill is sent.
   submitKill(event, release) {
-    // AI initiator (no enrichment will ever come) or mission scripting off → send
-    // now rather than holding until the deadline.
-    if (killerIsAi(event) || !this._missionScriptingEnabled()) {
-      return this._send(event, release, null);
-    }
-
-    // No usable killer ucid → the kill can never be matched to an enrichment
-    // (which is keyed by, and dropped without, playerUcid). Holding it would only
-    // add the deadline delay for nothing, so send immediately. This restores the
-    // pre-`killerIsAi`-flag behavior for players whose ucid is momentarily unknown.
-    const killerUcid = event.killerUcid ?? event.playerUcid;
-    if (!killerUcid) {
-      return this._send(event, release, null);
-    }
-
-    this._pruneEnrichments();
-
-    const entry = this._takeEnrichment(killerUcid, event.victimUnitType ?? null);
-    if (entry) {
-      return this._send(event, release, entry.metadata, entry);
-    }
-
-    let resolve;
-    const promise = new Promise((r) => {
-      resolve = r;
-    });
-    const pending = {
-      event,
-      release,
-      resolve,
-      timer: null,
-      victimType: event.victimUnitType ?? null,
-    };
-    pending.timer = this._schedule(() => {
-      this._removePending(killerUcid, pending);
-      pending.resolve(this._send(event, release, null)); // deadline: send without metadata
-    }, this._deadlineMs);
-
-    const list = this._pendingKills.get(killerUcid) || [];
-    list.push(pending);
-    this._pendingKills.set(killerUcid, list);
-    return promise;
-  }
-
-  _send(event, release, metadata, ctx = {}) {
-    if (metadata) {
-      event.metadata = { ...(event.metadata || {}), ...metadata };
-    }
-
-    // Client-authoritative weapon attribution: let the shot tracker decide the weapon
-    // from its own key/name-match and merge it over the (less reliable) enrichment
-    // weapon. The victim position (from the enrichment) lets the tracker compute the
-    // launch→death engagement range.
-    if (this._resolveWeapon) {
-      const killerUcid = event.killerUcid ?? event.playerUcid;
-      const weaponName = event.weaponName ?? event.weapon_name ?? null;
-      const matched = killerUcid
-        ? this._resolveWeapon({
-            killerUcid,
-            weaponName,
-            victimObjectId: ctx.victimObjectId ?? null,
-            victimPositionX: ctx.victimPositionX ?? null,
-            victimPositionY: ctx.victimPositionY ?? null,
-          })
-        : null;
-      if (matched) {
-        event.metadata = event.metadata || {};
-        event.metadata.weapon = { ...(event.metadata.weapon || {}), ...matched };
-      }
-    }
-
-    return release();
-  }
-
-  // Take a buffered enrichment for this killer, preferring a victim-type match,
-  // else oldest (FIFO) so concurrent multi-kills drain in order.
-  _takeEnrichment(killerUcid, victimType) {
-    const list = this._enrichments.get(killerUcid);
-    if (!list || list.length === 0) return null;
-
-    let index = victimType != null ? list.findIndex((e) => e.victimTypeName === victimType) : -1;
-    if (index === -1) index = 0;
-
-    const [entry] = list.splice(index, 1);
-    if (list.length === 0) this._enrichments.delete(killerUcid);
-    return entry;
-  }
-
-  _takePendingKill(killerUcid, victimType) {
-    const list = this._pendingKills.get(killerUcid);
-    if (!list || list.length === 0) return null;
-
-    let index = victimType != null ? list.findIndex((p) => p.victimType === victimType) : -1;
-    if (index === -1) index = 0;
-
-    const [pending] = list.splice(index, 1);
-    if (list.length === 0) this._pendingKills.delete(killerUcid);
-    return pending;
-  }
-
-  _removePending(killerUcid, pending) {
-    const list = this._pendingKills.get(killerUcid);
-    if (!list) return;
-
-    const index = list.indexOf(pending);
-    if (index !== -1) list.splice(index, 1);
-    if (list.length === 0) this._pendingKills.delete(killerUcid);
-  }
-
-  _pruneEnrichments() {
-    const cutoff = this._now() - this._enrichmentTtlMs;
-    for (const [ucid, list] of this._enrichments) {
-      const kept = list.filter((entry) => entry.recordedAt >= cutoff);
-      if (kept.length > 0) {
-        this._enrichments.set(ucid, kept);
-      } else {
-        this._enrichments.delete(ucid);
-      }
-    }
+    return this._queue.submit(event, release);
   }
 }
 

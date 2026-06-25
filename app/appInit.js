@@ -5,6 +5,7 @@ const GaugeSync = require('./services/gaugeSync');
 const { EventProcessor } = require('./services/eventProcessor');
 const AchievementEngine = require('./services/achievementEngine');
 const { KillEventQueue } = require('./services/killEventQueue');
+const { createTakeoffLandingQueues } = require('./services/takeoffLandingQueue');
 const { WeaponTracker } = require('./services/weaponTracker');
 const { EventFactory, InvalidEventTypeError } = require('./factories/eventFactory');
 const { APIClient } = require('./clients/apiClient');
@@ -189,6 +190,12 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
       return null;
     },
   });
+  // Same rendezvous for takeoff/landing: hold the persisted GameGUI event until its
+  // mission enrichment lands, folding the DCS Airbase.Category (airdrome/FARP/ship) the
+  // GameGUI environment can't read onto event.metadata.
+  const { takeoffQueue, landingQueue } = createTakeoffLandingQueues({
+    missionScriptingEnabled: () => store.get('mission_scripting_enabled') !== false,
+  });
   // Built from connect/change_slot events so mission-script events with null playerUcid
   // (due to the async CheckridePlayers injection race) can still be attributed correctly.
   const ucidByName = new Map();
@@ -211,6 +218,12 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
     if (event.type === 'kill_enrichment') {
       killEventQueue.recordEnrichment(event);
+    }
+    if (event.type === 'takeoff_enrichment') {
+      takeoffQueue.recordEnrichment(event);
+    }
+    if (event.type === 'landing_enrichment') {
+      landingQueue.recordEnrichment(event);
     }
 
     // Feed the shot tracker so kills can be key-matched to the weapon that hit.
@@ -427,6 +440,12 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
     if (event.type === 'kill') {
       return killEventQueue.submitKill(event, runPipeline);
+    }
+    if (event.type === 'takeoff') {
+      return takeoffQueue.submit(event, runPipeline);
+    }
+    if (event.type === 'landing') {
+      return landingQueue.submit(event, runPipeline);
     }
     return runPipeline();
   }

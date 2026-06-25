@@ -221,18 +221,18 @@ local WEAPON_CATEGORY_NAMES = {
     [4] = "TORPEDO",
 }
 
--- Maps Weapon.MissileCategory integer → string name. The C++-exposed enum is in no Lua
--- file, so these are hand-coded and only [6]=OTHER is verified (AGM-114K). [5] is left as
--- "ARM" — anti-radiation (AGM-88 HARM) needs a home, and there's no evidence it's wrong,
--- unlike the guidance enum. The dumpWeaponEnums probe logs the live table; confirm [5]
--- (ARM vs CRUISE) and the rest from a soak before changing.
+-- Maps Weapon.MissileCategory integer → string name, per Hoggit (wiki.hoggitworld.com/
+-- view/DCS_enum_weapon — the same source that got guidance LASER=7 right). [5]=CRUISE,
+-- not "ARM": this runtime enum has no ARM member (that's a separate Mission Editor
+-- payload-filter category). Anti-radiation missiles (AGM-88 HARM) report [6]=OTHER, the
+-- same bucket the AGM-114K confirmed. dumpWeaponEnums logs the live table to double-check.
 -- Missiles matching a sub-category return that name instead of "MISSILE".
 local MISSILE_CATEGORY_NAMES = {
     [1] = "AAM",
     [2] = "SAM",
     [3] = "BM",
     [4] = "ANTI_SHIP",
-    [5] = "ARM",
+    [5] = "CRUISE",
     [6] = "OTHER",
 }
 

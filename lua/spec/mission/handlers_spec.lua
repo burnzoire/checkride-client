@@ -138,6 +138,7 @@ describe("CheckrideMission.onTakeoff", function()
         assert.are.equal(1, #captured)
         assert.are.equal("takeoff_enrichment", captured[1].type)
         assert.is_false(captured[1].launchedFromCarrier)
+        assert.are.equal(Airbase.Category.AIRDROME, captured[1].airbaseCategory)
     end)
 
     it("emits takeoff_enrichment with launchedFromCarrier = true for a carrier", function()
@@ -152,6 +153,17 @@ describe("CheckrideMission.onTakeoff", function()
         assert.are.equal(1, #captured)
         assert.are.equal("takeoff_enrichment", captured[1].type)
         assert.is_true(captured[1].launchedFromCarrier)
+        assert.are.equal(Airbase.Category.SHIP, captured[1].airbaseCategory)
+    end)
+
+    it("forwards airbaseCategory HELIPAD for a FARP takeoff (not a carrier)", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick")
+        local farp = stubs.make_unit({ name = "FARP London", desc = { category = Airbase.Category.HELIPAD } })
+        CheckrideMission.onTakeoff({ initiator = initiator, place = farp, time = 100 })
+
+        assert.are.equal(Airbase.Category.HELIPAD, captured[1].airbaseCategory)
+        assert.is_false(captured[1].launchedFromCarrier)
     end)
 
     it("stores carrier reference in pilotCarrierByUcid on carrier takeoff", function()
@@ -214,12 +226,14 @@ describe("CheckrideMission.onLand", function()
         local base = stubs.make_unit({
             name      = "Batumi",
             coalition = 2,  -- same as pilot
+            desc      = { category = Airbase.Category.AIRDROME },
         })
         CheckrideMission.onLand({ initiator = initiator, place = base, time = 300 })
 
         assert.are.equal(1, #captured)
         assert.is_true(captured[1].landedAtFriendlyBase)
         assert.is_true(captured[1].landedAtAirbase)
+        assert.are.equal(Airbase.Category.AIRDROME, captured[1].airbaseCategory)
     end)
 end)
 

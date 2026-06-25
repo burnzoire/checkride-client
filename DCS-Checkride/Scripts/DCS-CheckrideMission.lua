@@ -1828,10 +1828,15 @@ function CheckrideMission.onLand(event)
     local airdromeName = nil
     local landedAtAirbase = place ~= nil
     local landedAtFriendlyBase = false
+    local airbaseCategory = nil
 
     if place then
         local okName, name = pcall(function() return place:getName() end)
         if okName and name and name ~= "" then airdromeName = name end
+
+        -- DCS Airbase.Category: AIRDROME=0, HELIPAD(FARP)=1, SHIP=2.
+        local okDesc, desc = pcall(function() return place:getDesc() end)
+        if okDesc and desc then airbaseCategory = desc.category end
 
         local pilotCoal = nil
         local baseCoal = nil
@@ -1854,6 +1859,7 @@ function CheckrideMission.onLand(event)
         airdromeName         = airdromeName,
         landedAtAirbase      = landedAtAirbase,
         landedAtFriendlyBase = landedAtFriendlyBase,
+        airbaseCategory      = airbaseCategory,
         fuelState            = fuelState,
         missionTime          = event.time,
     })
@@ -1906,6 +1912,9 @@ function CheckrideMission.onTakeoff(event)
         playerName       = playerName,
         launchedFromCarrier = isCarrier,
         takeoffLocation  = carrierName,
+        -- DCS Airbase.Category: AIRDROME=0, HELIPAD(FARP)=1, SHIP=2. Raw value forwarded
+        -- so the client/backend distinguishes airdrome vs FARP vs carrier launches.
+        airbaseCategory  = (ok and desc and desc.category) or nil,
         missionTime      = event.time,
     }
 

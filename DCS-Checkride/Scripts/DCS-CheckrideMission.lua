@@ -1851,6 +1851,13 @@ function CheckrideMission.onLand(event)
     local okFuel, fuel = pcall(function() return initiator:getFuel() end)
     if okFuel and type(fuel) == "number" then fuelState = fuel end
 
+    CheckrideMission.log(
+        "landing enrichment: place=" .. tostring(airdromeName or "open field") ..
+        " descCategory(Airbase)=" .. tostring(airbaseCategory) ..
+        " landedAtAirbase=" .. tostring(landedAtAirbase) ..
+        " friendly=" .. tostring(landedAtFriendlyBase)
+    )
+
     CheckrideMission.sendEnrichmentEvent({
         type                 = "landing_enrichment",
         source               = "mission",
@@ -1920,8 +1927,9 @@ function CheckrideMission.onTakeoff(event)
 
     CheckrideMission.log(
         "takeoff enrichment: place=" .. tostring(carrierName or "unknown") ..
-        " placeCategory=" .. tostring(placeCategory) ..
-        " descCategory=" .. tostring(ok and desc and desc.category or nil) ..
+        " placeCategory(Object)=" .. tostring(placeCategory) ..
+        " descCategory(Airbase)=" .. tostring(ok and desc and desc.category or nil) ..
+        " descTypeName=" .. tostring(ok and desc and desc.typeName or nil) ..
         " launchedFromCarrier=" .. tostring(isCarrier)
     )
 
@@ -2169,22 +2177,31 @@ function CheckrideShowMessage(pilotKey, message, duration)
     CheckrideMission.log("CheckrideShowMessage: notified " .. tostring(pilotKey))
 end
 
--- Logs DCS's live Weapon enum tables once at load. These are C++-exposed (not in any Lua
--- file), so this is the only authoritative source for the integers getDesc() returns —
--- used to verify GUIDANCE_NAMES/WEAPON_CATEGORY_NAMES against the actual DCS/mod build.
-function CheckrideMission.dumpWeaponEnums()
-    if type(Weapon) ~= "table" then
-        CheckrideMission.log("weapon enum: Weapon global unavailable")
-        return
-    end
-    for _, enumName in ipairs({ "GuidanceType", "Category", "MissileCategory", "WarheadType" }) do
-        local tbl = Weapon[enumName]
-        if type(tbl) == "table" then
-            for name, value in pairs(tbl) do
-                CheckrideMission.log(string.format("weapon enum: Weapon.%s.%s = %s", enumName, tostring(name), tostring(value)))
-            end
+-- Logs DCS's live enum tables once at load. These are C++-exposed (not in any Lua file),
+-- so this is the only authoritative source for the integers getDesc() returns — used to
+-- verify our name tables (guidance, weapon/missile category, and Airbase.Category, which
+-- getDesc().category returns for takeoff/landing surfaces) against the actual DCS build.
+function CheckrideMission.dumpDcsEnums()
+    local groups = {
+        { global = Weapon,  name = "Weapon",  enums = { "GuidanceType", "Category", "MissileCategory", "WarheadType" } },
+        { global = Airbase, name = "Airbase", enums = { "Category" } },
+        { global = Unit,    name = "Unit",    enums = { "Category" } },
+        { global = Object,  name = "Object",  enums = { "Category" } },
+    }
+    for _, g in ipairs(groups) do
+        if type(g.global) ~= "table" then
+            CheckrideMission.log("dcs enum: " .. g.name .. " global unavailable")
         else
-            CheckrideMission.log("weapon enum: Weapon." .. enumName .. " unavailable")
+            for _, enumName in ipairs(g.enums) do
+                local tbl = g.global[enumName]
+                if type(tbl) == "table" then
+                    for k, v in pairs(tbl) do
+                        CheckrideMission.log(string.format("dcs enum: %s.%s.%s = %s", g.name, enumName, tostring(k), tostring(v)))
+                    end
+                else
+                    CheckrideMission.log("dcs enum: " .. g.name .. "." .. enumName .. " unavailable")
+                end
+            end
         end
     end
 end
@@ -2195,5 +2212,5 @@ end
 local worldInitStatus = CheckrideMission.ensureWorldHandler()
 CheckrideMission.log('world init status: ' .. tostring(worldInitStatus))
 CheckrideMission.startWeaponSampler()
-pcall(CheckrideMission.dumpWeaponEnums)
+pcall(CheckrideMission.dumpDcsEnums)
 checkrideMissionInfo("Loaded - DCS-Checkride Mission Script v" .. CheckrideMission.version)

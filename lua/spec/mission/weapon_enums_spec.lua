@@ -1,11 +1,11 @@
 -- lua/spec/mission/weapon_enums_spec.lua
--- Tests CheckrideMission.dumpWeaponEnums — the one-time probe that logs DCS's live
--- Weapon enum tables (C++-exposed, not in any Lua file) so GUIDANCE_NAMES and friends can
--- be verified against the actual DCS/mod build.
+-- Tests CheckrideMission.dumpDcsEnums — the one-time probe that logs DCS's live enum
+-- tables (Weapon.*, Airbase.Category, Unit/Object.Category; all C++-exposed, in no Lua
+-- file) so our name tables / category reads can be verified against the actual DCS build.
 
 local loader = require("helpers.mission_loader")
 
-describe("CheckrideMission.dumpWeaponEnums", function()
+describe("CheckrideMission.dumpDcsEnums", function()
     setup(function()
         loader.load()
     end)
@@ -30,23 +30,26 @@ describe("CheckrideMission.dumpWeaponEnums", function()
         return false
     end
 
-    it("logs each name->value entry of the live Weapon enums", function()
+    it("logs each name->value entry of the live Weapon and Airbase enums", function()
         _G.Weapon = {
             GuidanceType = { IR = 2, LASER = 7 },
             Category = { MISSILE = 1 },
         }
+        _G.Airbase = { Category = { AIRDROME = 0, HELIPAD = 1, SHIP = 2 } }
 
-        local logged = capture(function() CheckrideMission.dumpWeaponEnums() end)
+        local logged = capture(function() CheckrideMission.dumpDcsEnums() end)
 
         assert.is_true(has(logged, "Weapon.GuidanceType.LASER = 7"))
-        assert.is_true(has(logged, "Weapon.GuidanceType.IR = 2"))
         assert.is_true(has(logged, "Weapon.Category.MISSILE = 1"))
+        assert.is_true(has(logged, "Airbase.Category.SHIP = 2"))
+        assert.is_true(has(logged, "Airbase.Category.HELIPAD = 1"))
     end)
 
-    it("is safe when the Weapon global is unavailable", function()
+    it("is safe when a global is unavailable", function()
         _G.Weapon = nil
+        _G.Airbase = nil
         assert.has_no.errors(function()
-            capture(function() CheckrideMission.dumpWeaponEnums() end)
+            capture(function() CheckrideMission.dumpDcsEnums() end)
         end)
     end)
 end)

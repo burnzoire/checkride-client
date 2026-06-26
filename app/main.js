@@ -402,20 +402,25 @@ ipcMain.handle('telemetry:snapshot', () => {
       // The kill_enrichment often lacks the weapon descriptor (the mission script's desc
       // capture fails, esp. on the first shot), but the tracker has it. Backfill any real
       // kill missing a descriptor from a credited shot, in order — collateral kills have
-      // no victim and are skipped; same-weapon kills make ordering moot. Display only; the
-      // API gets the weapon via resolveWeapon.
+      // no victim and are skipped; same-weapon kills make ordering moot.
+      //
+      // serializeState returns kills by REFERENCE to the live PilotState, so we map to
+      // shallow copies and only ever mutate copies — this backfill is display-only and
+      // must not leak into live state.
       const kills = pilot.state.state?.kills;
       if (Array.isArray(kills)) {
         const killedShots = weapons.filter((s) => s.outcome === 'killed');
         let si = 0;
-        for (const kill of kills) {
-          if (!kill.victimTypeName && !kill.victimAirType) continue;
-          if (!kill.weaponDescRaw && si < killedShots.length) {
+        pilot.state.state.kills = kills.map((kill) => {
+          const copy = { ...kill };
+          if (!copy.victimTypeName && !copy.victimAirType) return copy; // collateral
+          if (!copy.weaponDescRaw && si < killedShots.length) {
             const shot = killedShots[si++];
-            kill.weaponName = kill.weaponName || shot.weaponDisplayName || shot.weaponName;
-            kill.weaponDescRaw = shot.descRaw;
+            copy.weaponName = copy.weaponName || shot.weaponDisplayName || shot.weaponName;
+            copy.weaponDescRaw = shot.descRaw;
           }
-        }
+          return copy;
+        });
       }
     }
   }

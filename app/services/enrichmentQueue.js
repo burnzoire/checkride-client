@@ -132,7 +132,13 @@ class EnrichmentQueue {
     if (metadata) {
       event.metadata = { ...(event.metadata || {}), ...metadata };
     }
-    this._onFold(event, entry);
+    // onFold (e.g. weapon attribution) is best-effort enrichment — a throw must never
+    // block the send, or the event would be lost / the pipeline could stall.
+    try {
+      this._onFold(event, entry);
+    } catch (err) {
+      // Swallow: the event still goes out with whatever metadata it already has.
+    }
     return release();
   }
 

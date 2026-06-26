@@ -133,6 +133,19 @@ describe("EnrichmentQueue rendezvous", () => {
     expect(seen).toEqual(["hi", null]);
   });
 
+  it("still releases when onFold throws (best-effort enrichment never blocks the send)", async () => {
+    const { queue } = makeQueue({ onFold: () => { throw new Error("boom"); } });
+    queue.recordEnrichment({ type: "event_enrichment", playerUcid: "p1", tag: "x" });
+    const release = jest.fn(() => Promise.resolve("sent"));
+
+    const event = { type: "event", playerUcid: "p1" };
+    const result = await queue.submit(event, release);
+
+    expect(result).toBe("sent");
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(event.metadata).toEqual({ foo: { tag: "x" } }); // metadata still folded
+  });
+
   it("expires buffered enrichments after the TTL", () => {
     let clock = 1000;
     const { queue, timers } = makeQueue({ enrichmentTtlMs: 5000, now: () => clock });

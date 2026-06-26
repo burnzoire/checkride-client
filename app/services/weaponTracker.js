@@ -89,7 +89,7 @@ class WeaponTracker {
     this._hardTtlMs = hardTtlMs;
     this._gunGraceMs = gunGraceMs;
     this._now = now;
-    // ucid -> [{ weaponName, descRaw, weaponObjectId, targetObjectId, firedAtMs,
+    // ucid -> [{ weaponName, descRaw, weaponObjectId, targetObjectId, firedAtMissionTime,
     //            recordedAt, outcome, groundedAt, distanceNm, lastSampleAt, lastPosition }]
     // outcome lifecycle:
     //   in_flight -> impacted (position samples stopped — the weapon is gone) -> killed
@@ -122,7 +122,7 @@ class WeaponTracker {
       lastPositionX: null, // updated from in-flight samples; ~impact point at the end
       lastPositionY: null,
       lastSampleAt: null, // when we last saw the weapon alive (a positioned sample)
-      firedAtMs: event.firedAt ?? null, // mission time, carried for context only
+      firedAtMissionTime: event.firedAt ?? null, // mission time (seconds); context only
       recordedAt: this._now(),
       outcome: 'in_flight',
       groundedAt: null,

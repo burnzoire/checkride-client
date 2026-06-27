@@ -184,6 +184,14 @@ function initAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = false;
 
+  // Always follow the stable (`latest`) channel, even when the running build is itself a
+  // prerelease. electron-updater otherwise auto-enables allowPrerelease for beta builds,
+  // which pins them to prerelease releases and stops them rolling forward to prod. With
+  // this, a manually-installed beta auto-updates to the next stable release (and won't
+  // downgrade — a higher beta version simply waits for stable to pass it).
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.channel = 'latest';
+
   autoUpdater.on('update-available', () => {
     if (manualUpdateCheck) {
       manualUpdateCheck = false;

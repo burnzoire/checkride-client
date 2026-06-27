@@ -66,34 +66,13 @@
       </div>`;
   }
 
-  function renderOrdnance(telemetry, state) {
+  // Current payload — what's loaded right now (raw GetAmmo rows). Distinct from
+  // "Weapons Fired" (what's been launched), which the tracker view owns.
+  function renderOrdnance(telemetry) {
     const payload = Array.isArray(telemetry.payload) ? telemetry.payload : [];
-    const weapons = Array.isArray(state.weapons) ? state.weapons : [];
 
-    let html = '<div class="state-section"><div class="section-title">Ordnance</div>';
+    let html = '<div class="state-section"><div class="section-title">Payload</div>';
 
-    // In-flight weapons
-    if (weapons.length > 0) {
-      const rows = weapons.map(w => {
-        const name = escapeHtml(w.weaponDisplayName || w.weaponName || w.weaponClass || w.weaponKey || '?');
-        const statusLabel = w.inFlight ? 'IN FLIGHT' : (w.hitOrMiss ?? w.status ?? '—');
-        const statusColor = w.inFlight ? '#c8a03a' : w.hitOrMiss === 'hit' ? '#3a8f5c' : w.hitOrMiss === 'miss' ? '#e07b6b' : '#7a8394';
-        const dist = w.distanceNm != null ? fmt(w.distanceNm) + ' nm' : '—';
-        return `<tr>
-          <td style="font-size:11px">${name}</td>
-          <td style="font-size:11px;color:#7a8394">${escapeHtml(w.weaponClass || '—')}</td>
-          <td><span style="color:${statusColor};font-size:10px;font-weight:600">${statusLabel}</span></td>
-          <td style="font-size:11px;color:#7a8394;text-align:right">${dist}</td>
-        </tr>`;
-      }).join('');
-      html += `<div style="font-size:11px;color:#4d5464;margin-bottom:4px">Fired (${weapons.length})</div>
-        <table class="kills-table" style="margin-bottom:10px">
-          <thead><tr><th>Weapon</th><th>Class</th><th>Status</th><th style="text-align:right">Dist.</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>`;
-    }
-
-    // Current payload — raw GetAmmo rows
     if (payload.length > 0) {
       const rows = payload.map(item => {
         const name = escapeHtml(item.displayName || item.typeName || 'Unknown');
@@ -104,15 +83,12 @@
           <td style="font-size:11px;text-align:right">${item.count}</td>
         </tr>`;
       }).join('');
-      html += `<div style="font-size:11px;color:#4d5464;margin-bottom:4px">Current payload</div>
-        <table class="kills-table">
+      html += `<table class="kills-table">
           <thead><tr><th>Weapon</th><th>Type</th><th style="text-align:right">Qty</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>`;
-    }
-
-    if (weapons.length === 0 && payload.length === 0) {
-      html += '<div style="font-size:12px;color:#4d5464;font-style:italic">No ordnance data</div>';
+    } else {
+      html += '<div style="font-size:12px;color:#4d5464;font-style:italic">No payload data</div>';
     }
 
     html += '</div>';
@@ -150,14 +126,21 @@
   }
 
   function renderCombat(s) {
-    const killsHtml = s.kills && s.kills.length > 0
+    // Drop collateral/scenery hits: GameGUI counts them but they carry no unit identity
+    // (no type/id/roles) and aren't persisted to the API.
+    const kills = (s.kills || []).filter(k => k.victimTypeName || k.victimAirType);
+    const killsHtml = kills.length > 0
       ? `<table class="kills-table">
-           <thead><tr><th></th><th>Target</th><th>Weapon</th><th>At kill</th><th>Dist.</th></tr></thead>
-           <tbody>${s.kills.map(k => {
+           <thead><tr><th>Type</th><th>Target</th><th>Weapon</th><th>At kill</th><th>Carrier</th></tr></thead>
+           <tbody>${kills.map(k => {
              const targetName = escapeHtml(k.victimTypeName || k.victimAirType || '—');
              const subLabel = k.victimAirType === 'HELICOPTER' ? ' <span style="font-size:10px;color:#7a8394">HELO</span>' : '';
-             const weaponParts = [k.weaponClass, k.weaponGuidance].filter(v => v != null && v !== '');
-             const weaponDesc = escapeHtml(weaponParts.join(' / ') || '—');
+             // The launch-captured weapon name + raw descriptor metadata (e.g. guidance),
+             // not the broken getDesc class/guidance strings.
+             const meta = weaponMeta(k.weaponDescRaw);
+             const weaponDesc = k.weaponName
+               ? `${escapeHtml(k.weaponName)}${meta !== '—' ? ` <span style="color:#4d5464">${escapeHtml(meta)}</span>` : ''}`
+               : '—';
              const flags = [];
              if (k.night) flags.push('<span style="color:#7a8394;font-size:10px">NIGHT</span>');
              if (k.avengedFriendly) flags.push('<span style="color:#c8a03a;font-size:10px">AVENGER</span>');
@@ -250,18 +233,84 @@
       </div>`;
   }
 
+  const WEAPON_OUTCOME = {
+    in_flight: { label: 'IN FLIGHT', color: '#c8a03a' },
+    impacted: { label: 'IMPACTED', color: '#c8a03a' },
+    hit: { label: 'HIT', color: '#3a8f5c' },
+    killed: { label: 'KILLED', color: '#3a8f5c' },
+    miss: { label: 'MISS', color: '#e07b6b' },
+  };
+
+  // DCS Weapon.Category / Weapon.GuidanceType (the corrected, verified enum — 7 is LASER).
+  const WEAPON_CATEGORY = { 0: 'Shell', 1: 'Missile', 2: 'Rocket', 3: 'Bomb' };
+  const WEAPON_GUIDANCE = {
+    0: 'Unguided', 1: 'INS', 2: 'IR', 3: 'Active radar', 4: 'SARH',
+    5: 'Passive radar', 6: 'TV', 7: 'Laser', 8: 'Datalink',
+  };
+
+  // Compact descriptor summary from the raw getDesc() snapshot, e.g. "Missile · Laser".
+  function weaponMeta(descRaw) {
+    if (!descRaw || typeof descRaw !== 'object') return '—';
+    const parts = [];
+    if (descRaw.category != null) parts.push(WEAPON_CATEGORY[descRaw.category] || ('cat ' + descRaw.category));
+    if (descRaw.guidance != null) parts.push(WEAPON_GUIDANCE[descRaw.guidance] || ('guidance ' + descRaw.guidance));
+    if (descRaw.warheadMass != null) parts.push(fmt(descRaw.warheadMass) + 'kg');
+    return parts.length ? parts.join(' · ') : '—';
+  }
+
+  // The single source of weapon state — the client WeaponTracker's shots with their
+  // event-driven outcome. Replaces the old separate "fired" / "shot tracker" views.
+  // This is exactly what drives the client-authoritative kill attribution.
+  function renderWeaponTracker(pilot) {
+    const shots = Array.isArray(pilot && pilot.weapons) ? pilot.weapons : [];
+    const gunBurst = pilot && pilot.gunBurst;
+    const weaponLabel = (s) => s.weaponDisplayName || s.weaponName || '?';
+    let html = '<div class="state-section"><div class="section-title">Weapons Fired</div>';
+
+    if (gunBurst) {
+      const label = gunBurst.active ? 'FIRING' : 'recent';
+      const color = gunBurst.active ? '#c8a03a' : '#7a8394';
+      html += `<div style="font-size:11px;margin-bottom:6px">Gun burst:
+        <span style="color:${color};font-weight:600">${escapeHtml(gunBurst.weaponName || 'gun')} (${label})</span></div>`;
+    }
+
+    if (shots.length === 0) {
+      html += '<div style="font-size:12px;color:#4d5464;font-style:italic">No weapons fired</div></div>';
+      return html;
+    }
+
+    const rows = shots.map(s => {
+      const name = escapeHtml(weaponLabel(s));
+      const outcome = WEAPON_OUTCOME[s.outcome] || { label: String(s.outcome || '—').toUpperCase(), color: '#7a8394' };
+      const dist = s.distanceNm != null ? fmt(s.distanceNm) + ' nm' : '—';
+      return `<tr>
+        <td style="font-size:11px">${name}</td>
+        <td><span style="color:${outcome.color};font-size:10px;font-weight:600">${outcome.label}</span></td>
+        <td style="font-size:11px;color:#7a8394">${escapeHtml(weaponMeta(s.descRaw))}</td>
+        <td style="font-size:11px;color:#7a8394;text-align:right">${dist}</td>
+      </tr>`;
+    }).join('');
+
+    html += `<table class="kills-table">
+        <thead><tr><th>Weapon</th><th>Outcome</th><th>Metadata</th><th style="text-align:right">Dist.</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    return html;
+  }
+
   function renderPilotState(pilot) {
     if (!pilot || !pilot.state) {
       return '<div id="no-selection">No state available</div>';
     }
-    const { telemetry, state, gauges } = pilot.state;
+    const { telemetry, state, gauges, weaponsFired, gunBurst } = pilot.state;
     return `
       <div style="padding-bottom:8px;border-bottom:1px solid #2e3340;margin-bottom:16px">
         <div style="font-size:15px;font-weight:600;color:#dde3ee">${pilot.name}</div>
         <div style="font-size:11px;color:#4d5464;margin-top:2px">${pilot.ucid}</div>
       </div>
       ${renderTelemetry(telemetry)}
-      ${renderOrdnance(telemetry, state)}
+      ${renderWeaponTracker({ weapons: weaponsFired, gunBurst })}
+      ${renderOrdnance(telemetry)}
       ${renderMissiles(state)}
       ${renderCombat(state)}
       ${renderSession(state)}
@@ -284,6 +333,7 @@
     renderRefuel,
     renderNavigation,
     renderGauges,
+    renderWeaponTracker,
     renderPilotState,
   };
 }));

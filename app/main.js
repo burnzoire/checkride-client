@@ -8,6 +8,7 @@ const { SortieLogger } = require('./services/sortieLogger');
 const store = require('./config');
 const { showSettingsWindow } = require('./windows/settingsWindow');
 const { showTelemetryWindow } = require('./windows/telemetryWindow');
+const { version: APP_VERSION } = require('./package.json');
 
 if (app.isPackaged) {
   delete process.env.DISCORD_INSECURE_TLS;
@@ -28,6 +29,7 @@ let eventProcessor;
 let gaugeSync;
 let sortieLogger;
 let achievementEngine;
+let weaponTracker;
 let healthChecker;
 let isQuitting = false;
 let updateReady = false;
@@ -182,6 +184,14 @@ function initAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = false;
 
+  // Always follow the stable (`latest`) channel, even when the running build is itself a
+  // prerelease. electron-updater otherwise auto-enables allowPrerelease for beta builds,
+  // which pins them to prerelease releases and stops them rolling forward to prod. With
+  // this, a manually-installed beta auto-updates to the next stable release (and won't
+  // downgrade — a higher beta version simply waits for stable to pass it).
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.channel = 'latest';
+
   autoUpdater.on('update-available', () => {
     if (manualUpdateCheck) {
       manualUpdateCheck = false;
@@ -273,6 +283,7 @@ async function bootstrap() {
   eventProcessor = appInitResult.eventProcessor;
   gaugeSync = appInitResult.gaugeSync;
   achievementEngine = appInitResult.achievementEngine;
+  weaponTracker = appInitResult.weaponTracker;
   healthChecker = appInitResult.healthChecker;
 
   setApplicationMenu();
@@ -384,7 +395,44 @@ ipcMain.handle('api:health', () => {
 
 ipcMain.handle('telemetry:snapshot', () => {
   if (!achievementEngine) return { pilots: [] };
-  return { pilots: achievementEngine.getAllPilotSnapshots() };
+  const pilots = achievementEngine.getAllPilotSnapshots();
+  // The shot tracker is the single weapon-state source for telemetry. Attach its view
+  // INSIDE pilot.state so it flows through the renderer's history/scrubber path (which
+  // only carries `state`). Per-kill weapon comes from the kill record itself (Combat),
+  // not a victim-id correlation — DCS shots have no reliable victim link.
+  if (weaponTracker) {
+    for (const pilot of pilots) {
+      if (!pilot.state) continue;
+      const weapons = weaponTracker.trackedShots(pilot.ucid);
+      pilot.state.weaponsFired = weapons;
+      pilot.state.gunBurst = weaponTracker.gunBurst(pilot.ucid);
+
+      // The kill_enrichment often lacks the weapon descriptor (the mission script's desc
+      // capture fails, esp. on the first shot), but the tracker has it. Backfill any real
+      // kill missing a descriptor from a credited shot, in order — collateral kills have
+      // no victim and are skipped; same-weapon kills make ordering moot.
+      //
+      // serializeState returns kills by REFERENCE to the live PilotState, so we map to
+      // shallow copies and only ever mutate copies — this backfill is display-only and
+      // must not leak into live state.
+      const kills = pilot.state.state?.kills;
+      if (Array.isArray(kills)) {
+        const killedShots = weapons.filter((s) => s.outcome === 'killed');
+        let si = 0;
+        pilot.state.state.kills = kills.map((kill) => {
+          const copy = { ...kill };
+          if (!copy.victimTypeName && !copy.victimAirType) return copy; // collateral
+          if (!copy.weaponDescRaw && si < killedShots.length) {
+            const shot = killedShots[si++];
+            copy.weaponName = copy.weaponName || shot.weaponDisplayName || shot.weaponName;
+            copy.weaponDescRaw = shot.descRaw;
+          }
+          return copy;
+        });
+      }
+    }
+  }
+  return { pilots };
 });
 
 ipcMain.handle('sortie:open-file', async () => {
@@ -399,6 +447,13 @@ ipcMain.handle('sortie:open-file', async () => {
 });
 
 app.whenReady().then(async () => {
+  // The native About panel on Windows defaults to the executable's 4-part file
+  // version (e.g. 1.5.6.0), which drops the semver prerelease tag. Show the real
+  // package version (e.g. 1.5.6-beta3) instead.
+  app.setAboutPanelOptions({
+    applicationName: app.name,
+    applicationVersion: APP_VERSION,
+  });
   await bootstrap();
   if (app.isPackaged) {
     initAutoUpdater();

@@ -126,6 +126,12 @@ class PilotState {
       victimTypeName:      event.victimTypeName ?? null,
       victimObjectId:      event.victimObjectId ?? null,
       weaponClass:         event.weaponClass ?? null,
+      // Display name from the launch-captured descriptor (e.g. "AGM-114K"). The mission
+      // script's class/guidance go through broken enum tables, so prefer the raw name.
+      weaponName:          event.weaponDescRaw?.displayName ?? event.weaponName ?? null,
+      // Raw descriptor (category/guidance/warhead) for the telemetry metadata. Often
+      // absent on the enrichment (first-shot desc capture misses) — the tracker backfills.
+      weaponDescRaw:       event.weaponDescRaw ?? null,
       // Fratricide = confirmed same-coalition (friendly) kill. The mission Lua
       // sends isEnemy as true (enemy) / false (confirmed friendly) / absent
       // (coalition unreadable), so fratricide is true ONLY when isEnemy === false.

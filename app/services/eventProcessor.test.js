@@ -224,6 +224,66 @@ describe('EventProcessor', () => {
 
     expect(result.event.event_data).toEqual({});
   });
+
+  it('forwards the Lua-sourced metadata into event_data.metadata', () => {
+    const luaMetadata = {
+      killer: { unit_type: 'F-15C', family: 'F-15', domain: 'air', category: 'jet', role: 'a2a' },
+      victim: { unit_type: 'Su-27', family: 'Su-27', domain: 'air', category: 'jet', role: 'a2a' },
+      weapon: { weapon_name: 'AIM-120C', weapon_category: 'MISSILE', weapon_guidance: 'RADAR_ACTIVE' }
+    };
+
+    const result = processor.process(
+      { type: 'kill', metadata: luaMetadata },
+      { event: { event_type: 'kill', event_data: { killer_ucid: 'abc' } } }
+    );
+
+    expect(result.event.event_data.metadata).toEqual(luaMetadata);
+  });
+
+  it('does not attach a metadata namespace when the event carries none', () => {
+    const result = processor.process(
+      { type: 'connect' },
+      { event: { event_type: 'connect', event_data: { player_ucid: 'abc' } } }
+    );
+
+    expect(result.event.event_data).not.toHaveProperty('metadata');
+  });
+
+  it('attaches metadata after computing the event_uid so the dedup key is unaffected', () => {
+    const luaMetadata = { weapon: { weapon_name: 'AIM-9', weapon_category: 'MISSILE' } };
+
+    const result = processor.process(
+      { type: 'kill', metadata: luaMetadata },
+      { event: { event_type: 'kill', event_data: { killer_ucid: 'abc' } } }
+    );
+
+    // event_uid is derived from the event WITHOUT the metadata namespace.
+    const { event_uid: uid, ...eventWithoutUid } = result.event;
+    const { metadata, ...dataWithoutMetadata } = eventWithoutUid.event_data;
+    const expectedUid = actualUuid.v5(
+      stableStringify({ ...eventWithoutUid, event_data: dataWithoutMetadata }),
+      EVENT_NAMESPACE
+    );
+
+    expect(metadata).toEqual(luaMetadata);
+    expect(uid).toBe(expectedUid);
+  });
+
+  it('forwards the GameGUI DCS attribute lists into event_data.metadata', () => {
+    const result = processor.process(
+      {
+        type: 'kill',
+        killerUnitAttributes: ['Air', 'Planes', 'Multirole fighters'],
+        victimUnitAttributes: ['Air', 'Planes', 'Fighters']
+      },
+      { event: { event_type: 'kill', event_data: { killer_ucid: 'abc' } } }
+    );
+
+    expect(result.event.event_data.metadata).toEqual({
+      killer: { attributes: ['Air', 'Planes', 'Multirole fighters'] },
+      victim: { attributes: ['Air', 'Planes', 'Fighters'] }
+    });
+  });
 });
 
 describe('stableStringify', () => {

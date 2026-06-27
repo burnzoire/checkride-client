@@ -1,6 +1,6 @@
 jest.mock('electron-log', () => ({ info: jest.fn(), error: jest.fn() }));
 
-const { renderPilotState, fmt, fmtPct } = require('./telemetryRenderFns');
+const { renderPilotState, renderWeaponTracker, renderCombat, fmt, fmtPct } = require('./telemetryRenderFns');
 const AchievementEngine = require('../services/achievementEngine');
 const PilotState = require('../services/pilotState');
 
@@ -104,6 +104,67 @@ describe('telemetryRenderFns — all serialized fields are visible', () => {
     it('renders longest refuel contact', () => expect(html).toContain(fmt(60.5)));
     it('renders sortie distance in gauges', () => expect(html).toContain(fmt(111.1)));
     it('renders NOE distance in gauges', () => expect(html).toContain(fmt(22.2)));
+  });
+});
+
+// ─── Combat kills table ──────────────────────────────────────────────────────
+
+describe('renderCombat', () => {
+  it('drops collateral kills with no victim identity and shows the weapon + metadata', () => {
+    const html = renderCombat({
+      kills: [
+        { victimUnitCategory: 'ground', victimTypeName: 'T-55', weaponName: 'AGM-114K', weaponDescRaw: { category: 1, guidance: 7 } },
+        { victimUnitCategory: 'other' }, // collateral / scenery — filtered out
+      ],
+    });
+    expect(html).toContain('T-55');
+    expect(html).toContain('AGM-114K');
+    expect(html).toContain('Missile · Laser');
+    // Header row + the single real kill row; the collateral kill is filtered out.
+    expect((html.match(/<tr>/g) || []).length).toBe(2);
+  });
+
+  it('shows the empty state when there are only collateral kills', () => {
+    const html = renderCombat({ kills: [{ victimUnitCategory: 'other' }] });
+    expect(html).toContain('No kills this sortie');
+  });
+});
+
+// ─── Shot Tracker (attribution) ──────────────────────────────────────────────
+
+describe('renderWeaponTracker', () => {
+  it('shows the empty state when no weapons have been fired', () => {
+    expect(renderWeaponTracker({ weapons: [] })).toContain('No weapons fired');
+    expect(renderWeaponTracker({})).toContain('No weapons fired');
+  });
+
+  it('renders each fired weapon with its outcome, metadata and distance', () => {
+    const html = renderWeaponTracker({
+      weapons: [
+        { weaponName: 'AGM-114K', outcome: 'killed', distanceNm: 3.4, descRaw: { category: 1, guidance: 7 } },
+        { weaponName: 'AIM-9X', outcome: 'in_flight' },
+        { weaponName: 'AIM-120C', outcome: 'miss' },
+      ],
+    });
+    expect(html).toContain('AGM-114K');
+    expect(html).toContain('KILLED');
+    expect(html).toContain('3.4 nm');
+    expect(html).toContain('IN FLIGHT');
+    expect(html).toContain('MISS');
+    expect(html).toContain('Missile · Laser'); // guidance 7 → Laser (corrected enum)
+  });
+
+  it('escapes weapon names', () => {
+    const html = renderWeaponTracker({ weapons: [{ weaponName: '<script>', outcome: 'in_flight' }] });
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).not.toContain('<script>');
+  });
+
+  it('shows an active gun burst with its weapon type', () => {
+    const html = renderWeaponTracker({ weapons: [], gunBurst: { weaponName: 'GAU-8', active: true } });
+    expect(html).toContain('Gun burst');
+    expect(html).toContain('GAU-8');
+    expect(html).toContain('FIRING');
   });
 });
 

@@ -167,6 +167,28 @@ describe("Checkride game events (GameGUI)", function()
             assert.are.equal(1, #captured)
             assert.are.equal("kill", captured[1].type)
         end)
+
+        it("marks killerIsAi=false and victimIsAi=true when a player kills AI", function()
+            local captured = loader.capture_events()
+            Checkride.onKill(0, 1, "F/A-18C", 2, 99, "MiG-29", 1, "AIM-9")
+            assert.is_false(captured[1].killerIsAi)
+            assert.is_true(captured[1].victimIsAi)
+        end)
+
+        it("marks killerIsAi=true when AI kills a player", function()
+            local captured = loader.capture_events()
+            -- killerPlayerID 99 not in clients → AI killer; victim is player 2
+            Checkride.onKill(0, 99, "MiG-29", 1, 2, "F-14A", 2, "R-27")
+            assert.is_true(captured[1].killerIsAi)
+            assert.is_false(captured[1].victimIsAi)
+        end)
+
+        it("marks both AI flags false for a player-vs-player kill", function()
+            local captured = loader.capture_events()
+            Checkride.onKill(0, 1, "F/A-18C", 2, 2, "F-14A", 1, "AIM-120")
+            assert.is_false(captured[1].killerIsAi)
+            assert.is_false(captured[1].victimIsAi)
+        end)
     end)
 
     -- -------------------------------------------------------------------------

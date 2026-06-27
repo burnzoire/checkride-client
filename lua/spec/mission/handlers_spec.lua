@@ -138,6 +138,7 @@ describe("CheckrideMission.onTakeoff", function()
         assert.are.equal(1, #captured)
         assert.are.equal("takeoff_enrichment", captured[1].type)
         assert.is_false(captured[1].launchedFromCarrier)
+        assert.are.equal(Airbase.Category.AIRDROME, captured[1].airbaseCategory)
     end)
 
     it("emits takeoff_enrichment with launchedFromCarrier = true for a carrier", function()
@@ -152,6 +153,17 @@ describe("CheckrideMission.onTakeoff", function()
         assert.are.equal(1, #captured)
         assert.are.equal("takeoff_enrichment", captured[1].type)
         assert.is_true(captured[1].launchedFromCarrier)
+        assert.are.equal(Airbase.Category.SHIP, captured[1].airbaseCategory)
+    end)
+
+    it("forwards airbaseCategory HELIPAD for a FARP takeoff (not a carrier)", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick")
+        local farp = stubs.make_unit({ name = "FARP London", desc = { category = Airbase.Category.HELIPAD } })
+        CheckrideMission.onTakeoff({ initiator = initiator, place = farp, time = 100 })
+
+        assert.are.equal(Airbase.Category.HELIPAD, captured[1].airbaseCategory)
+        assert.is_false(captured[1].launchedFromCarrier)
     end)
 
     it("stores carrier reference in pilotCarrierByUcid on carrier takeoff", function()
@@ -214,12 +226,14 @@ describe("CheckrideMission.onLand", function()
         local base = stubs.make_unit({
             name      = "Batumi",
             coalition = 2,  -- same as pilot
+            desc      = { category = Airbase.Category.AIRDROME },
         })
         CheckrideMission.onLand({ initiator = initiator, place = base, time = 300 })
 
         assert.are.equal(1, #captured)
         assert.is_true(captured[1].landedAtFriendlyBase)
         assert.is_true(captured[1].landedAtAirbase)
+        assert.are.equal(Airbase.Category.AIRDROME, captured[1].airbaseCategory)
     end)
 end)
 
@@ -459,5 +473,63 @@ describe("CheckrideMission.onKill", function()
         assert.are.equal("AAM", kill_ev.weaponClass)
         -- pending was nil → this was the killing shot; it should be consumed.
         assert.is_nil(CheckrideMission.activeWeaponShots["phoenix"])
+    end)
+
+end)
+
+describe("CheckrideMission.onShootingStart / onShootingEnd", function()
+    setup(function()
+        loader.load()
+    end)
+
+    before_each(function()
+        loader.reset_state()
+        _G.CheckrideLookupUCID = function(name)
+            if name == "Maverick" then return "ucid-mav" end
+        end
+    end)
+
+    -- The shooting handlers report raw context only; the client builds state and
+    -- decides attribution.
+    it("emits gun_burst_start with the resolved weapon name", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick")
+        local gun = stubs.make_weapon({ typeName = "weapons.guns.GSh_301" })
+        CheckrideMission.onShootingStart({ initiator = initiator, weapon = gun, time = 100 })
+
+        local start_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "gun_burst_start" then start_ev = c end
+        end
+        assert.is_not_nil(start_ev)
+        assert.are.equal("weapons.guns.GSh_301", start_ev.weaponName)
+        assert.are.equal(100, start_ev.startAtMs)
+    end)
+
+    it("falls back to event.weapon_name when there is no weapon object", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick")
+        CheckrideMission.onShootingStart({ initiator = initiator, weapon = nil, weapon_name = "M_61", time = 100 })
+
+        local start_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "gun_burst_start" then start_ev = c end
+        end
+        assert.is_not_nil(start_ev)
+        assert.are.equal("M_61", start_ev.weaponName)
+    end)
+
+    it("emits gun_burst_end with ammo consumption", function()
+        local captured = loader.capture_events()
+        local initiator = player_unit("Maverick")
+        CheckrideMission.onShootingEnd({ initiator = initiator, weapon_name = "M_61", ammo_consumption = 42, time = 102 })
+
+        local end_ev = nil
+        for _, c in ipairs(captured) do
+            if c.type == "gun_burst_end" then end_ev = c end
+        end
+        assert.is_not_nil(end_ev)
+        assert.are.equal(42, end_ev.ammoConsumption)
+        assert.are.equal("M_61", end_ev.weaponName)
     end)
 end)

@@ -4,6 +4,9 @@ const UDPServer = require('./services/udpServer');
 const GaugeSync = require('./services/gaugeSync');
 const { EventProcessor } = require('./services/eventProcessor');
 const AchievementEngine = require('./services/achievementEngine');
+const { KillEventQueue } = require('./services/killEventQueue');
+const { createTakeoffLandingQueues } = require('./services/takeoffLandingQueue');
+const { WeaponTracker } = require('./services/weaponTracker');
 const { EventFactory, InvalidEventTypeError } = require('./factories/eventFactory');
 const { APIClient } = require('./clients/apiClient');
 const { HealthChecker } = require('./services/healthChecker');
@@ -153,11 +156,46 @@ function buildBaseUrl(useSsl, host, port) {
   return `${scheme}://${host}${portSuffix}`;
 }
 
-function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, sortieLogger, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl }) {
+function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, sortieLogger, eventProcessor, achievementEngine, weaponTracker, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl }) {
   const processor = eventProcessor || new EventProcessor();
   const engine = achievementEngine || new AchievementEngine();
   const warnedMismatchKeys = new Set();
   const welcomedUcids = new Set();
+  // Tracks each player's in-flight shots (from `shot_enrichment`) so a kill can be
+  // attributed to the exact weapon that hit — a key-match, not a guess. This is the
+  // client-authoritative source of truth for kill weapons.
+  const tracker = weaponTracker || new WeaponTracker();
+  // Queues persisted kills until their mission `kill_enrichment` (separate,
+  // unordered, persist=false) arrives so its DCS-sourced weapon/victim taxonomy
+  // can be folded on; releases on arrival or after a short deadline. At the
+  // rendezvous it asks `weaponTracker` to attribute the weapon (overriding the
+  // mission script's kill-time getDesc(), which is unreliable for guns/clusters).
+  const killEventQueue = new KillEventQueue({
+    missionScriptingEnabled: () => store.get('mission_scripting_enabled') !== false,
+    resolveWeapon: ({ killerUcid, victimObjectId, weaponName, victimPositionX, victimPositionY }) => {
+      // Match the kill to a tracked shot (by name when ids/hit-links are absent, which
+      // is the norm). Marks the shot 'killed' for the telemetry view, supplies the
+      // launch-captured desc_raw (also fixes the first-kill missing desc), and — from the
+      // victim's death position — computes the launch→death engagement range.
+      const match = tracker.matchKill({ killerUcid, victimObjectId, weaponName, victimPositionX, victimPositionY });
+      if (match) {
+        return match.descRaw != null ? { desc_raw: match.descRaw } : null;
+      }
+      // No named weapon / no tracked shot — likely a gun or cluster kill (GameGUI
+      // reports those weaponless). Decide guns only when unambiguous.
+      const gun = tracker.matchGunKill({ killerUcid });
+      if (gun && gun.weaponName != null) {
+        return { weapon_name: gun.weaponName, attribution: 'gun' };
+      }
+      return null;
+    },
+  });
+  // Same rendezvous for takeoff/landing: hold the persisted GameGUI event until its
+  // mission enrichment lands, folding the DCS Airbase.Category (airdrome/FARP/ship) the
+  // GameGUI environment can't read onto event.metadata.
+  const { takeoffQueue, landingQueue } = createTakeoffLandingQueues({
+    missionScriptingEnabled: () => store.get('mission_scripting_enabled') !== false,
+  });
   // Built from connect/change_slot events so mission-script events with null playerUcid
   // (due to the async CheckridePlayers injection race) can still be attributed correctly.
   const ucidByName = new Map();
@@ -176,6 +214,36 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
     if (!event.playerUcid && event.killerUcid) {
       event.playerUcid = event.killerUcid;
       event.playerName = event.killerName;
+    }
+
+    if (event.type === 'kill_enrichment') {
+      killEventQueue.recordEnrichment(event);
+    }
+    if (event.type === 'takeoff_enrichment') {
+      takeoffQueue.recordEnrichment(event);
+    }
+    if (event.type === 'landing_enrichment') {
+      landingQueue.recordEnrichment(event);
+    }
+
+    // Feed the shot tracker so kills can be key-matched to the weapon that hit.
+    if (event.type === 'shot_enrichment') {
+      tracker.recordShot(event);
+    }
+    if (event.type === 'weapon_sample_enrichment') {
+      tracker.recordSample(event);
+    }
+    if (event.type === 'hit_enrichment') {
+      tracker.recordHit({
+        playerUcid: event.playerUcid,
+        weaponObjectId: event.weaponObjectId,
+        targetObjectId: event.targetObjectId,
+        distanceNm: event.distanceNm,
+        weaponName: event.weaponName,
+      });
+    }
+    if (event.type === 'gun_burst_start' || event.type === 'gun_burst_end') {
+      tracker.recordGunBurst(event);
     }
 
     if (event.type === 'flight_sample_enrichment' && !event.playerUcid && newRelicClient) {
@@ -266,7 +334,13 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
 
     let unlockedAchievements = [];
 
-    return EventFactory.create(event)
+    // Persisted kills are queued rather than sent inline: the mission script's
+    // DCS-sourced weapon/victim taxonomy arrives separately (persist=false
+    // kill_enrichment), so the queue holds the kill until that lands — folding it
+    // onto event.metadata — or releases it after a short deadline if none comes.
+    // `kill` drives no achievement evaluation (no dispatch entry), so deferring
+    // only delays the API save + summary, nothing else.
+    const runPipeline = () => EventFactory.create(event)
       .then(gameEvent => {
         const preparedPayload = gameEvent.prepare();
         if (!preparedPayload) {
@@ -363,6 +437,17 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
         }
         log.error(error);
       });
+
+    if (event.type === 'kill') {
+      return killEventQueue.submitKill(event, runPipeline);
+    }
+    if (event.type === 'takeoff') {
+      return takeoffQueue.submit(event, runPipeline);
+    }
+    if (event.type === 'landing') {
+      return landingQueue.submit(event, runPipeline);
+    }
+    return runPipeline();
   }
 }
 
@@ -386,6 +471,7 @@ async function initApp({ onLuaVersionMismatch, sortieLogger } = {}) {
 
   const eventProcessor = new EventProcessor()
   const achievementEngine = new AchievementEngine()
+  const weaponTracker = new WeaponTracker()
   const gaugeSync = new GaugeSync(apiClient)
 
   const newRelicClient = new NewRelicClient(process.env.NEW_RELIC_LICENSE_KEY);
@@ -398,7 +484,7 @@ async function initApp({ onLuaVersionMismatch, sortieLogger } = {}) {
   });
 
   const pilotProgressionUrl = `${useSsl ? 'https' : 'http'}://${apiHost}`;
-  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, sortieLogger, eventProcessor, achievementEngine, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl })
+  attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, sortieLogger, eventProcessor, achievementEngine, weaponTracker, onLuaVersionMismatch, newRelicClient, pilotProgressionUrl })
 
   const healthChecker = new HealthChecker(apiClient, store, undefined, (healthy) => {
     newRelicClient.recordLog('api health state changed', {
@@ -419,7 +505,7 @@ async function initApp({ onLuaVersionMismatch, sortieLogger } = {}) {
   const heartbeatService = new HeartbeatService(apiClient, undefined, () => connectedPlayerCount, newRelicClient)
   heartbeatService.start()
 
-  return { udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, healthChecker, heartbeatService };
+  return { udpServer, apiClient, discordClient, dcsChatClient, gaugeSync, eventProcessor, achievementEngine, weaponTracker, healthChecker, heartbeatService };
 }
 
 module.exports = { initApp, attachEventPipeline, buildBaseUrl };

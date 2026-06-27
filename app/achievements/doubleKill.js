@@ -1,6 +1,7 @@
 const Achievement = require('./achievement');
+const { ARMOUR_ROLES: ARMOUR_ROLE_LIST } = require('../constants/dcsRoles');
 
-const ARMOUR_ROLES = new Set(['Armour', 'Tanks', 'IFV', 'APC']);
+const ARMOUR_ROLES = new Set(ARMOUR_ROLE_LIST);
 const SAME_EXPLOSION_WINDOW_S = 0.1;
 
 function isArmourKill(kill) {

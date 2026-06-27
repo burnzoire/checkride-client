@@ -196,14 +196,20 @@ local MPS_TO_KNOTS = 1.9438444924406
 local METERS_TO_FEET = 3.2808398950131
 local METERS_TO_NM = 0.00053995680345572
 
+-- DCS Weapon.GuidanceType (a C++-exposed enum, not defined in any Lua file). The prior
+-- table was hand-guessed and wrong (it had 7=IR/8=LASER); the real enum — confirmed by a
+-- semi-active-laser AGM-114K reporting guidance 7 — is below. The dumpWeaponEnums() probe
+-- logs the live table at load so this stays honest against DCS/mod changes.
 local GUIDANCE_NAMES = {
-    [0]  = "NONE",
-    [4]  = "RADAR_ACTIVE",
-    [5]  = "RADAR_SEMI_ACTIVE",
-    [6]  = "RADAR_PASSIVE",
-    [7]  = "IR",
-    [8]  = "LASER",
-    [9]  = "TV",
+    [0] = "NONE",
+    [1] = "INS",
+    [2] = "IR",
+    [3] = "RADAR_ACTIVE",
+    [4] = "RADAR_SEMI_ACTIVE",
+    [5] = "RADAR_PASSIVE",
+    [6] = "TV",
+    [7] = "LASER",
+    [8] = "TELE",
 }
 
 -- Maps Weapon.Category integer → string name.
@@ -215,14 +221,18 @@ local WEAPON_CATEGORY_NAMES = {
     [4] = "TORPEDO",
 }
 
--- Maps Weapon.MissileCategory integer → string name.
+-- Maps Weapon.MissileCategory integer → string name, per Hoggit (wiki.hoggitworld.com/
+-- view/DCS_enum_weapon — the same source that got guidance LASER=7 right). [5]=CRUISE,
+-- not "ARM": this runtime enum has no ARM member (that's a separate Mission Editor
+-- payload-filter category). Anti-radiation missiles (AGM-88 HARM) report [6]=OTHER, the
+-- same bucket the AGM-114K confirmed. dumpWeaponEnums logs the live table to double-check.
 -- Missiles matching a sub-category return that name instead of "MISSILE".
 local MISSILE_CATEGORY_NAMES = {
     [1] = "AAM",
     [2] = "SAM",
     [3] = "BM",
     [4] = "ANTI_SHIP",
-    [5] = "ARM",
+    [5] = "CRUISE",
     [6] = "OTHER",
 }
 
@@ -1045,15 +1055,21 @@ function CheckrideMission.trackRefuelFromFuelSample(entry, unitType, currentFuel
     active.unitRef = entry.unit or active.unitRef
 end
 
+-- TODO(revise): in-Lua role classification — curated allow-list that drives a live
+-- feature (the non-lethal SEAD/anti-armor hit counter). It's proven flaky and only
+-- recognizes a hand-picked attribute subset. Direction is to forward raw attributes
+-- and classify server-side; replace this when the backend attribute->category map
+-- lands rather than expanding the list piecemeal.
 local function getRoleCoalition(target, initiatorCoalition)
     local okDesc, desc = pcall(function() return target:getDesc() end)
     if not okDesc or not desc then return nil end
     local attrs = desc.attributes or {}
 
     local role = nil
-    if attrs["SAM SR"] or attrs["SAM TR"] or attrs["SAM launcher"] then role = "sam"
-    elseif attrs["Armour"] or attrs["Tanks"] or attrs["IFV"] or attrs["APC"] then role = "armour"
-    elseif attrs["AAA"] then role = "aaa"
+    if attrs["SAM TR"] or attrs["SAM SR"] or attrs["SAM LL"] or attrs["SAM CC"]
+       or attrs["LR SAM"] or attrs["MR SAM"] or attrs["SR SAM"] then role = "sam"
+    elseif attrs["Tanks"] or attrs["Modern Tanks"] or attrs["Old Tanks"] or attrs["IFV"] or attrs["APC"] then role = "armour"
+    elseif attrs["Static AAA"] or attrs["Mobile AAA"] or attrs["AAA"] then role = "aaa"
     elseif attrs["Artillery"] then role = "artillery"
     elseif attrs["MLRS"] then role = "mlrs"
     elseif attrs["Infantry"] then role = "infantry"
@@ -1090,6 +1106,30 @@ local function classifyWeaponClass(weapon)
     end
 
     return categoryName
+end
+
+-- Snapshot the raw weapon getDesc() fields verbatim — no interpretation. The backend
+-- decides what these mean; this avoids leaning on classifyWeaponClass / the enum name
+-- tables, which have proven both wrong (AGM-114K laser -> IR) and flaky. Capture
+-- wherever the weapon still exists; launch (onShot) is the reliable point.
+local function rawWeaponDesc(weapon)
+    if not weapon then return nil end
+    local okDesc, desc = pcall(function() return weapon:getDesc() end)
+    if not okDesc or type(desc) ~= "table" then return nil end
+
+    local snapshot = {
+        category        = desc.category,
+        missileCategory = desc.missileCategory,
+        guidance        = desc.guidance,
+        displayName     = desc.displayName,
+    }
+    if type(desc.warhead) == "table" then
+        snapshot.warheadType          = desc.warhead.type
+        snapshot.warheadMass          = desc.warhead.mass
+        snapshot.warheadCaliber       = desc.warhead.caliber
+        snapshot.warheadExplosiveMass = desc.warhead.explosiveMass
+    end
+    return snapshot
 end
 
 local function isAirToAirMissileClass(weaponClass)
@@ -1296,17 +1336,37 @@ function CheckrideMission.EventHandler:onEvent(event)
     end
 end
 
+-- Resolve the gun/weapon name from a shooting event. Guns have no Weapon object, so
+-- the identity comes from the event: event.weapon may be a Weapon object (resolve via
+-- getTypeName) or already a type string; event.weapon_name is the string form. Captured
+-- defensively here — the soak confirms which one DCS actually populates.
+local function shootingWeaponName(event)
+    local w = event.weapon
+    if type(w) == "string" and w ~= "" then return w end
+    if w ~= nil then
+        local ok, name = pcall(function() return w:getTypeName() end)
+        if ok and type(name) == "string" and name ~= "" then return name end
+    end
+    if type(event.weapon_name) == "string" and event.weapon_name ~= "" then
+        return event.weapon_name
+    end
+    return nil
+end
+
 function CheckrideMission.onShootingStart(event)
     local initiator = event.initiator
     if not initiator then return end
     local playerName, _, ucid = CheckrideMission.getPlayerInfo(initiator)
     if not playerName then return end
+
+    -- Context only — the client builds state from this and decides attribution.
     CheckrideMission.sendEnrichmentEvent({
-        type       = "gun_burst_start",
-        source     = "mission",
-        playerUcid = ucid,
-        playerName = playerName,
-        startAtMs  = event.time,
+        type        = "gun_burst_start",
+        source      = "mission",
+        playerUcid  = ucid,
+        playerName  = playerName,
+        weaponName  = shootingWeaponName(event),
+        startAtMs   = event.time,
         missionTime = event.time,
     })
 end
@@ -1316,13 +1376,16 @@ function CheckrideMission.onShootingEnd(event)
     if not initiator then return end
     local playerName, _, ucid = CheckrideMission.getPlayerInfo(initiator)
     if not playerName then return end
+
     CheckrideMission.sendEnrichmentEvent({
-        type       = "gun_burst_end",
-        source     = "mission",
-        playerUcid = ucid,
-        playerName = playerName,
-        endAtMs    = event.time,
-        missionTime = event.time,
+        type            = "gun_burst_end",
+        source          = "mission",
+        playerUcid      = ucid,
+        playerName      = playerName,
+        weaponName      = shootingWeaponName(event),
+        ammoConsumption = event.ammo_consumption,
+        endAtMs         = event.time,
+        missionTime     = event.time,
     })
 end
 
@@ -1348,14 +1411,18 @@ function CheckrideMission.onShot(event)
         local guidance = wDesc.guidance
         if not guidance or guidance == 0 then return end  -- unguided, skip
 
+        -- TODO(revise): same curated/flaky in-Lua role classification as
+        -- getRoleCoalition (drives the inbound-missile warning). Replace with raw
+        -- attribute forwarding + server-side classification when the map lands.
         local role = nil
         local okIDesc, iDesc = pcall(function() return initiator:getDesc() end)
         if okIDesc and iDesc then
             local attrs = iDesc.attributes or {}
-            if attrs["SAM SR"] or attrs["SAM TR"] or attrs["SAM launcher"] then role = "SAM"
-            elseif attrs["AAA"] then role = "AAA"
+            if attrs["SAM TR"] or attrs["SAM SR"] or attrs["SAM LL"] or attrs["SAM CC"]
+               or attrs["LR SAM"] or attrs["MR SAM"] or attrs["SR SAM"] then role = "SAM"
+            elseif attrs["Static AAA"] or attrs["Mobile AAA"] or attrs["AAA"] then role = "AAA"
             elseif attrs["Fighters"] or attrs["Multirole fighters"] or attrs["Bombers"] then role = "FIGHTER"
-            elseif attrs["Helicopters"] then role = "HELICOPTER"
+            elseif attrs["Attack helicopters"] or attrs["Transport helicopters"] then role = "HELICOPTER"
             elseif iDesc.category == Unit.Category.AIRPLANE then role = "FIGHTER"
             elseif iDesc.category == Unit.Category.HELICOPTER then role = "HELICOPTER"
             end
@@ -1434,11 +1501,14 @@ function CheckrideMission.onShot(event)
     if okWDesc and wDesc then
         weaponGuidance = GUIDANCE_NAMES[wDesc.guidance] or (wDesc.guidance and tostring(wDesc.guidance)) or nil
     end
+    -- Captured at launch where the weapon is guaranteed alive; carried to the kill.
+    local weaponDescRaw = rawWeaponDesc(weapon)
 
     CheckrideMission.activeWeaponShots[weaponKey] = {
         weaponKey = weaponKey,
         weaponClass = weaponClass,
         weaponGuidance = weaponGuidance,
+        weaponDescRaw = weaponDescRaw,
         startX = startPoint.x,
         startY = startPoint.z,
         startAlt = startPoint.y,
@@ -1464,6 +1534,9 @@ function CheckrideMission.onShot(event)
         weaponName = weaponName,
         weaponDisplayName = weaponDisplayName,
         weaponGuidance = weaponGuidance,
+        -- Raw getDesc() snapshot, captured at launch where the weapon is alive.
+        -- The client tracks the shot and attributes it to the kill (client-authoritative).
+        weaponDescRaw = weaponDescRaw,
         weaponObjectId = weaponObjectId,
         targetObjectId = targetObjectId,
         inFlight = true,
@@ -1473,6 +1546,7 @@ function CheckrideMission.onShot(event)
         startAlt = startPoint.y,
         speedKts = speedKts,
         speedMach = speedMach,
+        firedAt = event.time,
         missionTime = event.time,
     }
 
@@ -1555,16 +1629,14 @@ function CheckrideMission.onHit(event)
 
         if life and life <= 1.0 then
             -- ── Lethal hit: capture victim data while the object still exists ─
+            -- Forward the victim's FULL DCS attribute set verbatim — no allow-list.
+            -- A curated list silently drops attributes we can't recover later, and
+            -- the backend (not this script) is responsible for interpreting them.
             local victimRoles = {}
             local okVDesc, vDesc = pcall(function() return target:getDesc() end)
             if okVDesc and vDesc and type(vDesc.attributes) == "table" then
-                local wantedRoles = {
-                    "SAM SR","SAM TR","SAM launcher",
-                    "Armour","Tanks","IFV","APC",
-                    "AAA","Artillery","MLRS","Infantry",
-                }
-                for _, r in ipairs(wantedRoles) do
-                    if vDesc.attributes[r] then victimRoles[#victimRoles + 1] = r end
+                for attr in pairs(vDesc.attributes) do
+                    victimRoles[#victimRoles + 1] = attr
                 end
             end
 
@@ -1576,6 +1648,9 @@ function CheckrideMission.onHit(event)
                                      (wDesc2.guidance and tostring(wDesc2.guidance)) or nil
                 end
             end
+            -- Raw descriptor captured where the weapon still exists (usually gone by
+            -- S_EVENT_KILL); the kill prefers this, else the launch-time shot record.
+            local weaponDescRaw = rawWeaponDesc(weapon)
 
             local victimPoint = getObjectPoint(target)
             local victimTypeName = nil
@@ -1590,6 +1665,7 @@ function CheckrideMission.onHit(event)
                     victimRoles     = victimRoles,
                     weaponGuidance  = weaponGuidance,
                     weaponClass     = weaponClass,
+                    weaponDescRaw   = weaponDescRaw,
                     victimPositionX = victimPoint and victimPoint.x or nil,
                     victimPositionY = victimPoint and victimPoint.z or nil,
                     night           = CheckrideMission.isNight(event.time),
@@ -1599,18 +1675,24 @@ function CheckrideMission.onHit(event)
             -- No event emitted here — onKill completes and emits kill_enrichment.
 
         elseif life and life > 1.0 then
-            -- ── Non-lethal hit: emit lightweight hit counter ──────────────────
+            -- ── Non-lethal hit ────────────────────────────────────────────────
+            -- The role-coalition hit counter, plus the weapon name and the reliable
+            -- victim id: the client uses those to mark the firing shot 'hit' (it stays
+            -- hit, never a miss) and to backfill the victim so a delayed cook-off death
+            -- key-matches the right shot.
             local killerCoal = nil
             pcall(function() killerCoal = initiator:getCoalition() end)
             local roleCoalition = getRoleCoalition(target, killerCoal)
             if roleCoalition then
                 CheckrideMission.sendEnrichmentEvent({
-                    type         = "hit_enrichment",
-                    source       = "mission",
-                    playerUcid   = ucid,
-                    playerName   = playerName,
-                    roleCoalition = roleCoalition,
-                    missionTime  = event.time,
+                    type           = "hit_enrichment",
+                    source         = "mission",
+                    playerUcid     = ucid,
+                    playerName     = playerName,
+                    roleCoalition  = roleCoalition,
+                    weaponName     = getWeaponTypeName(weapon),
+                    targetObjectId = targetObjectId,
+                    missionTime    = event.time,
                 })
             end
         end
@@ -1622,6 +1704,21 @@ function CheckrideMission.onHit(event)
 
     local shotState = pickPreferredWeaponCandidate(matchingShots, weaponKey, weaponObjectId)
     if not shotState then return end
+
+    -- Backfill the pending kill's weapon data from the launch-captured shot record
+    -- *before* the shot is consumed below. onHit doesn't always expose event.weapon,
+    -- and onKill can't recover the shot once it's removed here — so this is the only
+    -- chance to attach reliable launch-time weapon data to a direct-impact kill.
+    if targetObjectId then
+        local pendingKill = CheckrideMission.pendingKillsByObjectId[targetObjectId]
+        if pendingKill then
+            pendingKill.weaponDescRaw  = pendingKill.weaponDescRaw or shotState.weaponDescRaw
+            pendingKill.weaponGuidance = pendingKill.weaponGuidance or shotState.weaponGuidance
+            if not pendingKill.weaponClass or pendingKill.weaponClass == "UNKNOWN" then
+                pendingKill.weaponClass = shotState.weaponClass
+            end
+        end
+    end
 
     if isAirToAirMissileClass(shotState.weaponClass) then
         if target and not isAirTarget(target) then return end
@@ -1731,10 +1828,15 @@ function CheckrideMission.onLand(event)
     local airdromeName = nil
     local landedAtAirbase = place ~= nil
     local landedAtFriendlyBase = false
+    local airbaseCategory = nil
 
     if place then
         local okName, name = pcall(function() return place:getName() end)
         if okName and name and name ~= "" then airdromeName = name end
+
+        -- DCS Airbase.Category: AIRDROME=0, HELIPAD(FARP)=1, SHIP=2.
+        local okDesc, desc = pcall(function() return place:getDesc() end)
+        if okDesc and desc then airbaseCategory = desc.category end
 
         local pilotCoal = nil
         local baseCoal = nil
@@ -1749,6 +1851,13 @@ function CheckrideMission.onLand(event)
     local okFuel, fuel = pcall(function() return initiator:getFuel() end)
     if okFuel and type(fuel) == "number" then fuelState = fuel end
 
+    CheckrideMission.log(
+        "landing enrichment: place=" .. tostring(airdromeName or "open field") ..
+        " descCategory(Airbase)=" .. tostring(airbaseCategory) ..
+        " landedAtAirbase=" .. tostring(landedAtAirbase) ..
+        " friendly=" .. tostring(landedAtFriendlyBase)
+    )
+
     CheckrideMission.sendEnrichmentEvent({
         type                 = "landing_enrichment",
         source               = "mission",
@@ -1757,6 +1866,7 @@ function CheckrideMission.onLand(event)
         airdromeName         = airdromeName,
         landedAtAirbase      = landedAtAirbase,
         landedAtFriendlyBase = landedAtFriendlyBase,
+        airbaseCategory      = airbaseCategory,
         fuelState            = fuelState,
         missionTime          = event.time,
     })
@@ -1809,13 +1919,17 @@ function CheckrideMission.onTakeoff(event)
         playerName       = playerName,
         launchedFromCarrier = isCarrier,
         takeoffLocation  = carrierName,
+        -- DCS Airbase.Category: AIRDROME=0, HELIPAD(FARP)=1, SHIP=2. Raw value forwarded
+        -- so the client/backend distinguishes airdrome vs FARP vs carrier launches.
+        airbaseCategory  = (ok and desc and desc.category) or nil,
         missionTime      = event.time,
     }
 
     CheckrideMission.log(
         "takeoff enrichment: place=" .. tostring(carrierName or "unknown") ..
-        " placeCategory=" .. tostring(placeCategory) ..
-        " descCategory=" .. tostring(ok and desc and desc.category or nil) ..
+        " placeCategory(Object)=" .. tostring(placeCategory) ..
+        " descCategory(Airbase)=" .. tostring(ok and desc and desc.category or nil) ..
+        " descTypeName=" .. tostring(ok and desc and desc.typeName or nil) ..
         " launchedFromCarrier=" .. tostring(isCarrier)
     )
 
@@ -1898,13 +2012,15 @@ function CheckrideMission.onKill(event)
     -- lethal-hit paths do not expose event.weapon reliably.
     local fallbackGuidance = nil
     local fallbackWeaponClass = nil
-    local needsFallback = (pending == nil) or (pending.weaponGuidance == nil) or (pending.weaponClass == nil)
+    local fallbackWeaponDescRaw = nil
+    local needsFallback = (pending == nil) or (pending.weaponGuidance == nil) or (pending.weaponClass == nil) or (pending.weaponDescRaw == nil)
     if needsFallback and victimObjectId then
         local candidates = findInFlightWeaponCandidates(victimObjectId, nil, nil, ucid, playerName)
         local shot = pickPreferredWeaponCandidate(candidates, nil, nil)
         if shot then
             fallbackGuidance = shot.weaponGuidance
             fallbackWeaponClass = shot.weaponClass
+            fallbackWeaponDescRaw = shot.weaponDescRaw
             -- Only consume the shot when pending is nil (proximity-fuse: onHit never fired,
             -- so this IS the killing shot and it's safe to remove). When pending exists,
             -- the killing shot was already removed by onHit; this candidate is a different
@@ -1988,6 +2104,13 @@ function CheckrideMission.onKill(event)
         isCollision = okCat and weapCat == Object.Category.UNIT
     end
 
+    -- Last-resort raw descriptor from the kill event's own weapon, if it survived to
+    -- S_EVENT_KILL (rare). pending (onHit) and the shot record are preferred.
+    local onKillDescRaw = nil
+    if event.weapon and not isCollision then
+        onKillDescRaw = rawWeaponDesc(event.weapon)
+    end
+
     local message = {
         type               = "kill_enrichment",
         source             = "mission",
@@ -2003,6 +2126,10 @@ function CheckrideMission.onKill(event)
         victimRoles        = pending and pending.victimRoles or nil,
         weaponGuidance     = (pending and pending.weaponGuidance) or fallbackGuidance,
         weaponClass        = (pending and pending.weaponClass) or fallbackWeaponClass or (isCollision and "COLLISION" or nil),
+        -- Raw weapon descriptor: prefer onHit's, then the launch-time shot record
+        -- (the reliable source — snapshotted while the weapon was alive), then the
+        -- kill event's weapon.
+        weaponDescRaw      = (pending and pending.weaponDescRaw) or fallbackWeaponDescRaw or onKillDescRaw,
         victimPositionX    = pending and pending.victimPositionX or nil,
         victimPositionY    = pending and pending.victimPositionY or nil,
         night              = pending and pending.night or nil,
@@ -2050,10 +2177,40 @@ function CheckrideShowMessage(pilotKey, message, duration)
     CheckrideMission.log("CheckrideShowMessage: notified " .. tostring(pilotKey))
 end
 
+-- Logs DCS's live enum tables once at load. These are C++-exposed (not in any Lua file),
+-- so this is the only authoritative source for the integers getDesc() returns — used to
+-- verify our name tables (guidance, weapon/missile category, and Airbase.Category, which
+-- getDesc().category returns for takeoff/landing surfaces) against the actual DCS build.
+function CheckrideMission.dumpDcsEnums()
+    local groups = {
+        { global = Weapon,  name = "Weapon",  enums = { "GuidanceType", "Category", "MissileCategory", "WarheadType" } },
+        { global = Airbase, name = "Airbase", enums = { "Category" } },
+        { global = Unit,    name = "Unit",    enums = { "Category" } },
+        { global = Object,  name = "Object",  enums = { "Category" } },
+    }
+    for _, g in ipairs(groups) do
+        if type(g.global) ~= "table" then
+            CheckrideMission.log("dcs enum: " .. g.name .. " global unavailable")
+        else
+            for _, enumName in ipairs(g.enums) do
+                local tbl = g.global[enumName]
+                if type(tbl) == "table" then
+                    for k, v in pairs(tbl) do
+                        CheckrideMission.log(string.format("dcs enum: %s.%s.%s = %s", g.name, enumName, tostring(k), tostring(v)))
+                    end
+                else
+                    CheckrideMission.log("dcs enum: " .. g.name .. "." .. enumName .. " unavailable")
+                end
+            end
+        end
+    end
+end
+
 -- ============================================================================
 -- Register
 -- ============================================================================
 local worldInitStatus = CheckrideMission.ensureWorldHandler()
 CheckrideMission.log('world init status: ' .. tostring(worldInitStatus))
 CheckrideMission.startWeaponSampler()
+pcall(CheckrideMission.dumpDcsEnums)
 checkrideMissionInfo("Loaded - DCS-Checkride Mission Script v" .. CheckrideMission.version)

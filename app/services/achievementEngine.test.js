@@ -342,9 +342,9 @@ describe('AchievementEngine — core mechanics', () => {
 
     engine.evaluate(kill(['SAM SR']));
     engine.evaluate(kill(['SAM TR']));
-    engine.evaluate(kill(['SAM launcher']));
-    engine.evaluate(kill(['AAA']));
-    engine.evaluate(kill(['Armour', 'Tanks'])); // not SEAD
+    engine.evaluate(kill(['SAM LL']));     // real attr (the dead "SAM launcher")
+    engine.evaluate(kill(['Static AAA'])); // real attr (the dead bare "AAA")
+    engine.evaluate(kill(['Modern Tanks'])); // not SEAD
 
     const snapshot = engine.buildSnapshot({
       pilotUcid: 'pilot-1',
@@ -356,13 +356,13 @@ describe('AchievementEngine — core mechanics', () => {
     expect(snapshot.state.gauges.most_armored_kills_in_sortie).toBe(1);
   });
 
-  it('serializes most_armored_kills_in_sortie using Armoured vehicles attribute, most_ground_kills_in_sortie includes all', () => {
+  it('serializes most_armored_kills_in_sortie using real armour attributes, most_ground_kills_in_sortie includes all', () => {
     const engine = new AchievementEngine([]);
     const kill = (roles) => ({ type: 'kill_enrichment', playerUcid: 'pilot-1', playerName: 'Maverick', victimUnitCategory: 'ground', victimRoles: roles });
 
-    engine.evaluate(kill(['Armour', 'Tanks'])); // MBT — counts toward both
-    engine.evaluate(kill(['Armour', 'APC']));   // APC — counts toward both
-    engine.evaluate(kill(['Infantry']));         // soft — ground only
+    engine.evaluate(kill(['Old Tanks', 'Tanks'])); // MBT — counts toward both
+    engine.evaluate(kill(['APC']));                // APC — counts toward both
+    engine.evaluate(kill(['Infantry']));           // soft — ground only
     engine.evaluate(kill(['Infantry', 'MANPADS'])); // soft — ground only
 
     const snapshot = engine.buildSnapshot({

@@ -1,6 +1,7 @@
 const log = require('electron-log');
 const PilotState = require('./pilotState');
 const ALL_ACHIEVEMENTS = require('../achievements');
+const { ARMOUR_ROLES, SEAD_ROLES } = require('../constants/dcsRoles');
 
 const AVENGER_TTL_MS = 5 * 60 * 1000;
 
@@ -170,9 +171,8 @@ class AchievementEngine {
   serializeState(state) {
     const killsAir = state.kills.filter((k) => k.victimUnitCategory === 'air').length;
     const killsGround = state.kills.filter((k) => k.victimUnitCategory === 'ground').length;
-    const ARMOUR_ROLES = ['Armour', 'Tanks', 'IFV', 'APC'];
     const armoredKills = state.kills.filter((k) => k.victimUnitCategory === 'ground' && Array.isArray(k.victimRoles) && k.victimRoles.some((r) => ARMOUR_ROLES.includes(r))).length;
-    const seadKills = state.kills.filter((k) => k.victimRoles.some((r) => ['SAM SR', 'SAM TR', 'SAM launcher', 'AAA'].includes(r))).length;
+    const seadKills = state.kills.filter((k) => Array.isArray(k.victimRoles) && k.victimRoles.some((r) => SEAD_ROLES.includes(r))).length;
     const munitionsInFlight = state.weapons.filter((weaponTrack) => weaponTrack.inFlight === true).length;
 
     return {

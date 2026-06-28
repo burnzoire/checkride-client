@@ -92,6 +92,9 @@ class KillEventQueue {
           victimObjectId: (x && x.victimObjectId) ?? null,
           victimPositionX: (x && x.victimPositionX) ?? null,
           victimPositionY: (x && x.victimPositionY) ?? null,
+          // Taxonomy already folded onto the kill (metadataFrom ran first) — for diagnostics.
+          victimCategory: event.metadata && event.metadata.victim && event.metadata.victim.category,
+          killerCategory: event.metadata && event.metadata.killer && event.metadata.killer.category,
         });
         if (matched) {
           event.metadata = event.metadata || {};

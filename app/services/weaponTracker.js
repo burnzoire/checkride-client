@@ -100,6 +100,11 @@ class WeaponTracker {
     this._byUcid = new Map();
     // ucid -> { weaponName, startedAt, endedAt, active } — the most recent gun burst.
     this._gunBursts = new Map();
+    // weaponName/displayName -> launch-captured getDesc() snapshot. getDesc() is static
+    // per weapon type, so a kill can recover its descriptor by name even when its own
+    // shot was pruned (long BVR flights) or the lethal hit exposed no weapon to read.
+    // Session-lived and shared across pilots — the descriptor depends only on the type.
+    this._descByName = new Map();
   }
 
   // Record an outbound shot. No-op for anything but a shot_enrichment with a ucid.
@@ -127,8 +132,17 @@ class WeaponTracker {
       outcome: 'in_flight',
       groundedAt: null,
       distanceNm: null,
+      sampleCount: 0, // positioned in-flight samples seen — the sample-delivery signal
     });
     this._byUcid.set(ucid, list);
+
+    // Cache the descriptor by both names the kill might carry (GameGUI may send the type
+    // name or the display name), so it survives this shot being pruned.
+    const descRaw = event.weaponDescRaw ?? null;
+    if (descRaw != null) {
+      if (event.weaponName != null) this._descByName.set(event.weaponName, descRaw);
+      if (event.weaponDisplayName != null) this._descByName.set(event.weaponDisplayName, descRaw);
+    }
   }
 
   // Update a tracked shot's last-known position from an in-flight weapon sample. This
@@ -144,6 +158,7 @@ class WeaponTracker {
       shot.lastPositionX = event.positionX;
       shot.lastPositionY = event.positionY;
       shot.lastSampleAt = this._now(); // weapon still alive at this moment
+      shot.sampleCount = (shot.sampleCount ?? 0) + 1;
     }
   }
 
@@ -152,7 +167,8 @@ class WeaponTracker {
   // victim object id, which the *hit* backfilled onto the shot (the hit's target is
   // the victim unit, whose id is reliable — same id the kill carries). Only matches a
   // still-attributable shot (in flight or impacted, not yet credited) so a second kill
-  // on the same victim won't re-use it. Returns { weaponName, descRaw } or null.
+  // on the same victim won't re-use it. Returns { weaponName, descRaw, method, identified,
+  // sampleCount, distanceNm } or null — the extra fields drive the attribution diagnostics.
   matchKill({ killerUcid, victimObjectId = null, weaponObjectId = null, weaponName = null, victimPositionX = null, victimPositionY = null } = {}) {
     this._prune();
     const list = killerUcid && this._byUcid.get(killerUcid);
@@ -165,13 +181,15 @@ class WeaponTracker {
     // Whether we pinned THE shot (so its launch point is trustworthy) vs just one shot
     // of the right weapon type (good enough for name/desc, but not for distance).
     let identifiedShot = false;
+    // How the shot was matched — for the attribution dashboard.
+    let method = null;
     if (weaponObjectId != null) {
       shot = list.find((s) => attributable(s) && idEq(s.weaponObjectId, weaponObjectId));
-      if (shot) identifiedShot = true;
+      if (shot) { identifiedShot = true; method = 'weapon_id'; }
     }
     if (!shot && victimObjectId != null) {
       shot = list.find((s) => attributable(s) && idEq(s.targetObjectId, victimObjectId));
-      if (shot) identifiedShot = true; // backfilled from the hit on this exact victim
+      if (shot) { identifiedShot = true; method = 'victim_id'; } // backfilled from the hit on this exact victim
     }
     // Usual path: the kill's weapon name (GameGUI, reliable for missiles/bombs). DCS
     // weapon ids are null and lethal hits emit no linking enrichment. Same-name shots
@@ -181,6 +199,7 @@ class WeaponTracker {
       if (named.length === 1) {
         shot = named[0];
         identifiedShot = true; // sole candidate — unambiguous
+        method = 'name_sole';
       } else if (named.length > 1) {
         // Several same-type shots in flight: the one that hit this victim is the one
         // whose trajectory ended nearest the death point. If we can place it, that's a
@@ -188,6 +207,7 @@ class WeaponTracker {
         const near = nearestShotToPoint(named, victimPositionX, victimPositionY);
         shot = near || named[0];
         identifiedShot = near != null;
+        method = near ? 'name_proximity' : 'name_fallback';
       }
     }
     if (!shot) return null;
@@ -202,7 +222,22 @@ class WeaponTracker {
       const dy = shot.startY - victimPositionY;
       shot.distanceNm = Math.sqrt(dx * dx + dy * dy) / METERS_PER_NM;
     }
-    return { weaponName: shot.weaponName, descRaw: shot.descRaw };
+    return {
+      weaponName: shot.weaponName,
+      descRaw: shot.descRaw,
+      method,
+      identified: identifiedShot,
+      sampleCount: shot.sampleCount ?? 0,
+      distanceNm: shot.distanceNm ?? null,
+    };
+  }
+
+  // The launch-captured getDesc() snapshot for a weapon type, by type or display name,
+  // or null if no shot of it was ever tracked this session. Lets a kill recover its
+  // descriptor when its own shot was never matched (pruned long flight / weaponless hit).
+  descForWeaponName(name) {
+    if (name == null) return null;
+    return this._descByName.get(name) ?? null;
   }
 
   // Record a *confirmed* impact (an explicit hit_enrichment). Marks the shot 'hit' — a

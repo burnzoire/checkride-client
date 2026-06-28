@@ -97,9 +97,6 @@ class WeaponTracker {
     //   hit_enrichment. A delayed death stays attributable through 'impacted', so a kill
     //   that lands seconds after impact still credits the shot. It is the single source
     //   of weapon state for both attribution and the telemetry display.
-    //   A shot that is never position-sampled follows the same shape on a fire-time clock
-    //   (in_flight for the TTL, then impacted, then miss) so a long unsampled flight is
-    //   not dropped before its kill.
     this._byUcid = new Map();
     // ucid -> { weaponName, startedAt, endedAt, active } — the most recent gun burst.
     this._gunBursts = new Map();
@@ -351,16 +348,9 @@ class WeaponTracker {
           const sinceSample = now - s.lastSampleAt;
           if (s.outcome === 'in_flight' && sinceSample > this._sampleStaleMs) s.outcome = 'impacted';
           if (s.outcome === 'impacted' && sinceSample > this._impactGraceMs) s.outcome = 'miss';
-        } else {
-          // Never sampled (samples never arrived or didn't match this shot). We can't see
-          // the impact, so fall back to fire time: keep it 'in_flight' for the TTL (still
-          // gating guns), then 'impacted' — off the gun gate but still attributable, so a
-          // long unsampled BVR shot stays creditable to its kill (and keeps its
-          // launch→death engagement range) — and only a 'miss' once the same grace lapses.
-          // Without this a 30s+ flight was dropped before its kill ever landed.
-          const sinceFire = now - s.recordedAt;
-          if (s.outcome === 'in_flight' && sinceFire > this._ttlMs) s.outcome = 'impacted';
-          if (s.outcome === 'impacted' && sinceFire > this._ttlMs + this._impactGraceMs) s.outcome = 'miss';
+        } else if (now - s.recordedAt > this._ttlMs) {
+          // Never sampled — fall back to a fire-time TTL.
+          s.outcome = 'miss';
         }
       }
       const kept = list.filter((s) => now - s.recordedAt <= this._hardTtlMs);

@@ -100,6 +100,11 @@ class WeaponTracker {
     this._byUcid = new Map();
     // ucid -> { weaponName, startedAt, endedAt, active } — the most recent gun burst.
     this._gunBursts = new Map();
+    // weaponName/displayName -> launch-captured getDesc() snapshot. getDesc() is static
+    // per weapon type, so a kill can recover its descriptor by name even when its own
+    // shot was pruned (long BVR flights) or the lethal hit exposed no weapon to read.
+    // Session-lived and shared across pilots — the descriptor depends only on the type.
+    this._descByName = new Map();
   }
 
   // Record an outbound shot. No-op for anything but a shot_enrichment with a ucid.
@@ -129,6 +134,14 @@ class WeaponTracker {
       distanceNm: null,
     });
     this._byUcid.set(ucid, list);
+
+    // Cache the descriptor by both names the kill might carry (GameGUI may send the type
+    // name or the display name), so it survives this shot being pruned.
+    const descRaw = event.weaponDescRaw ?? null;
+    if (descRaw != null) {
+      if (event.weaponName != null) this._descByName.set(event.weaponName, descRaw);
+      if (event.weaponDisplayName != null) this._descByName.set(event.weaponDisplayName, descRaw);
+    }
   }
 
   // Update a tracked shot's last-known position from an in-flight weapon sample. This
@@ -203,6 +216,14 @@ class WeaponTracker {
       shot.distanceNm = Math.sqrt(dx * dx + dy * dy) / METERS_PER_NM;
     }
     return { weaponName: shot.weaponName, descRaw: shot.descRaw };
+  }
+
+  // The launch-captured getDesc() snapshot for a weapon type, by type or display name,
+  // or null if no shot of it was ever tracked this session. Lets a kill recover its
+  // descriptor when its own shot was never matched (pruned long flight / weaponless hit).
+  descForWeaponName(name) {
+    if (name == null) return null;
+    return this._descByName.get(name) ?? null;
   }
 
   // Record a *confirmed* impact (an explicit hit_enrichment). Marks the shot 'hit' — a

@@ -178,8 +178,16 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
       // launch-captured desc_raw (also fixes the first-kill missing desc), and — from the
       // victim's death position — computes the launch→death engagement range.
       const match = tracker.matchKill({ killerUcid, victimObjectId, weaponName, victimPositionX, victimPositionY });
-      if (match) {
-        return match.descRaw != null ? { desc_raw: match.descRaw } : null;
+      if (match && match.descRaw != null) {
+        return { desc_raw: match.descRaw };
+      }
+      // The kill's own shot wasn't matched with a descriptor — long BVR flights get
+      // pruned before the kill lands, and lethal hits often expose no weapon to read.
+      // getDesc() is static per type, so recover it by the kill's (reliable) weapon name
+      // from any prior launch of that type this session.
+      if (weaponName) {
+        const descRaw = tracker.descForWeaponName(weaponName);
+        if (descRaw != null) return { desc_raw: descRaw };
       }
       // No named weapon / no tracked shot — likely a gun or cluster kill (GameGUI
       // reports those weaponless). Decide guns only when unambiguous.

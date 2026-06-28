@@ -283,16 +283,21 @@
       const name = escapeHtml(weaponLabel(s));
       const outcome = WEAPON_OUTCOME[s.outcome] || { label: String(s.outcome || '—').toUpperCase(), color: '#7a8394' };
       const dist = s.distanceNm != null ? fmt(s.distanceNm) + ' nm' : '—';
+      // Positioned in-flight samples — the sample-delivery signal. 0 (red) means the shot
+      // was never tracked in flight, so a long kill on it would lose distance.
+      const samples = s.sampleCount != null ? s.sampleCount : 0;
+      const sampleColor = samples > 0 ? '#7a8394' : '#c2553a';
       return `<tr>
         <td style="font-size:11px">${name}</td>
         <td><span style="color:${outcome.color};font-size:10px;font-weight:600">${outcome.label}</span></td>
         <td style="font-size:11px;color:#7a8394">${escapeHtml(weaponMeta(s.descRaw))}</td>
+        <td style="font-size:11px;color:${sampleColor};text-align:right">${samples}</td>
         <td style="font-size:11px;color:#7a8394;text-align:right">${dist}</td>
       </tr>`;
     }).join('');
 
     html += `<table class="kills-table">
-        <thead><tr><th>Weapon</th><th>Outcome</th><th>Metadata</th><th style="text-align:right">Dist.</th></tr></thead>
+        <thead><tr><th>Weapon</th><th>Outcome</th><th>Metadata</th><th style="text-align:right">Smpl</th><th style="text-align:right">Dist.</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
     return html;

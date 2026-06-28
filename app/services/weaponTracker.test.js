@@ -63,12 +63,48 @@ describe('WeaponTracker.descForWeaponName', () => {
   });
 });
 
+describe('WeaponTracker sample counting & matchKill diagnostics', () => {
+  const sample = (weaponKey, x, y, ucid = 'killer-1') => ({
+    type: 'weapon_sample_enrichment', playerUcid: ucid, weaponKey, positionX: x, positionY: y,
+  });
+
+  it('counts positioned samples per shot and reports them on the match', () => {
+    const { tracker } = makeTracker();
+    tracker.recordShot(shot({ weaponKey: 'wk', weaponObjectId: null, targetObjectId: null, weaponName: 'AIM-120C' }));
+    tracker.recordSample(sample('wk', 10, 10));
+    tracker.recordSample(sample('wk', 20, 20));
+    tracker.recordSample({ type: 'weapon_sample_enrichment', playerUcid: 'killer-1', weaponKey: 'wk' }); // no position — ignored
+    const match = tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AIM-120C' });
+    expect(match.sampleCount).toBe(2);
+    expect(match.method).toBe('name_sole');
+  });
+
+  it('reports name_proximity when a trajectory pins the shot, with a distance', () => {
+    const { tracker } = makeTracker();
+    tracker.recordShot(shot({ weaponKey: 'a', weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K', startX: 0, startY: 0 }));
+    tracker.recordShot(shot({ weaponKey: 'b', weaponObjectId: null, targetObjectId: null, weaponName: 'AGM-114K', startX: 9000, startY: 9000 }));
+    tracker.recordSample(sample('a', 1850, 1850)); // a's trajectory ends by the death point
+    const match = tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AGM-114K', victimPositionX: 1852, victimPositionY: 1852 });
+    expect(match.method).toBe('name_proximity');
+    expect(match.distanceNm).toBeCloseTo(Math.SQRT2, 2);
+  });
+
+  it('reports name_fallback (and no distance) when several same-type shots cannot be placed', () => {
+    const { tracker } = makeTracker();
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AIM-120C', startX: 0, startY: 0 }));
+    tracker.recordShot(shot({ weaponObjectId: null, targetObjectId: null, weaponName: 'AIM-120C', startX: 5000, startY: 5000 }));
+    const match = tracker.matchKill({ killerUcid: 'killer-1', weaponName: 'AIM-120C', victimPositionX: 1852, victimPositionY: 1852 });
+    expect(match.method).toBe('name_fallback');
+    expect(match.distanceNm).toBeNull();
+  });
+});
+
 describe('WeaponTracker.matchKill', () => {
   it('key-matches by victim object id and returns the weapon', () => {
     const { tracker } = makeTracker();
     tracker.recordShot(shot());
     const match = tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 99 });
-    expect(match).toEqual({ weaponName: 'AGM-114K', descRaw: { category: 1, guidance: 7 } });
+    expect(match).toMatchObject({ weaponName: 'AGM-114K', descRaw: { category: 1, guidance: 7 } });
   });
 
   it('marks the matched shot killed (off the in-flight count) and will not re-credit it', () => {
@@ -118,7 +154,7 @@ describe('WeaponTracker null-object-id attribution (the real DCS case)', () => {
     tracker.recordHit({ playerUcid: 'killer-1', weaponObjectId: null, targetObjectId: '5', weaponName: 'AGM-114K' });
     // The kill carries the same victim id, arriving as a number via a different transport.
     const match = tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 5 });
-    expect(match).toEqual({ weaponName: 'AGM-114K', descRaw: { category: 1, guidance: 7 } });
+    expect(match).toMatchObject({ weaponName: 'AGM-114K', descRaw: { category: 1, guidance: 7 }, method: 'victim_id' });
   });
 
   it('marks the shot hit by weapon name and backfills the victim id when ids are missing', () => {

@@ -172,30 +172,61 @@ function attachEventPipeline({ udpServer, apiClient, discordClient, dcsChatClien
   // mission script's kill-time getDesc(), which is unreliable for guns/clusters).
   const killEventQueue = new KillEventQueue({
     missionScriptingEnabled: () => store.get('mission_scripting_enabled') !== false,
-    resolveWeapon: ({ killerUcid, victimObjectId, weaponName, victimPositionX, victimPositionY }) => {
+    resolveWeapon: ({ killerUcid, victimObjectId, weaponName, victimPositionX, victimPositionY, victimCategory = null, killerCategory = null }) => {
+      // Salvo size at kill time (before matchKill consumes a shot) — the RWS/TWS signal.
+      const inFlightAtKill = tracker.inFlightCount(killerUcid);
       // Match the kill to a tracked shot (by name when ids/hit-links are absent, which
       // is the norm). Marks the shot 'killed' for the telemetry view, supplies the
       // launch-captured desc_raw (also fixes the first-kill missing desc), and — from the
       // victim's death position — computes the launch→death engagement range.
       const match = tracker.matchKill({ killerUcid, victimObjectId, weaponName, victimPositionX, victimPositionY });
-      if (match && match.descRaw != null) {
-        return { desc_raw: match.descRaw };
+
+      let result = null;
+      let attribution = 'unattributed';
+      let descRaw = null;
+      let distanceNm = null;
+      let sampleCount = null;
+
+      if (match) {
+        attribution = match.method;
+        distanceNm = match.distanceNm;
+        sampleCount = match.sampleCount;
+        // desc from the matched shot, else recover it by type (getDesc() is static per
+        // type, so a pruned long-flight shot / weaponless lethal hit can still be named).
+        descRaw = match.descRaw ?? (weaponName ? tracker.descForWeaponName(weaponName) : null);
+        if (descRaw != null) result = { desc_raw: descRaw };
+      } else if (weaponName && tracker.descForWeaponName(weaponName) != null) {
+        // No tracked shot at all (pruned), but we've seen this type launched — name its desc.
+        descRaw = tracker.descForWeaponName(weaponName);
+        attribution = 'name_cache';
+        result = { desc_raw: descRaw };
+      } else {
+        // No named weapon / no tracked shot — likely a gun or cluster kill (GameGUI
+        // reports those weaponless). Decide guns only when unambiguous.
+        const gun = tracker.matchGunKill({ killerUcid });
+        if (gun && gun.weaponName != null) {
+          attribution = 'gun';
+          result = { weapon_name: gun.weaponName, attribution: 'gun' };
+        }
       }
-      // The kill's own shot wasn't matched with a descriptor — long BVR flights get
-      // pruned before the kill lands, and lethal hits often expose no weapon to read.
-      // getDesc() is static per type, so recover it by the kill's (reliable) weapon name
-      // from any prior launch of that type this session.
-      if (weaponName) {
-        const descRaw = tracker.descForWeaponName(weaponName);
-        if (descRaw != null) return { desc_raw: descRaw };
+
+      // One diagnostic per kill (low volume) — powers the attribution/sample-flow dashboard.
+      if (newRelicClient) {
+        newRelicClient.recordLog('kill_attribution', {
+          logType: 'kill_attribution',
+          clientVersion: CLIENT_VERSION,
+          weaponName: weaponName ?? null,
+          attribution,
+          hasDescRaw: descRaw != null ? 1 : 0,
+          hasDistance: distanceNm != null ? 1 : 0,
+          distanceNm: distanceNm ?? null,
+          sampleCount: sampleCount ?? null,
+          inFlightAtKill,
+          victimCategory,
+          killerCategory,
+        });
       }
-      // No named weapon / no tracked shot — likely a gun or cluster kill (GameGUI
-      // reports those weaponless). Decide guns only when unambiguous.
-      const gun = tracker.matchGunKill({ killerUcid });
-      if (gun && gun.weaponName != null) {
-        return { weapon_name: gun.weaponName, attribution: 'gun' };
-      }
-      return null;
+      return result;
     },
   });
   // Same rendezvous for takeoff/landing: hold the persisted GameGUI event until its

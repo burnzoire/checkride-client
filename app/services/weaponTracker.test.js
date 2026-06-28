@@ -360,13 +360,24 @@ describe('WeaponTracker impacted lifecycle (delayed death)', () => {
 });
 
 describe('WeaponTracker TTL', () => {
-  it('turns an unresolved in-flight shot into a miss at the TTL (off the gate, still visible)', () => {
-    const { tracker, tick } = makeTracker({ ttlMs: 30000 });
+  it('takes an unsampled shot off the gun gate at the TTL but keeps it attributable for a late kill', () => {
+    const { tracker, tick } = makeTracker({ ttlMs: 30000, impactGraceMs: 90000 });
     tracker.recordShot(shot());
     tick(30001);
-    expect(tracker.inFlightCount('killer-1')).toBe(0);
+    expect(tracker.inFlightCount('killer-1')).toBe(0); // off the gun gate
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('impacted'); // not a miss yet
+    // a long BVR kill still lands on it — distance + desc are preserved.
+    expect(tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 99 })).not.toBeNull();
+  });
+
+  it('lets an unsampled shot become a miss only once the extended grace lapses', () => {
+    const { tracker, tick } = makeTracker({ ttlMs: 30000, impactGraceMs: 90000 });
+    tracker.recordShot(shot());
+    tick(119000); // impacted, still attributable
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('impacted');
+    tick(2000); // past ttl + grace
+    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('miss');
     expect(tracker.matchKill({ killerUcid: 'killer-1', victimObjectId: 99 })).toBeNull();
-    expect(tracker.trackedShots('killer-1')[0].outcome).toBe('miss'); // still shown as a miss
   });
 
   it('hard-deletes shots only after the long retention window', () => {

@@ -13,6 +13,7 @@ function heloKill(overrides = {}) {
   return {
     victimUnitCategory: 'air',
     victimAirType: 'HELICOPTER',
+    victimInAir: true,
     weaponClass: 'BOMB',
     ...overrides,
   };
@@ -35,6 +36,14 @@ describe('DropShot — evaluate', () => {
 
   it('returns false when the target is an airplane, not a helicopter', () => {
     expect(dropShot.evaluate(KILL_EVENT, stateWith([heloKill({ victimAirType: 'AIRPLANE' })]))).toBe(false);
+  });
+
+  it('returns false when the helicopter was on the ground', () => {
+    expect(dropShot.evaluate(KILL_EVENT, stateWith([heloKill({ victimInAir: false })]))).toBe(false);
+  });
+
+  it('returns false when the victim airborne state is unknown', () => {
+    expect(dropShot.evaluate(KILL_EVENT, stateWith([heloKill({ victimInAir: null })]))).toBe(false);
   });
 
   it('returns false when the weapon is a missile, not a bomb', () => {

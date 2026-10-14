@@ -17,6 +17,7 @@ class DropShot extends Achievement {
     if (!kill || kill.fratricide) return false;
     return kill.victimUnitCategory === 'air'
       && kill.victimAirType === 'HELICOPTER'
+      && kill.victimInAir === true
       && kill.weaponClass === 'BOMB';
   }
 }

@@ -240,6 +240,12 @@ local function isFiniteNumber(value)
     return type(value) == "number" and value == value and value > -math.huge and value < math.huge
 end
 
+local function getUnitInAir(unit)
+    local ok, value = pcall(function() return unit:inAir() end)
+    if ok and type(value) == "boolean" then return value end
+    return nil
+end
+
 local function speedOfSoundAtPoint(point)
     if atmosphere and atmosphere.getSpeedOfSound then
         local ok, value = pcall(function() return atmosphere.getSpeedOfSound(point) end)
@@ -330,9 +336,9 @@ function CheckrideMission.emitFlightSampleForEntry(entry, now)
         currentFuelState = fuelState
     end
 
-    local okInAir, unitInAir = pcall(function() return unit:inAir() end)
-    if okInAir then
-        inAir = unitInAir == true
+    local unitInAir = getUnitInAir(unit)
+    if unitInAir ~= nil then
+        inAir = unitInAir
     end
 
     local okType, typeName = pcall(function() return unit:getTypeName() end)
@@ -1659,6 +1665,8 @@ function CheckrideMission.onHit(event)
 
             local weaponClass = weapon and classifyWeaponClass(weapon) or nil
 
+            local victimInAir = getUnitInAir(target)
+
             if targetObjectId then
                 CheckrideMission.pendingKillsByObjectId[targetObjectId] = {
                     killedAtMs      = event.time,
@@ -1670,6 +1678,7 @@ function CheckrideMission.onHit(event)
                     victimPositionY = victimPoint and victimPoint.z or nil,
                     night           = CheckrideMission.isNight(event.time),
                     victimTypeName  = victimTypeName,
+                    victimInAir     = victimInAir,
                 }
             end
             -- No event emitted here — onKill completes and emits kill_enrichment.
@@ -2049,6 +2058,11 @@ function CheckrideMission.onKill(event)
         end
     end
 
+    local victimInAir = pending and pending.victimInAir
+    if victimInAir == nil then
+        victimInAir = getUnitInAir(target)
+    end
+
     -- Killer airframe category
     local killerUnitCategory = nil
     local okKDesc, kDesc = pcall(function() return initiator:getDesc() end)
@@ -2119,6 +2133,7 @@ function CheckrideMission.onKill(event)
         victimObjectId     = victimObjectId,
         victimUnitCategory = victimUnitCategory,
         victimAirType      = victimAirType,
+        victimInAir        = victimInAir,
         isEnemy            = isEnemy,
         carrierDistanceNm  = carrierDistanceNm,
         killerUnitCategory = killerUnitCategory,

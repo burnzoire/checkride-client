@@ -12,6 +12,7 @@ function stateWith(kills) {
 function rocketAirKill(overrides = {}) {
   return {
     victimUnitCategory: 'air',
+    victimInAir: true,
     weaponClass: 'ROCKET',
     weaponGuidance: 'NONE',
     ...overrides,
@@ -40,6 +41,18 @@ describe('UnicornShot — evaluate', () => {
   it('returns false when the target is a ground unit', () => {
     expect(unicornShot.evaluate(KILL_EVENT, stateWith([
       rocketAirKill({ victimUnitCategory: 'ground' }),
+    ]))).toBe(false);
+  });
+
+  it('returns false when the target was on the ground', () => {
+    expect(unicornShot.evaluate(KILL_EVENT, stateWith([
+      rocketAirKill({ victimInAir: false }),
+    ]))).toBe(false);
+  });
+
+  it('returns false when the target airborne state is unknown', () => {
+    expect(unicornShot.evaluate(KILL_EVENT, stateWith([
+      rocketAirKill({ victimInAir: null }),
     ]))).toBe(false);
   });
 

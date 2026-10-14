@@ -112,6 +112,7 @@ class PilotState {
     this.kills.push({
       victimUnitCategory:  event.victimUnitCategory ?? null,
       victimAirType:       event.victimAirType ?? null,
+      victimInAir:         typeof event.victimInAir === 'boolean' ? event.victimInAir : null,
       carrierDistanceNm:   typeof event.carrierDistanceNm === 'number' ? event.carrierDistanceNm : null,
       killedAtMs:          event.killedAtMs ?? null,
       victimRoles,

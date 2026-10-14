@@ -16,6 +16,7 @@ class UnicornShot extends Achievement {
     const kill = state.kills[state.kills.length - 1];
     if (!kill || kill.fratricide) return false;
     return kill.victimUnitCategory === 'air'
+      && kill.victimInAir === true
       && kill.weaponClass === 'ROCKET'
       && kill.weaponGuidance === 'NONE';
   }
